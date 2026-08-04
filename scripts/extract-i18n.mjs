@@ -151,6 +151,99 @@ const SUPPLEMENTAL = {
     es: "Hablando claro:",
     fr: "Parlons franchement :",
   },
+  /* ---- M-51: /portal selection page + header/footer auth entries ---- */
+  "Portal": {
+    es: "Portal",
+    fr: "Portail",
+  },
+  "Login": {
+    es: "Iniciar sesión",
+    fr: "Connexion",
+  },
+  "Support": {
+    es: "Soporte",
+    fr: "Support",
+  },
+  "Choose your portal": {
+    es: "Elige tu portal",
+    fr: "Choisissez votre portail",
+  },
+  "Carriers and shippers each have their own workspace — pick yours to sign in or create an account.":
+    {
+      es: "Carriers y shippers tienen cada uno su propio espacio de trabajo — elige el tuyo para iniciar sesión o crear una cuenta.",
+      fr: "Transporteurs et expéditeurs ont chacun leur propre espace — choisissez le vôtre pour vous connecter ou créer un compte.",
+    },
+  "Carrier Portal": {
+    es: "Portal del Carrier",
+    fr: "Portail Transporteur",
+  },
+  "Shipper Portal": {
+    es: "Portal del Shipper",
+    fr: "Portail Expéditeur",
+  },
+  "Your dispatch back office: document review, agreement status and your loads — in one place.":
+    {
+      es: "Tu back office de dispatch: revisión de documentos, estado del acuerdo y tus cargas — todo en un solo lugar.",
+      fr: "Votre back-office dispatch : vérification des documents, statut de l'accord et vos chargements — au même endroit.",
+    },
+  "Track document review and insurance status": {
+    es: "Sigue la revisión de documentos y el estado del seguro",
+    fr: "Suivez la vérification des documents et le statut d'assurance",
+  },
+  "See your dispatch agreement status": {
+    es: "Consulta el estado de tu acuerdo de dispatch",
+    fr: "Consultez le statut de votre accord de dispatch",
+  },
+  "Follow your loads and dispatch fees": {
+    es: "Sigue tus cargas y tarifas de dispatch",
+    fr: "Suivez vos chargements et frais de dispatch",
+  },
+  "Upload replacement documents any time": {
+    es: "Sube documentos de reemplazo cuando quieras",
+    fr: "Téléversez des documents de remplacement à tout moment",
+  },
+  "Carrier Sign In →": {
+    es: "Iniciar sesión — Carrier →",
+    fr: "Connexion transporteur →",
+  },
+  "New to PickLoads? Become a carrier →": {
+    es: "¿Nuevo en PickLoads? Hazte carrier →",
+    fr: "Nouveau chez PickLoads ? Devenez transporteur →",
+  },
+  "Request quotes and coordinate freight with vetted carriers — and follow every request in one place.":
+    {
+      es: "Solicita cotizaciones y coordina tu carga con carriers verificados — y sigue cada solicitud en un solo lugar.",
+      fr: "Demandez des devis et coordonnez votre fret avec des transporteurs vérifiés — et suivez chaque demande au même endroit.",
+    },
+  "Track your quote requests and statuses": {
+    es: "Sigue tus solicitudes de cotización y sus estados",
+    fr: "Suivez vos demandes de devis et leurs statuts",
+  },
+  "See quoted rates as they come in": {
+    es: "Mira las tarifas cotizadas en cuanto llegan",
+    fr: "Consultez les tarifs proposés dès leur arrivée",
+  },
+  "Request new quotes in minutes": {
+    es: "Solicita nuevas cotizaciones en minutos",
+    fr: "Demandez de nouveaux devis en quelques minutes",
+  },
+  "Talk to a dispatcher about any shipment": {
+    es: "Habla con un dispatcher sobre cualquier envío",
+    fr: "Parlez à un dispatcher de n'importe quelle expédition",
+  },
+  "Shipper Sign In →": {
+    es: "Iniciar sesión — Shipper →",
+    fr: "Connexion expéditeur →",
+  },
+  "New here? Request your first quote →": {
+    es: "¿Primera vez? Solicita tu primera cotización →",
+    fr: "Nouveau ici ? Demandez votre premier devis →",
+  },
+  "PickLoads staff sign in through the same door — your account's role routes you to the right desk.":
+    {
+      es: "El equipo de PickLoads inicia sesión por la misma puerta — el rol de tu cuenta te lleva al escritorio correcto.",
+      fr: "L'équipe PickLoads se connecte par la même porte — le rôle de votre compte vous dirige vers le bon espace.",
+    },
 };
 for (const [en, tr] of Object.entries(SUPPLEMENTAL)) addEntry(en, tr, false);
 // RICH entries are keyed by data-i18n id (hero.title etc.) with per-locale HTML;

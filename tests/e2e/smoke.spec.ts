@@ -89,12 +89,32 @@ test.describe("interior pages", () => {
   });
 });
 
-test.describe("portal auth wall", () => {
-  test("/portal redirects unauthenticated visitors to /login", async ({
+test.describe("portal doors (M-51)", () => {
+  test("/portal shows the pre-auth selection page with both cards", async ({
     page,
   }) => {
     await page.goto("/portal");
-    await expect(page).toHaveURL(/\/login\?next=%2Fportal|\/login\?next=\/portal/);
+    await expect(page).toHaveURL(/\/portal$/);
+    await expect(
+      page.getByRole("heading", { name: "Choose your portal" }),
+    ).toBeVisible();
+    await expect(page.locator(".svc.dispatch h3")).toHaveText("Carriers");
+    await expect(page.locator(".svc.broker h3")).toHaveText("Shippers");
+    await expect(
+      page.getByRole("link", { name: "Carrier Sign In →" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Shipper Sign In →" }),
+    ).toBeVisible();
+  });
+
+  test("/portal/carrier redirects unauthenticated visitors to /login", async ({
+    page,
+  }) => {
+    await page.goto("/portal/carrier");
+    await expect(page).toHaveURL(
+      /\/login\?next=%2Fportal%2Fcarrier|\/login\?next=\/portal\/carrier/,
+    );
     await expect(
       page.getByRole("heading", { name: "Sign in to PickLoads" }),
     ).toBeVisible();

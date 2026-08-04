@@ -1,4 +1,4 @@
-# Module Index — M-00 … M-43
+# Module Index — M-00 … M-43 · Upgrade M-50+
 
 One row per shipped module. Every module passed the full gate (functionality
 · responsiveness · WCAG AA · SEO · security · typecheck · lint · build; test
@@ -33,6 +33,8 @@ suites from M-40 on). Details live in each module's doc.
 | M-41 | H | [M-41-e2e-smoke.md](M-41-e2e-smoke.md) | Playwright: 12 chromium smoke tests against the production build, secretless (~13s) |
 | M-42 | H | [M-42-password-recovery-i18n.md](M-42-password-recovery-i18n.md) | `/forgot-password` + `/reset-password` flows, login link, 10 supplemental es/fr dictionary strings |
 | M-43 | H | [M-43-launch-runbook.md](M-43-launch-runbook.md) | Launch runbook (`docs/LAUNCH-RUNBOOK.md`), README deployment section, this index |
+| M-50 | U | [M-50-data-model.md](M-50-data-model.md) | Upgrade data model: migrations 0005–0009 (shippers, memberships + backfill, account status/history, audit, preferences, fleet, support, notifications, invoices, `freight_quotes.shipper_id` FK + RLS), extended DB types |
+| M-51 | U | [M-51-portal-selection.md](M-51-portal-selection.md) | Pre-auth `/portal` selection page (two V4 cards), header Login + Get Started, mobile menu + Support entries, real topbar/footer auth links (Coming-Soon toasts removed) |
 
 Phases: 0 = foundations · 1 = public site · 2 = onboarding/CRM · 3 =
-loads/billing/content · H = hardening.
+loads/billing/content · H = hardening · U = upgrade directive (M-50a audit).

@@ -92,7 +92,9 @@ export function Footer() {
             <Link href="/blog">{tv("Freight Insights")}</Link>
             <Link href="/faq">{tv("FAQ")}</Link>
             <Link href="/contact">{tv("Contact")}</Link>
-            {/* M-32: shipper portal is live (invite-only accounts). */}
+            {/* M-51: support = staffed inbox for now; the in-portal support
+                module (threads) is a later phase of the upgrade directive. */}
+            <Link href="/contact">{tv("Support")}</Link>
             <Link href="/login">{tv("Shipper Login")}</Link>
           </div>
         </div>

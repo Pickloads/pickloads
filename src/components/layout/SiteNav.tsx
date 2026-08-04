@@ -14,6 +14,8 @@ const NAV_LINKS = [
   { href: "/blog", label: "Blog", match: "/blog" },
   { href: "/about", label: "About", match: "/about" },
   { href: "/contact", label: "Contact", match: "/contact" },
+  // M-51: real auth entry (directive) — sign-in is role-routed server-side.
+  { href: "/login", label: "Login", match: "/login" },
 ] as const;
 
 const MOBILE_LINKS = [
@@ -25,6 +27,10 @@ const MOBILE_LINKS = [
   { href: "/blog", label: "Freight Insights" },
   { href: "/about", label: "About Us" },
   { href: "/contact", label: "Contact" },
+  // M-51: auth + support entries (directive).
+  { href: "/login", label: "Login" },
+  { href: "/portal", label: "Get Started →" },
+  { href: "/contact", label: "Support" },
 ] as const;
 
 export function SiteNav() {
@@ -48,6 +54,10 @@ export function SiteNav() {
           ))}
         </div>
         <div className="nav-cta">
+          {/* M-51: secondary Get Started (directive) → the portal chooser. */}
+          <Link className="btn btn-ghost" href="/portal">
+            {tv("Get Started →")}
+          </Link>
           <Link className="btn btn-amber" href="/#quote">
             {tv("Start Carrier Setup")}
           </Link>

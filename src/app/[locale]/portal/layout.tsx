@@ -12,13 +12,13 @@ export default async function PortalLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const session = await getSessionProfile();
+  // M-51: no session → the only reachable child is the pre-auth /portal
+  // selection page (middleware guards every subpath), which brings its own
+  // public chrome — render it without the sidebar shell.
+  if (!session) return <>{children}</>;
   return (
     <div className="portal">
-      {session ? (
-        <PortalSidebar role={session.role} fullName={session.fullName} />
-      ) : (
-        <aside className="pside" />
-      )}
+      <PortalSidebar role={session.role} fullName={session.fullName} />
       <div className="pmain">{children}</div>
     </div>
   );

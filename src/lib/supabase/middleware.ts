@@ -57,8 +57,10 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
   const { prefix, path } = splitLocale(pathname);
-  const isProtected = PROTECTED_PREFIXES.some(
-    (p) => path === p || path.startsWith(`${p}/`),
+  // M-51: /portal itself is the pre-auth selection page — only its subpaths
+  // require a session. The page role-routes signed-in users server-side.
+  const isProtected = PROTECTED_PREFIXES.some((p) =>
+    path.startsWith(`${p}/`),
   );
 
   if (isProtected && !user) {
