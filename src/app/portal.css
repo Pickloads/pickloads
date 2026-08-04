@@ -1,0 +1,83 @@
+/*
+ * ============================================================================
+ * Portal stylesheet (M-23/M-24/M-25) — internal admin + carrier surface.
+ * Net-new UI per audit U-10, composed STRICTLY from the V4 vocabulary:
+ * every color below is an existing @theme token or a hex/rgba literal that
+ * already appears in v4.css (night #0B0E11, U-03 red family #7a2a2a/#f2c9c9,
+ * amber glows rgba(255,176,32,…), green family). No new colors.
+ * ============================================================================
+ */
+
+/* ---- shell ---- */
+.portal{display:grid;grid-template-columns:230px 1fr;min-height:100vh;background:var(--asphalt)}
+.pside{background:#0B0E11;border-right:1px solid var(--line);padding:20px 14px;display:flex;flex-direction:column;gap:4px}
+.pside .plabel{font-family:var(--font-mono);font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;color:var(--steel);margin:18px 6px 6px}
+.pside a{display:block;color:#cfd6da;font-size:.9rem;font-weight:500;padding:9px 10px;border-radius:6px;border:1px solid transparent}
+.pside a:hover{color:var(--amber)}
+.pside a.active{color:var(--amber);background:var(--asphalt2);border-color:var(--line)}
+.pside .pfoot{margin-top:auto;padding:10px 6px;font-family:var(--font-mono);font-size:.64rem;color:#5c666d}
+.pmain{padding:26px 30px 60px;min-width:0}
+.pbar{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+.pbar h1{font-size:1.45rem;font-weight:900}
+.pbar .crumb{font-family:var(--font-mono);font-size:.7rem;color:var(--steel);letter-spacing:.1em;text-transform:uppercase}
+@media(max-width:860px){.portal{grid-template-columns:1fr}.pside{flex-direction:row;flex-wrap:wrap;align-items:center;border-right:none;border-bottom:1px solid var(--line)}.pside .pfoot{display:none}.pside .plabel{margin:0 6px}}
+
+/* ---- stat tiles (M-24) ---- */
+.ptiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;margin-bottom:26px}
+.ptile{border:1px solid var(--line);border-radius:8px;background:var(--asphalt2);padding:18px 20px}
+.ptile b{font-family:var(--font-mono);font-size:1.7rem;font-weight:600;color:var(--amber);display:block;line-height:1.15}
+.ptile span{font-family:var(--font-mono);font-size:.66rem;color:var(--steel);text-transform:uppercase;letter-spacing:.1em}
+.ptile .sub{display:block;font-family:var(--font-mono);font-size:.66rem;color:#5c666d;margin-top:6px;text-transform:none;letter-spacing:.02em}
+.ptile.warn b{color:#f2c9c9}
+.ptile.good b{color:#4CC492}
+
+/* ---- section headings ---- */
+.psec{font-family:var(--font-mono);font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:var(--amber);margin:26px 0 12px;display:block}
+
+/* ---- tables ---- */
+.ptable-wrap{border:1px solid var(--line);border-radius:8px;background:var(--asphalt2);overflow-x:auto}
+.ptable{width:100%;border-collapse:collapse;font-size:.88rem}
+.ptable th{font-family:var(--font-mono);font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:var(--steel);text-align:left;padding:12px 14px;border-bottom:1px solid var(--line)}
+.ptable td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle;color:#cfd6da}
+.ptable tr:last-child td{border-bottom:none}
+.ptable a{color:var(--amber)}
+.pempty{padding:26px;font-family:var(--font-mono);font-size:.76rem;color:#5c666d}
+
+/* ---- badges ---- */
+.pbadge{display:inline-block;font-family:var(--font-mono);font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;border-radius:3px;padding:2px 8px;border:1px solid var(--line);color:#aeb7bd}
+.pbadge.amber{background:rgba(255,176,32,.12);color:var(--amber);border-color:transparent}
+.pbadge.green{background:rgba(27,122,84,.18);color:#4CC492;border-color:transparent}
+.pbadge.red{background:rgba(74,22,22,.25);color:#f2c9c9;border-color:transparent}
+
+/* ---- kanban (M-23) ---- */
+.kfilters{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px;align-items:end}
+.kfilters .field{min-width:170px}
+.kanban{display:grid;grid-auto-flow:column;grid-auto-columns:250px;gap:12px;overflow-x:auto;align-items:start;padding-bottom:16px}
+.kcol{background:#0B0E11;border:1px solid var(--line);border-radius:8px;padding:10px;min-height:140px}
+.kcol.dragover{border-color:var(--amber)}
+.kcol h3{font-family:var(--font-mono);font-size:.64rem;letter-spacing:.12em;text-transform:uppercase;color:var(--steel);padding:2px 4px 10px;display:flex;justify-content:space-between}
+.kcol h3 i{font-style:normal;color:var(--amber)}
+.kcard{display:block;background:var(--asphalt2);border:1px solid var(--line);border-radius:6px;padding:10px 12px;margin-bottom:8px;cursor:grab;color:inherit}
+.kcard:hover{border-color:var(--amber)}
+.kcard.dragging{opacity:.4}
+.kcard b{display:block;font-family:var(--font-display);font-weight:800;font-size:.9rem;margin-bottom:2px}
+.kcard .kphone{font-family:var(--font-mono);font-size:.74rem;color:var(--amber)}
+.kcard .kmeta{display:block;font-family:var(--font-mono);font-size:.64rem;color:var(--steel);margin-top:5px}
+.kcard .ktags{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.kprio-urgent{background:rgba(74,22,22,.25);color:#f2c9c9;border-color:transparent}
+.kprio-high{background:rgba(255,176,32,.12);color:var(--amber);border-color:transparent}
+
+/* ---- lead detail / timeline (M-23) ---- */
+.pgrid2{display:grid;grid-template-columns:1.1fr .9fr;gap:22px;align-items:start}
+@media(max-width:1020px){.pgrid2{grid-template-columns:1fr}}
+.pcard{border:1px solid var(--line);border-radius:8px;background:var(--asphalt2);padding:20px 22px;margin-bottom:16px}
+.pcard h2{font-size:1.05rem;font-weight:800;margin-bottom:14px}
+.timeline{list-style:none;margin:0;padding:0}
+.tl{position:relative;border-left:2px solid var(--line);padding:0 0 18px 18px;margin-left:6px}
+.tl:last-child{padding-bottom:2px}
+.tl::before{content:"";position:absolute;left:-5px;top:4px;width:8px;height:8px;border-radius:50%;background:var(--amber)}
+.tl .tlt{font-family:var(--font-mono);font-size:.64rem;letter-spacing:.1em;text-transform:uppercase;color:var(--steel);display:block;margin-bottom:3px}
+.tl p{font-size:.88rem;color:#cfd6da;margin:0}
+.pform-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+@media(max-width:640px){.pform-row{grid-template-columns:1fr}}
+.btn-sm{padding:9px 16px;font-size:.8rem}

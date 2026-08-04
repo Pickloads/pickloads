@@ -1,0 +1,69 @@
+import type { Metadata } from "next";
+import { requireStaff } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
+import {
+  KanbanBoard,
+  type KanbanLead,
+  type StaffOption,
+} from "@/components/portal/KanbanBoard";
+
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Leads CRM — PickLoads",
+  robots: { index: false, follow: false },
+};
+
+/**
+ * M-23 — staff-only Kanban CRM over carrier_leads. Reads run under the
+ * user's RLS (staff select policies); internal tool, English only.
+ */
+export default async function LeadsPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  await requireStaff(locale);
+  const supabase = await createClient();
+
+  const [{ data: leadRows, error }, { data: staffRows }] = await Promise.all([
+    supabase
+      .from("carrier_leads")
+      .select(
+        "id, full_name, phone, truck_type, trailer_type, lead_type, source, status, priority, tags, assigned_to, callback_at, created_at",
+      )
+      .order("created_at", { ascending: false })
+      .limit(500),
+    supabase
+      .from("profiles")
+      .select("id, full_name, role")
+      .in("role", ["admin", "dispatcher"]),
+  ]);
+
+  const leads: KanbanLead[] = leadRows ?? [];
+  const staff: StaffOption[] = (staffRows ?? []).map((s) => ({
+    id: s.id,
+    name: s.full_name ?? "Staff",
+  }));
+
+  return (
+    <main>
+      <div className="pbar">
+        <div>
+          <span className="crumb">Dispatch desk / CRM</span>
+          <h1>Leads pipeline</h1>
+        </div>
+        <span className="pbadge amber">{leads.length} leads</span>
+      </div>
+      {error ? (
+        <p className="pempty">
+          Couldn&apos;t load leads ({error.message}). Check the Supabase
+          connection.
+        </p>
+      ) : (
+        <KanbanBoard leads={leads} staff={staff} />
+      )}
+    </main>
+  );
+}
