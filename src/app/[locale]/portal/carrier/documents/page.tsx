@@ -41,7 +41,7 @@ export default async function CarrierDocumentsPage({
 
   if (!carrier) {
     return (
-      <main>
+      <main id="main">
         <div className="pbar">
           <div>
             <span className="crumb">{tv("Carrier portal")}</span>
@@ -69,7 +69,7 @@ export default async function CarrierDocumentsPage({
   const signed = carrier.agreement_signed_at !== null;
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">

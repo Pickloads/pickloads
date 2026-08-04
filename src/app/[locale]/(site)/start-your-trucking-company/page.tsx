@@ -52,7 +52,7 @@ export default async function StartTruckingCompanyPage({
   };
 
   return (
-    <main>
+    <main id="main">
       <JsonLd data={serviceJsonLd} />
       <PageHero
         eyebrow={tv("Start your trucking company")}

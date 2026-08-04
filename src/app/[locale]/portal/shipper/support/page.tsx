@@ -31,7 +31,7 @@ export default async function ShipperSupportPage({
     .limit(50);
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">{tv("Shipper portal")}</span>

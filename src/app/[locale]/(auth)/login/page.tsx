@@ -35,7 +35,7 @@ export default async function LoginPage({
 function LoginContent() {
   const tv = useV4();
   return (
-    <main>
+    <main id="main">
       <PageHero eyebrow={tv("Portal")} title={tv("Sign in to PickLoads")}>
         {tv(
           "Carriers: track your documents and agreement. Staff: leads, dispatch and operations.",

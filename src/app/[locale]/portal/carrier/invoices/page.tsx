@@ -40,7 +40,7 @@ export default async function CarrierInvoicesPage({
   const carrierId = await getMyCarrierId(supabase);
   if (!carrierId) {
     return (
-      <main>
+      <main id="main">
         <div className="pbar">
           <div>
             <span className="crumb">{tv("Carrier portal")}</span>
@@ -94,7 +94,7 @@ export default async function CarrierInvoicesPage({
       : "—";
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">{tv("Carrier portal")}</span>
@@ -125,7 +125,7 @@ export default async function CarrierInvoicesPage({
             )}
           </p>
         ) : (
-          <table className="ptable">
+          <table className="ptable ptable--cards">
             <thead>
               <tr>
                 <th>{tv("Issued")}</th>
@@ -139,16 +139,16 @@ export default async function CarrierInvoicesPage({
             <tbody>
               {invoices.map((i) => (
                 <tr key={i.id}>
-                  <td style={{ whiteSpace: "nowrap" }}>{dateFmt(i.issued_at)}</td>
-                  <td style={{ whiteSpace: "nowrap" }}>{laneOf(i.load_id)}</td>
-                  <td>{formatMoney(i.amount_cents / 100)}</td>
-                  <td>{i.status === "paid" ? dateFmt(i.paid_at) : dateFmt(i.due_at)}</td>
-                  <td>
+                  <td style={{ whiteSpace: "nowrap" }} data-th={tv("Issued")}>{dateFmt(i.issued_at)}</td>
+                  <td style={{ whiteSpace: "nowrap" }} data-th={tv("Load")}>{laneOf(i.load_id)}</td>
+                  <td data-th={tv("Amount")}>{formatMoney(i.amount_cents / 100)}</td>
+                  <td data-th={tv("Due")}>{i.status === "paid" ? dateFmt(i.paid_at) : dateFmt(i.due_at)}</td>
+                  <td data-th={tv("Status")}>
                     <span className={`pbadge ${STATUS_BADGE[i.status].cls}`}>
                       {tv(STATUS_BADGE[i.status].label)}
                     </span>
                   </td>
-                  <td>
+                  <td data-th={tv("Actions")}>
                     {i.hosted_url ? (
                       <a
                         className="btn btn-ghost btn-sm"

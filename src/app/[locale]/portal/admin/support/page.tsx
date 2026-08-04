@@ -67,7 +67,7 @@ export default async function AdminSupportPage({
   ).length;
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">Dispatch desk / Operations</span>

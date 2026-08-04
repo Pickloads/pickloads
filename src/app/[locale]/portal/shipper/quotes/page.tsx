@@ -54,7 +54,7 @@ export default async function ShipperQuotesPage({
         {QUOTE_STAGES.map((stage, i) => (
           <span
             key={stage}
-            style={{ color: i <= s.stage ? "var(--amber)" : "#5c666d" }}
+            style={{ color: i <= s.stage ? "var(--amber)" : "var(--color-steel)" }}
           >
             {i <= s.stage ? "●" : "○"}
           </span>
@@ -65,7 +65,7 @@ export default async function ShipperQuotesPage({
   };
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">{tv("Shipper portal")}</span>
@@ -96,7 +96,7 @@ export default async function ShipperQuotesPage({
             </p>
           )
         ) : (
-          <table className="ptable">
+          <table className="ptable ptable--cards">
             <thead>
               <tr>
                 <th>{tv("Requested")}</th>
@@ -112,19 +112,19 @@ export default async function ShipperQuotesPage({
             <tbody>
               {quotes.map((q) => (
                 <tr key={q.id}>
-                  <td style={{ whiteSpace: "nowrap" }}>
+                  <td style={{ whiteSpace: "nowrap" }} data-th={tv("Requested")}>
                     {new Date(q.created_at).toLocaleDateString("en-US", {
                       month: "short",
                       day: "numeric",
                       year: "numeric",
                     })}
                   </td>
-                  <td style={{ whiteSpace: "nowrap" }}>{lane(q)}</td>
-                  <td>{q.pickup_date ?? "—"}</td>
-                  <td>{q.delivery_deadline ?? "—"}</td>
-                  <td>{q.commodity ?? "—"}</td>
-                  <td>{q.equipment ?? "—"}</td>
-                  <td>
+                  <td style={{ whiteSpace: "nowrap" }} data-th={tv("Lane")}>{lane(q)}</td>
+                  <td data-th={tv("Pickup")}>{q.pickup_date ?? "—"}</td>
+                  <td data-th={tv("Deadline")}>{q.delivery_deadline ?? "—"}</td>
+                  <td data-th={tv("Commodity")}>{q.commodity ?? "—"}</td>
+                  <td data-th={tv("Equipment")}>{q.equipment ?? "—"}</td>
+                  <td data-th={tv("Quoted rate")}>
                     {q.quoted_rate !== null
                       ? q.quoted_rate.toLocaleString("en-US", {
                           style: "currency",
@@ -132,7 +132,7 @@ export default async function ShipperQuotesPage({
                         })
                       : "—"}
                   </td>
-                  <td>{timeline(q.status)}</td>
+                  <td data-th={tv("Progress")}>{timeline(q.status)}</td>
                 </tr>
               ))}
             </tbody>

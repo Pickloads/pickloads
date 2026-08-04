@@ -15,19 +15,37 @@
 .pside a{display:block;color:#cfd6da;font-size:.9rem;font-weight:500;padding:9px 10px;border-radius:6px;border:1px solid transparent}
 .pside a:hover{color:var(--amber)}
 .pside a.active{color:var(--amber);background:var(--asphalt2);border-color:var(--line)}
-.pside .pfoot{margin-top:auto;padding:10px 6px;font-family:var(--font-mono);font-size:.64rem;color:#5c666d}
+.pside .pfoot{margin-top:auto;padding:10px 6px;font-family:var(--font-mono);font-size:.64rem;color:var(--color-steel)}
 .pmain{padding:26px 30px 60px;min-width:0}
 .pbar{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:22px}
 .pbar h1{font-size:1.45rem;font-weight:900}
 .pbar .crumb{font-family:var(--font-mono);font-size:.7rem;color:var(--steel);letter-spacing:.1em;text-transform:uppercase}
-@media(max-width:860px){.portal{grid-template-columns:1fr}.pside{flex-direction:row;flex-wrap:wrap;align-items:center;border-right:none;border-bottom:1px solid var(--line)}.pside .pfoot{display:none}.pside .plabel{margin:0 6px}}
+/* M-59 shell v2 — ≤860px the sidebar becomes an off-canvas drawer toggled
+   from a sticky mobile bar (the old wrap-to-row nav could not hold the
+   11-item customer navs). Colors/typography reuse existing tokens only. */
+.pmobilebar{display:none}
+@media(max-width:860px){
+  .portal{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .pmobilebar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#0B0E11;border-bottom:1px solid var(--line);padding:8px 16px;position:sticky;top:0;z-index:70}
+  .pmenu{background:none;border:1.5px solid var(--line);color:var(--paper);border-radius:6px;padding:10px 14px;font-size:1rem;cursor:pointer;min-height:44px}
+  .pmenu:hover{border-color:var(--amber);color:var(--amber)}
+  .pside{position:fixed;top:0;bottom:0;left:0;width:min(300px,85vw);z-index:80;transform:translateX(-103%);transition:transform .2s ease;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+  .pside.open{transform:none}
+  .pside a{padding:12px 10px}
+  .pside .pfoot{margin-top:16px}
+  .pclose{background:none;border:1.5px solid var(--line);color:var(--paper);border-radius:6px;padding:8px 12px;font-size:.9rem;cursor:pointer;align-self:flex-end;min-height:44px;min-width:44px}
+  .pbackdrop{position:fixed;inset:0;background:rgba(11,14,17,.65);z-index:75;border:none;padding:0;cursor:pointer}
+  .pmain{padding:18px 16px 60px}
+}
+@media(min-width:861px){.pclose,.pbackdrop{display:none}}
+@media(prefers-reduced-motion:reduce){.pside{transition:none}}
 
 /* ---- stat tiles (M-24) ---- */
 .ptiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;margin-bottom:26px}
 .ptile{border:1px solid var(--line);border-radius:8px;background:var(--asphalt2);padding:18px 20px}
 .ptile b{font-family:var(--font-mono);font-size:1.7rem;font-weight:600;color:var(--amber);display:block;line-height:1.15}
 .ptile span{font-family:var(--font-mono);font-size:.66rem;color:var(--steel);text-transform:uppercase;letter-spacing:.1em}
-.ptile .sub{display:block;font-family:var(--font-mono);font-size:.66rem;color:#5c666d;margin-top:6px;text-transform:none;letter-spacing:.02em}
+.ptile .sub{display:block;font-family:var(--font-mono);font-size:.66rem;color:var(--color-steel);margin-top:6px;text-transform:none;letter-spacing:.02em}
 .ptile.warn b{color:#f2c9c9}
 .ptile.good b{color:#4CC492}
 
@@ -41,7 +59,7 @@
 .ptable td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle;color:#cfd6da}
 .ptable tr:last-child td{border-bottom:none}
 .ptable a{color:var(--amber)}
-.pempty{padding:26px;font-family:var(--font-mono);font-size:.76rem;color:#5c666d}
+.pempty{padding:26px;font-family:var(--font-mono);font-size:.76rem;color:var(--color-steel)}
 
 /* ---- badges ---- */
 .pbadge{display:inline-block;font-family:var(--font-mono);font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;border-radius:3px;padding:2px 8px;border:1px solid var(--line);color:#aeb7bd}
@@ -81,3 +99,21 @@
 .pform-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
 @media(max-width:640px){.pform-row{grid-template-columns:1fr}}
 .btn-sm{padding:9px 16px;font-size:.8rem}
+
+/* ---- M-59 mobile table-to-cards + touch targets (token-only) ----
+   Apply .ptable--cards + per-cell data-th labels on customer-facing tables;
+   staff tables keep the controlled .ptable-wrap horizontal scroll. */
+@media(max-width:640px){
+  .ptable--cards thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .ptable--cards tr{display:block;border-bottom:1px solid var(--line);padding:8px 0}
+  .ptable--cards tr:last-child{border-bottom:none}
+  .ptable--cards td{white-space:normal!important;display:flex;justify-content:space-between;align-items:baseline;gap:14px;border-bottom:none;padding:5px 14px;text-align:right}
+  .ptable--cards td::before{content:attr(data-th);font-family:var(--font-mono);font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:var(--steel);text-align:left;flex:none}
+  .ptable--cards td:first-child{padding-top:8px}
+  .ptable--cards td:last-child{padding-bottom:10px}
+}
+@media(pointer:coarse){
+  .pside a{padding-top:12px;padding-bottom:12px}
+  .btn-sm{min-height:44px}
+  .ptable a{padding:10px 0;display:inline-block}
+}

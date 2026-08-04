@@ -33,7 +33,7 @@ export default async function ShippersPage({
 function ShippersContent() {
   const tv = useV4();
   return (
-    <main>
+    <main id="main">
       <PageHero
         eyebrow={tv("For shippers")}
         title={tv(
@@ -100,7 +100,7 @@ function ShippersContent() {
 
       <section style={{ paddingTop: 0 }}>
         <div className="wrap">
-          <div className="flow">
+          <div className="flow" tabIndex={0} role="region" aria-label={tv("Process steps (scrollable)")}>
             <span className="flow-title">
               {tv("Shipper process — from quote to POD")}
             </span>

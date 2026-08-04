@@ -42,7 +42,7 @@ export default async function PortalSelectPage({
     <>
       <Topbar />
       <SiteNav />
-      <main>
+      <main id="main">
         <PageHero eyebrow={tv("Portal")} title={tv("Choose your portal")}>
           {tv(
             "Carriers and shippers each have their own workspace — pick yours to sign in or create an account.",

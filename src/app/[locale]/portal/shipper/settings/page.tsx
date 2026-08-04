@@ -39,7 +39,7 @@ export default async function ShipperSettingsPage({
   ]);
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">{tv("Shipper portal")}</span>

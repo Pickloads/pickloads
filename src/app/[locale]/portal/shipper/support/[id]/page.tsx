@@ -46,7 +46,7 @@ export default async function ShipperSupportThreadPage({
     .limit(200);
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">

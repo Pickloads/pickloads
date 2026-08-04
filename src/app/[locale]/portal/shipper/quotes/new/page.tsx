@@ -33,7 +33,7 @@ export default async function ShipperNewQuotePage({
     .maybeSingle();
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">{tv("Shipper portal")}</span>

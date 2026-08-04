@@ -65,7 +65,7 @@ export default async function CarrierSupportPage({
   }
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">{tv("Carrier portal")}</span>

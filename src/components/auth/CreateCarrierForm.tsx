@@ -177,14 +177,14 @@ export function CreateCarrierForm() {
           <input id="ca-pass" name="password" type="password" required minLength={8} autoComplete="new-password" placeholder="••••••••" />
         </div>
         {authority === "none" ? (
-          <p className="mono" style={{ fontSize: ".72rem", color: "var(--amber-deep)", margin: "0 0 16px" }}>
+          <p className="mono" style={{ fontSize: ".72rem", color: "var(--color-amber-aa)", margin: "0 0 16px" }}>
             {"// "}
             {tv(
               "No authority yet? You still get a full account — plus the launch checklist and a same-day call from a dispatcher.",
             )}
           </p>
         ) : authority === "leased_on" ? (
-          <p className="mono" style={{ fontSize: ".72rem", color: "var(--amber-deep)", margin: "0 0 16px" }}>
+          <p className="mono" style={{ fontSize: ".72rem", color: "var(--color-amber-aa)", margin: "0 0 16px" }}>
             {"// "}
             {tv(
               "Leased-on setups are reviewed personally — a dispatcher confirms how your lease works before dispatch starts.",
@@ -213,7 +213,7 @@ export function CreateCarrierForm() {
         {tv("Already have an account?")}{" "}
         <Link
           href="/login"
-          style={{ color: "var(--amber-deep)", textDecoration: "underline" }}
+          style={{ color: "var(--color-amber-aa)", textDecoration: "underline" }}
         >
           {tv("Sign In →")}
         </Link>

@@ -1,4 +1,5 @@
 import { Topbar } from "@/components/layout/Topbar";
+import { SkipLink } from "@/components/ui/SkipLink";
 
 /**
  * (auth) chrome — deliberately minimal (no nav/footer): sign-in is a utility
@@ -10,6 +11,7 @@ export default function AuthLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <>
+      <SkipLink />
       <Topbar />
       {children}
     </>

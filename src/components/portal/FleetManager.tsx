@@ -181,7 +181,7 @@ export function TrucksManager({ trucks }: { trucks: TruckRowUi[] }) {
             {tv("No trucks on file yet — add your first unit above so dispatch knows what you run.")}
           </p>
         ) : (
-          <table className="ptable">
+          <table className="ptable ptable--cards">
             <thead>
               <tr>
                 <th>{tv("Unit #")}</th>
@@ -195,23 +195,23 @@ export function TrucksManager({ trucks }: { trucks: TruckRowUi[] }) {
             <tbody>
               {trucks.map((t) => (
                 <tr key={t.id}>
-                  <td>{t.unit_number ?? "—"}</td>
-                  <td>{tv(t.equipment)}</td>
-                  <td>
+                  <td data-th={tv("Unit #")}>{t.unit_number ?? "—"}</td>
+                  <td data-th={tv("Equipment")}>{tv(t.equipment)}</td>
+                  <td data-th={tv("Truck")}>
                     {[t.year, t.make, t.model].filter(Boolean).join(" ") || "—"}
                     {t.vin ? (
-                      <span className="mono" style={{ display: "block", fontSize: ".62rem", color: "#5c666d" }}>
+                      <span className="mono" style={{ display: "block", fontSize: ".62rem", color: "var(--color-steel)" }}>
                         VIN {t.vin}
                       </span>
                     ) : null}
                   </td>
-                  <td>{[t.plate, t.plate_state].filter(Boolean).join(" · ") || "—"}</td>
-                  <td>
+                  <td data-th={tv("Plate")}>{[t.plate, t.plate_state].filter(Boolean).join(" · ") || "—"}</td>
+                  <td data-th={tv("Status")}>
                     <span className={`pbadge ${t.active ? "green" : ""}`}>
                       {t.active ? tv("In service") : tv("Out of service")}
                     </span>
                   </td>
-                  <td style={{ whiteSpace: "nowrap" }}>
+                  <td style={{ whiteSpace: "nowrap" }} data-th={tv("Actions")}>
                     <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(t)}>
                       {tv("Edit")}
                     </button>{" "}
@@ -311,7 +311,7 @@ export function DriversManager({ drivers }: { drivers: DriverRowUi[] }) {
             {tv("No drivers on file yet — add your drivers so dispatch can plan hours and home time.")}
           </p>
         ) : (
-          <table className="ptable">
+          <table className="ptable ptable--cards">
             <thead>
               <tr>
                 <th>{tv("Driver")}</th>
@@ -325,30 +325,30 @@ export function DriversManager({ drivers }: { drivers: DriverRowUi[] }) {
             <tbody>
               {drivers.map((d) => (
                 <tr key={d.id}>
-                  <td>{d.full_name}</td>
-                  <td>
+                  <td data-th={tv("Driver")}>{d.full_name}</td>
+                  <td data-th={tv("Contact")}>
                     {d.phone ?? "—"}
                     {d.email ? (
-                      <span className="mono" style={{ display: "block", fontSize: ".62rem", color: "#5c666d" }}>
+                      <span className="mono" style={{ display: "block", fontSize: ".62rem", color: "var(--color-steel)" }}>
                         {d.email}
                       </span>
                     ) : null}
                   </td>
-                  <td>
+                  <td data-th={tv("CDL #")}>
                     {[d.cdl_number, d.cdl_state].filter(Boolean).join(" · ") || "—"}
                     {d.cdl_expiry ? (
-                      <span className="mono" style={{ display: "block", fontSize: ".62rem", color: "#5c666d" }}>
+                      <span className="mono" style={{ display: "block", fontSize: ".62rem", color: "var(--color-steel)" }}>
                         {tv("exp.")} {d.cdl_expiry}
                       </span>
                     ) : null}
                   </td>
-                  <td>{d.medical_card_expiry ?? "—"}</td>
-                  <td>
+                  <td data-th={tv("Medical card")}>{d.medical_card_expiry ?? "—"}</td>
+                  <td data-th={tv("Status")}>
                     <span className={`pbadge ${d.active ? "green" : ""}`}>
                       {d.active ? tv("Active") : tv("Inactive")}
                     </span>
                   </td>
-                  <td style={{ whiteSpace: "nowrap" }}>
+                  <td style={{ whiteSpace: "nowrap" }} data-th={tv("Actions")}>
                     <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(d)}>
                       {tv("Edit")}
                     </button>{" "}

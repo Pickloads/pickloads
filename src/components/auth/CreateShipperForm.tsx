@@ -206,7 +206,7 @@ export function CreateShipperForm() {
         {tv("Already have an account?")}{" "}
         <Link
           href="/login"
-          style={{ color: "var(--amber-deep)", textDecoration: "underline" }}
+          style={{ color: "var(--color-amber-aa)", textDecoration: "underline" }}
         >
           {tv("Sign In →")}
         </Link>

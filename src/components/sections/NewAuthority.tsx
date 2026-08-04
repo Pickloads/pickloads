@@ -56,7 +56,7 @@ export function NewAuthority() {
             </Link>
           </div>
         </div>
-        <div className="flow">
+        <div className="flow" tabIndex={0} role="region" aria-label={tv("Process steps (scrollable)")}>
           <span className="flow-title">
             {tv("New authority path — from zero to first load")}
           </span>

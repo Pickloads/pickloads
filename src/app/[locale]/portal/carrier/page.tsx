@@ -43,7 +43,7 @@ export default async function CarrierOverviewPage({
   const carrierId = await getMyCarrierId(supabase);
   if (!carrierId) {
     return (
-      <main>
+      <main id="main">
         <div className="pbar">
           <div>
             <span className="crumb">{tv("Carrier portal")}</span>
@@ -110,7 +110,7 @@ export default async function CarrierOverviewPage({
 
   if (!carrier) {
     return (
-      <main>
+      <main id="main">
         <p className="pempty">
           {tv(
             "Your account isn't linked to a carrier record yet. If you just onboarded, our team activates the link during document review — or call (908) 404-5373.",
@@ -170,7 +170,7 @@ export default async function CarrierOverviewPage({
     new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">

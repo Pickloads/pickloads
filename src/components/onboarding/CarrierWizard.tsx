@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useActionState } from "react";
 import { useLocale } from "next-intl";
 import { Link } from "@/i18n/navigation";
@@ -85,6 +85,23 @@ export function CarrierWizard({ esignLive }: { esignLive: boolean }) {
     if (startState.status === "success" && startState.carrierId) setStep(2);
   }, [startState]);
 
+  // M-59 (WCAG 2.4.3): advancing a step moves focus to the new panel's
+  // heading so screen-reader/keyboard users land at the start of the step.
+  const wizardRef = useRef<HTMLDivElement | null>(null);
+  const visitedStep = useRef(false);
+  useEffect(() => {
+    if (!visitedStep.current) {
+      visitedStep.current = true;
+      return;
+    }
+    const heading =
+      wizardRef.current?.querySelector<HTMLElement>(".bigform h2");
+    if (heading) {
+      heading.tabIndex = -1;
+      heading.focus({ preventScroll: false });
+    }
+  }, [step]);
+
   const stepClass = (n: 1 | 2 | 3 | 4) =>
     `step${step === n ? " current" : ""}${step > n ? " done" : ""}`;
 
@@ -93,7 +110,7 @@ export function CarrierWizard({ esignLive }: { esignLive: boolean }) {
       setInfo((prev) => ({ ...prev, [key]: e.target.value }));
 
   return (
-    <div className="wizard">
+    <div className="wizard" ref={wizardRef}>
       {/* Progress indicator — V4 .steps vocabulary */}
       <ol className="steps" style={{ listStyle: "none", padding: 0 }} aria-label={tv("Onboarding progress")}>
         <li className={stepClass(1)} aria-current={step === 1 ? "step" : undefined}>
@@ -209,7 +226,7 @@ export function CarrierWizard({ esignLive }: { esignLive: boolean }) {
               />
             ))}
           </div>
-          <p className="mono" style={{ fontSize: ".72rem", color: "var(--color-slate-soft)", margin: "10px 0 18px" }}>
+          <p className="mono" style={{ fontSize: ".72rem", color: "var(--color-slate-aa)", margin: "10px 0 18px" }}>
             {"// "}
             {tv(
               "Files are stored in a private, encrypted bucket and reviewed by our compliance team — never public.",

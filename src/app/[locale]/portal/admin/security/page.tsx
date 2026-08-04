@@ -66,7 +66,7 @@ export default async function AdminSecurityPage({
   };
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">Dispatch desk / Security</span>

@@ -35,7 +35,7 @@ function AboutContent() {
   const tv = useV4();
   const t = useV4Rich();
   return (
-    <main>
+    <main id="main">
       <PageHero
         eyebrow={tv("About PickLoads")}
         title={tv(

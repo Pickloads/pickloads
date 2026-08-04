@@ -133,7 +133,7 @@ export function NewAuthorityLeadForm() {
       </div>
       <p
         className="mono"
-        style={{ fontSize: ".7rem", color: "var(--color-slate-soft)", marginTop: 16 }}
+        style={{ fontSize: ".7rem", color: "var(--color-slate-aa)", marginTop: 16 }}
       >
         {"// "}
         {tv(

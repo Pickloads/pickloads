@@ -38,7 +38,7 @@ export default async function TruckDispatchIndexPage({
   const tv = await getV4(locale);
 
   return (
-    <main>
+    <main id="main">
       <PageHero
         eyebrow={tv("Truck dispatch by state")}
         title={tv("Local lanes. Local knowledge.")}
@@ -70,7 +70,7 @@ export default async function TruckDispatchIndexPage({
           </div>
           <p
             className="mono"
-            style={{ fontSize: ".78rem", color: "var(--color-dim)", marginTop: 28 }}
+            style={{ fontSize: ".78rem", color: "var(--color-steel)", marginTop: 28 }}
           >
             {"// "}
             {tv(

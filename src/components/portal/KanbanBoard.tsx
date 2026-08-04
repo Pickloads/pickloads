@@ -210,7 +210,7 @@ export function KanbanBoard({
                       </Link>
                     </b>
                     <a className="kphone" href={`tel:${lead.phone.replace(/[^+\d]/g, "")}`}>
-                      ☎ {lead.phone}
+                      <span aria-hidden="true">☎</span> {lead.phone}
                     </a>
                     <span className="kmeta">
                       {[lead.truck_type, lead.trailer_type]

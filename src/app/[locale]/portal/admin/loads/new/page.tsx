@@ -41,7 +41,7 @@ export default async function NewLoadPage({
   }));
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">Dispatch desk / Operations / Loads</span>

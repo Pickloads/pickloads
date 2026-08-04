@@ -32,7 +32,7 @@ export default async function BecomeACarrierPage({
   const esignLive = isEsignConfigured();
 
   return (
-    <main>
+    <main id="main">
       <PageHero
         eyebrow={tv("Carrier onboarding")}
         title={tv("On the road with us in 24 hours.")}
@@ -48,7 +48,7 @@ export default async function BecomeACarrierPage({
             className="mono"
             style={{
               fontSize: ".72rem",
-              color: "var(--color-slate-soft)",
+              color: "var(--color-slate-aa)",
               marginTop: 26,
             }}
           >

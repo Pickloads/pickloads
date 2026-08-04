@@ -37,7 +37,7 @@ export default async function CreateCarrierAccountPage({
 function CarrierAccountContent() {
   const tv = useV4();
   return (
-    <main>
+    <main id="main">
       <PageHero eyebrow={tv("Portal")} title={tv("Create your carrier account")}>
         {tv(
           "Tell us where your authority stands and we'll route you to the right next step — onboarding, tracking, or launch help.",

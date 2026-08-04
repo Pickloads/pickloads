@@ -51,7 +51,7 @@ export default async function HomePage({
   setRequestLocale(locale);
 
   return (
-    <main>
+    <main id="main">
         {/* M-15: LocalBusiness + Service structured data */}
         <JsonLd data={localBusinessJsonLd()} />
         <Hero />

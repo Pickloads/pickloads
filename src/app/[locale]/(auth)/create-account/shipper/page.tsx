@@ -57,7 +57,7 @@ export default async function CreateShipperAccountPage({
   const open = await shipperSignupEnabled();
 
   return (
-    <main>
+    <main id="main">
       <PageHero eyebrow={tv("Portal")} title={tv("Create your shipper account")}>
         {tv(
           "Request quotes, see rates as they land, and coordinate freight with vetted carriers — from your own portal.",

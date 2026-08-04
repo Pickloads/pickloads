@@ -50,7 +50,7 @@ export default async function FaqPage({
 function FaqContent() {
   const tv = useV4();
   return (
-    <main>
+    <main id="main">
       <PageHero
         eyebrow={tv("FAQ")}
         title={tv("Straight answers. No fine print.")}

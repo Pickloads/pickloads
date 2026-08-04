@@ -45,7 +45,7 @@ export default async function BlogPage({
   const posts = await fetchPublishedPosts(locale);
 
   return (
-    <main>
+    <main id="main">
       <PageHero
         eyebrow={tv("Freight Insights")}
         title={tv("The road, the rates, the rules.")}
@@ -62,7 +62,7 @@ export default async function BlogPage({
               className="mono"
               style={{
                 fontSize: ".82rem",
-                color: "var(--color-dim)",
+                color: "var(--color-steel)",
                 marginTop: 44,
                 maxWidth: 620,
               }}

@@ -34,7 +34,7 @@ export default async function CarrierAgreementsPage({
   const carrierId = await getMyCarrierId(supabase);
   if (!carrierId) {
     return (
-      <main>
+      <main id="main">
         <div className="pbar">
           <div>
             <span className="crumb">{tv("Carrier portal")}</span>
@@ -69,7 +69,7 @@ export default async function CarrierAgreementsPage({
   const executedCopies = agreementDocs ?? [];
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">

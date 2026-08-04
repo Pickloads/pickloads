@@ -63,7 +63,7 @@ export default async function CarrierLoadsPage({
   const feeTotal = delivered.reduce((sum, l) => sum + l.dispatch_fee, 0);
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">
@@ -108,7 +108,7 @@ export default async function CarrierLoadsPage({
                 )}
               </p>
             ) : (
-              <table className="ptable">
+              <table className="ptable ptable--cards">
                 <thead>
                   <tr>
                     <th>{tv("Lane")}</th>
@@ -124,25 +124,25 @@ export default async function CarrierLoadsPage({
                 <tbody>
                   {loads.map((l) => (
                     <tr key={l.id}>
-                      <td style={{ whiteSpace: "nowrap" }}>{formatLane(l)}</td>
-                      <td>{l.pickup_date ?? "—"}</td>
-                      <td>{l.broker_name ?? "—"}</td>
-                      <td>{l.equipment ?? "—"}</td>
-                      <td>{formatMoney(l.gross_rate)}</td>
-                      <td>{formatRpm(l.gross_rate, l.miles)}</td>
-                      <td>
+                      <td style={{ whiteSpace: "nowrap" }} data-th={tv("Lane")}>{formatLane(l)}</td>
+                      <td data-th={tv("Pickup")}>{l.pickup_date ?? "—"}</td>
+                      <td data-th={tv("Broker")}>{l.broker_name ?? "—"}</td>
+                      <td data-th={tv("Equipment")}>{l.equipment ?? "—"}</td>
+                      <td data-th={tv("Gross")}>{formatMoney(l.gross_rate)}</td>
+                      <td data-th={tv("RPM")}>{formatRpm(l.gross_rate, l.miles)}</td>
+                      <td data-th={tv("Dispatch fee")}>
                         {formatMoney(l.dispatch_fee)}{" "}
                         <span
                           style={{
                             fontFamily: "var(--font-mono)",
                             fontSize: ".62rem",
-                            color: "#5c666d",
+                            color: "var(--color-steel)",
                           }}
                         >
                           ({l.fee_pct_applied ?? "—"}%)
                         </span>
                       </td>
-                      <td>
+                      <td data-th={tv("Status")}>
                         <span className={`pbadge ${LOAD_STATUS_BADGE[l.status]}`}>
                           {tv(LOAD_STATUS_LABELS[l.status])}
                         </span>

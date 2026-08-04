@@ -164,7 +164,7 @@ export default async function AdminUsersPage({
   };
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">Dispatch desk / Accounts</span>
@@ -226,12 +226,12 @@ export default async function AdminUsersPage({
                   <tr key={u.id}>
                     <td>
                       {u.full_name ?? "—"}
-                      <span className="mono" style={{ display: "block", fontSize: ".62rem", color: "#5c666d" }}>
+                      <span className="mono" style={{ display: "block", fontSize: ".62rem", color: "var(--color-steel)" }}>
                         {emailById.get(u.id) ??
                           (admin ? "—" : "email: needs service credentials")}
                         {u.phone ? ` · ${u.phone}` : ""}
                       </span>
-                      <span className="mono" style={{ display: "block", fontSize: ".62rem", color: "#5c666d" }}>
+                      <span className="mono" style={{ display: "block", fontSize: ".62rem", color: "var(--color-steel)" }}>
                         joined{" "}
                         {new Date(u.created_at).toLocaleDateString("en-US", {
                           month: "short",
@@ -247,7 +247,7 @@ export default async function AdminUsersPage({
                       {carrier ? (
                         <>
                           {carrier.company_name}
-                          <span className="mono" style={{ display: "block", fontSize: ".62rem", color: "#5c666d" }}>
+                          <span className="mono" style={{ display: "block", fontSize: ".62rem", color: "var(--color-steel)" }}>
                             {carrier.mc_number ? `MC ${carrier.mc_number} · ` : ""}
                             onboarding {progress?.done}/{progress?.total}
                             {carrier.active ? " · ACTIVE" : ""}
@@ -275,11 +275,11 @@ export default async function AdminUsersPage({
                     </td>
                     <td>
                       {u.id === session.userId ? (
-                        <span className="mono" style={{ fontSize: ".62rem", color: "#5c666d" }}>
+                        <span className="mono" style={{ fontSize: ".62rem", color: "var(--color-steel)" }}>
                           (you)
                         </span>
                       ) : u.role === "admin" ? (
-                        <span className="mono" style={{ fontSize: ".62rem", color: "#5c666d" }}>
+                        <span className="mono" style={{ fontSize: ".62rem", color: "var(--color-steel)" }}>
                           admin — protected
                         </span>
                       ) : (

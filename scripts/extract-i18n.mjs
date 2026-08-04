@@ -916,6 +916,12 @@ const SUPPLEMENTAL = {
     es: "No se encontraron solicitudes de cotización para este correo. Las cotizaciones se emparejan con tu correo de acceso",
     fr: "Aucune demande de devis trouvée pour cet e-mail. Les devis sont associés à votre e-mail de connexion",
   },
+  // ---- M-59 supplemental (skip link + portal drawer) ----
+  "Skip to main content": { es: "Saltar al contenido principal", fr: "Aller au contenu principal" },
+  "Menu": { es: "Menú", fr: "Menu" },
+  "Close menu": { es: "Cerrar menú", fr: "Fermer le menu" },
+  "Portal navigation": { es: "Navegación del portal", fr: "Navigation du portail" },
+  "Process steps (scrollable)": { es: "Pasos del proceso (desplazable)", fr: "Étapes du processus (défilement)" },
   "if you requested one under a different address, call (908) 404-5373 and we'll link it.": {
     es: "si la pediste con otra dirección, llama al (908) 404-5373 y la vinculamos.",
     fr: "si vous l'avez demandée avec une autre adresse, appelez le (908) 404-5373 et nous la lierons.",

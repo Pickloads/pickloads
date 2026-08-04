@@ -1,6 +1,7 @@
 import "@/app/portal.css";
 import { getSessionProfile } from "@/lib/auth";
 import { PortalSidebar } from "@/components/portal/PortalSidebar";
+import { SkipLink } from "@/components/ui/SkipLink";
 
 /**
  * M-23 portal shell — sidebar + main pane. Auth/role enforcement lives in
@@ -18,6 +19,7 @@ export default async function PortalLayout({
   if (!session) return <>{children}</>;
   return (
     <div className="portal">
+      <SkipLink />
       <PortalSidebar role={session.role} fullName={session.fullName} />
       <div className="pmain">{children}</div>
     </div>

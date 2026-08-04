@@ -54,7 +54,7 @@ export default async function EquipmentPage({ params }: { params: Params }) {
   const tv = await getV4(locale);
 
   return (
-    <main>
+    <main id="main">
       <JsonLd
         data={equipmentServiceJsonLd({
           name: content.name,
@@ -80,7 +80,7 @@ export default async function EquipmentPage({ params }: { params: Params }) {
             {content.intro.map((paragraph) => (
               <p key={paragraph.slice(0, 32)}>{paragraph}</p>
             ))}
-            <p className="mono" style={{ fontSize: ".78rem", color: "var(--color-dim)" }}>
+            <p className="mono" style={{ fontSize: ".78rem", color: "var(--color-steel)" }}>
               {content.ratesNote}
             </p>
           </div>

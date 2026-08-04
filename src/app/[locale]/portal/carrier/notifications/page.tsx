@@ -36,7 +36,7 @@ export default async function CarrierNotificationsPage({
   const unread = notifications.filter((n) => n.read_at === null).length;
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">{tv("Carrier portal")}</span>

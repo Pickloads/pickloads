@@ -34,7 +34,7 @@ export default async function ShipperDocumentsPage({
   const brokerageActive = brokerageSetting?.value === true;
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">{tv("Shipper portal")}</span>

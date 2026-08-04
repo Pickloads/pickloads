@@ -29,7 +29,7 @@ export default async function CarrierDriversPage({
   const carrierId = await getMyCarrierId(supabase);
   if (!carrierId) {
     return (
-      <main>
+      <main id="main">
         <div className="pbar">
           <div>
             <span className="crumb">{tv("Carrier portal")}</span>
@@ -55,7 +55,7 @@ export default async function CarrierDriversPage({
     .limit(100);
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">{tv("Carrier portal")}</span>

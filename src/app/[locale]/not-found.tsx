@@ -4,7 +4,7 @@ import { useV4 } from "@/i18n/v4";
 export default function NotFound() {
   const tv = useV4();
   return (
-    <main>
+    <main id="main">
       <div className="page-hero">
         <div className="wrap">
           <span className="eyebrow">{tv("404 — Not found")}</span>

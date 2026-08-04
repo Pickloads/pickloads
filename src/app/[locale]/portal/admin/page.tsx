@@ -314,7 +314,7 @@ export default async function AdminDashboardPage({
     (docCarriers ?? []).find((c) => c.id === id)?.company_name ?? "Unknown";
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">Dispatch desk</span>

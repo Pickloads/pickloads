@@ -57,7 +57,7 @@ export default async function LeadsPage({
   }));
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">Dispatch desk / CRM</span>

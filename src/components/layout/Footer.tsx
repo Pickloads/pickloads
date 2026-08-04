@@ -41,7 +41,7 @@ export function Footer() {
               50 Union Ave, Suite 805-A, Irvington, NJ 07111
             </p>
             <p className="mono" style={{ fontSize: ".72rem", marginTop: 10 }}>
-              ☎ (908) 404-5373
+              <span aria-hidden="true">☎</span> (908) 404-5373
               <br />
               support@pickloads.com
               <br />

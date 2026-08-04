@@ -56,7 +56,7 @@ export default async function CreateAccountPage({
   const shipperOpen = await shipperSignupEnabled();
 
   return (
-    <main>
+    <main id="main">
       <PageHero eyebrow={tv("Portal")} title={tv("Get started with PickLoads")}>
         {tv("Pick the account that matches how you move freight — it takes about two minutes.")}
       </PageHero>

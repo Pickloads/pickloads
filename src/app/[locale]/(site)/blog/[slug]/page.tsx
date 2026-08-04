@@ -76,7 +76,7 @@ export default async function BlogPostPage({ params }: { params: Params }) {
     : null;
 
   return (
-    <main>
+    <main id="main">
       <JsonLd
         data={articleJsonLd({
           title: post.title,

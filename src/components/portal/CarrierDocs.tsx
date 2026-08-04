@@ -86,7 +86,7 @@ export function CarrierDocs({
     <div>
       <div className="ptable-wrap">
         {documents.length > 0 ? (
-          <table className="ptable">
+          <table className="ptable ptable--cards">
             <thead>
               <tr>
                 <th>{tv("Document")}</th>
@@ -99,9 +99,9 @@ export function CarrierDocs({
             <tbody>
               {documents.map((d) => (
                 <tr key={d.id}>
-                  <td>{tv(TYPE_LABEL[d.type])}</td>
-                  <td>{d.file_name ?? "—"}</td>
-                  <td>
+                  <td data-th={tv("Document")}>{tv(TYPE_LABEL[d.type])}</td>
+                  <td data-th={tv("File")}>{d.file_name ?? "—"}</td>
+                  <td data-th={tv("Status")}>
                     <span className={`pbadge ${STATUS_BADGE[d.status].cls}`}>
                       {tv(STATUS_BADGE[d.status].label)}
                     </span>
@@ -114,14 +114,14 @@ export function CarrierDocs({
                       </span>
                     ) : null}
                   </td>
-                  <td>
+                  <td data-th={tv("Uploaded")}>
                     {new Date(d.created_at).toLocaleDateString("en-US", {
                       month: "short",
                       day: "numeric",
                       year: "numeric",
                     })}
                   </td>
-                  <td>
+                  <td data-th={tv("Actions")}>
                     <DownloadButton documentId={d.id} />
                   </td>
                 </tr>

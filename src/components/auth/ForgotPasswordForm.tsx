@@ -110,7 +110,7 @@ export function ForgotPasswordForm() {
         {tv("Remembered it?")}{" "}
         <Link
           href="/login"
-          style={{ color: "var(--amber-deep)", textDecoration: "underline" }}
+          style={{ color: "var(--color-amber-aa)", textDecoration: "underline" }}
         >
           {tv("Back to sign in")}
         </Link>

@@ -24,7 +24,7 @@ export default async function ShipperBillingPage({
   const tv = await getV4(locale);
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">{tv("Shipper portal")}</span>

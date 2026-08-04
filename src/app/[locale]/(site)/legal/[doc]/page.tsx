@@ -49,7 +49,7 @@ export default async function LegalPage({
   if (!entry) notFound();
 
   return (
-    <main>
+    <main id="main">
       <PageHero eyebrow={entry.eyebrow} title={entry.title} />
       <section className="light">
         <div className="wrap" style={{ maxWidth: 820 }}>
@@ -57,7 +57,7 @@ export default async function LegalPage({
             This document is being finalized with counsel and will be published
             here before public launch. For any questions in the meantime,
             contact{" "}
-            <a href="mailto:support@pickloads.com" style={{ color: "var(--amber-deep)", fontWeight: 600 }}>
+            <a href="mailto:support@pickloads.com" style={{ color: "var(--color-amber-aa)", fontWeight: 600 }}>
               support@pickloads.com
             </a>{" "}
             or call (908) 404-5373.

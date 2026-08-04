@@ -22,7 +22,7 @@ export default async function ResetPasswordPage({
 function ResetPasswordContent() {
   const tv = useV4();
   return (
-    <main>
+    <main id="main">
       <PageHero eyebrow={tv("Portal")} title={tv("Set a new password")}>
         {tv("You're one step from being back in your portal.")}
       </PageHero>

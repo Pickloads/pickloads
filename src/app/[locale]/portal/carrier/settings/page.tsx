@@ -44,7 +44,7 @@ export default async function CarrierSettingsPage({
   ]);
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">{tv("Carrier portal")}</span>

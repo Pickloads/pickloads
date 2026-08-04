@@ -22,7 +22,7 @@ export default async function ForgotPasswordPage({
 function ForgotPasswordContent() {
   const tv = useV4();
   return (
-    <main>
+    <main id="main">
       <PageHero eyebrow={tv("Portal")} title={tv("Forgot your password?")}>
         {tv(
           "It happens on the road. Enter your email and we'll get you back into your portal.",

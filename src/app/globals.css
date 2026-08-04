@@ -33,6 +33,12 @@
   --color-gray-mid: #aeb7bd; /* board rows */
   --color-dim: #5c666d; /* mono footnotes */
 
+  /* M-59 — Q7 AA-contrast companion tokens (promised in M-00, delivered
+     here): darkened text-safe variants used ONLY where the original V4
+     value fails WCAG AA for text. Contrast report in docs/modules/M-59. */
+  --color-amber-aa: #8a5a00; /* amber family on light: 5.5:1 on paper */
+  --color-slate-aa: #5f6a71; /* slate-soft text on light: 5.1:1 on paper */
+
   /* Borders */
   --color-line: rgb(255 255 255 / 0.12);
   --color-line-dark: rgb(18 22 26 / 0.14);

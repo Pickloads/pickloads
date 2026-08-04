@@ -131,7 +131,7 @@ export function LoginForm() {
         <p style={{ textAlign: "right", margin: "0 0 20px", fontSize: ".82rem" }}>
           <Link
             href="/forgot-password"
-            style={{ color: "var(--amber-deep)", textDecoration: "underline" }}
+            style={{ color: "var(--color-amber-aa)", textDecoration: "underline" }}
           >
             {tv("Forgot password?")}
           </Link>
@@ -158,7 +158,7 @@ export function LoginForm() {
         {tv("New here? Onboard first — it takes about 10 minutes.")}{" "}
         <Link
           href="/become-a-carrier"
-          style={{ color: "var(--amber-deep)", textDecoration: "underline" }}
+          style={{ color: "var(--color-amber-aa)", textDecoration: "underline" }}
         >
           {tv("Become a Carrier")}
         </Link>

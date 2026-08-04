@@ -49,7 +49,7 @@ export function ServicesSplit() {
           </div>
         </div>
 
-        <div className="flow">
+        <div className="flow" tabIndex={0} role="region" aria-label={tv("Process steps (scrollable)")}>
           <span className="flow-title">
             Our dispatch process — every load, same discipline
           </span>

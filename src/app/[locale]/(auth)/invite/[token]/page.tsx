@@ -27,7 +27,7 @@ export default async function InvitePage({
   if (!/^[0-9a-f]{64}$/.test(token)) notFound();
 
   return (
-    <main>
+    <main id="main">
       <PageHero eyebrow="Dispatch desk" title="Join the PickLoads team">
         Staff access is invite-only — this link was created for you by an
         admin.

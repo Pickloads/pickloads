@@ -46,7 +46,7 @@ export default async function ShipperOverviewPage({
   const booked = quotes.filter((q) => QUOTE_STATUS[q.status]?.stage === 3).length;
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">{tv("Shipper portal")}</span>

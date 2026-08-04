@@ -165,7 +165,7 @@ export function ResetPasswordForm() {
         {tv("Link expired?")}{" "}
         <Link
           href="/forgot-password"
-          style={{ color: "var(--amber-deep)", textDecoration: "underline" }}
+          style={{ color: "var(--color-amber-aa)", textDecoration: "underline" }}
         >
           {tv("Request a new reset link")}
         </Link>

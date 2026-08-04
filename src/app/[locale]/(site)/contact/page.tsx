@@ -42,7 +42,7 @@ function ContactContent() {
   const tv = useV4();
   const t = useV4Rich();
   return (
-    <main>
+    <main id="main">
       <PageHero eyebrow={tv("Contact")} title={tv("Talk to a human. Today.")}>
         {tv(
           "Dispatch questions, freight quotes, partnerships — we answer fast.",

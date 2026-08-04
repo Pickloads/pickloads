@@ -113,7 +113,7 @@ export default async function AdminLoadsPage({
   };
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">Dispatch desk / Operations</span>
@@ -232,7 +232,7 @@ export default async function AdminLoadsPage({
                         display: "block",
                         fontFamily: "var(--font-mono)",
                         fontSize: ".62rem",
-                        color: "#5c666d",
+                        color: "var(--color-steel)",
                       }}
                     >
                       {l.fee_pct_applied ?? "—"}%

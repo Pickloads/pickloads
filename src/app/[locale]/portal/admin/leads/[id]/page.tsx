@@ -89,7 +89,7 @@ export default async function LeadDetailPage({
       : null;
 
   return (
-    <main>
+    <main id="main">
       <div className="pbar">
         <div>
           <span className="crumb">
@@ -102,11 +102,11 @@ export default async function LeadDetailPage({
             className="btn btn-amber btn-sm"
             href={`tel:${lead.phone.replace(/[^+\d]/g, "")}`}
           >
-            ☎ Call {lead.phone}
+            <span aria-hidden="true">☎</span> Call {lead.phone}
           </a>
           {lead.email ? (
             <a className="btn btn-ghost btn-sm" href={`mailto:${lead.email}`}>
-              ✉ Email
+              <span aria-hidden="true">✉</span> Email
             </a>
           ) : null}
         </div>
