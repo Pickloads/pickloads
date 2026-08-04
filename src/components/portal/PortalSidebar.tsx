@@ -51,6 +51,12 @@ export function PortalSidebar({
           {item("/portal/admin/loads", "Loads")}
           {role === "admin" ? item("/portal/admin/settings", "Settings") : null}
         </>
+      ) : role === "shipper" ? (
+        <>
+          <span className="plabel">Shipper portal</span>
+          {item("/portal/shipper", "My Quotes", true)}
+          <Link href="/shippers">Request a quote</Link>
+        </>
       ) : (
         <>
           <span className="plabel">Carrier portal</span>

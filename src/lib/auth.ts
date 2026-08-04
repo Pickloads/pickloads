@@ -53,11 +53,18 @@ export async function requireProfile(locale: string): Promise<SessionProfile> {
   return session;
 }
 
-/** Page gate: staff only (admin/dispatcher); carriers land on their portal. */
+/** Role → portal home (M-32 adds the shipper surface). */
+export function portalHomeFor(role: UserRole): string {
+  if (role === "admin" || role === "dispatcher") return "/portal/admin";
+  if (role === "shipper") return "/portal/shipper";
+  return "/portal/carrier";
+}
+
+/** Page gate: staff only (admin/dispatcher); others land on their portal. */
 export async function requireStaff(locale: string): Promise<SessionProfile> {
   const session = await requireProfile(locale);
   if (session.role !== "admin" && session.role !== "dispatcher") {
-    redirect(localizedPath("/portal/carrier", locale));
+    redirect(localizedPath(portalHomeFor(session.role), locale));
   }
   return session;
 }

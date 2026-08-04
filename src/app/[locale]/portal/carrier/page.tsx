@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getPathname } from "@/i18n/navigation";
-import { requireProfile, isStaffRole } from "@/lib/auth";
+import { requireProfile, portalHomeFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getV4 } from "@/i18n/v4-server";
 import {
@@ -28,8 +28,8 @@ export default async function CarrierPortalPage({
 }) {
   const { locale } = await params;
   const session = await requireProfile(locale);
-  if (isStaffRole(session.role)) {
-    redirect(getPathname({ href: "/portal/admin", locale }));
+  if (session.role !== "carrier") {
+    redirect(getPathname({ href: portalHomeFor(session.role), locale }));
   }
   const tv = await getV4(locale);
   const supabase = await createClient();

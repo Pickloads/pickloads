@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 import { getPathname } from "@/i18n/navigation";
-import { requireProfile, isStaffRole } from "@/lib/auth";
+import { requireProfile, portalHomeFor } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-/** /portal — role router: staff → admin dashboard, carriers → their portal. */
+/** /portal — role router: staff → admin, shippers → shipper, carriers → carrier. */
 export default async function PortalIndexPage({
   params,
 }: {
@@ -12,10 +12,5 @@ export default async function PortalIndexPage({
 }) {
   const { locale } = await params;
   const session = await requireProfile(locale);
-  redirect(
-    getPathname({
-      href: isStaffRole(session.role) ? "/portal/admin" : "/portal/carrier",
-      locale,
-    }),
-  );
+  redirect(getPathname({ href: portalHomeFor(session.role), locale }));
 }
