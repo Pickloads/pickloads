@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Link } from "@/i18n/navigation";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { getStaffScope } from "@/lib/staff-scope";
 import { DocumentReviewRow } from "@/components/portal/DocumentReviewRow";
 import { formatMoney } from "@/lib/loads";
 
@@ -40,12 +41,56 @@ export default async function AdminDashboardPage({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
-  await requireStaff(locale);
+  const session = await requireStaff(locale);
   const supabase = await createClient();
+  // M-58 least privilege: dispatchers see their assigned carriers' data and
+  // their own (+unassigned) leads; admins see everything.
+  const scope = await getStaffScope(supabase, session);
   const now = Date.now();
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
   const endOfToday = new Date(startOfToday.getTime() + DAY);
+
+  let leadsQuery = supabase
+    .from("carrier_leads")
+    .select(
+      "id, lead_type, source, status, created_at, first_contacted_at, callback_at",
+    )
+    .order("created_at", { ascending: false })
+    .limit(1000);
+  if (scope.restricted) {
+    leadsQuery = leadsQuery.or(
+      `assigned_to.eq.${session.userId},assigned_to.is.null`,
+    );
+  }
+  let pendingDocsQuery = supabase
+    .from("documents")
+    .select("id, carrier_id, type, file_name, created_at")
+    .eq("status", "pending")
+    .order("created_at", { ascending: true })
+    .limit(50);
+  if (scope.carrierIds !== null) {
+    pendingDocsQuery = pendingDocsQuery.in("carrier_id", scope.carrierIds);
+  }
+  let expiringQuery = supabase
+    .from("carriers")
+    .select("id, company_name, insurance_expiry, active")
+    .not("insurance_expiry", "is", null)
+    .lte("insurance_expiry", new Date(now + 30 * DAY).toISOString().slice(0, 10))
+    .order("insurance_expiry", { ascending: true })
+    .limit(50);
+  if (scope.carrierIds !== null) {
+    expiringQuery = expiringQuery.in("id", scope.carrierIds);
+  }
+  let unsignedQuery = supabase
+    .from("carriers")
+    .select("id, company_name, created_at")
+    .is("agreement_signed_at", null)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (scope.carrierIds !== null) {
+    unsignedQuery = unsignedQuery.in("id", scope.carrierIds);
+  }
 
   const [
     { data: leads },
@@ -53,38 +98,32 @@ export default async function AdminDashboardPage({
     { data: expiringCarriers },
     { data: unsignedCarriers },
   ] = await Promise.all([
-    supabase
-      .from("carrier_leads")
-      .select(
-        "id, lead_type, source, status, created_at, first_contacted_at, callback_at",
-      )
-      .order("created_at", { ascending: false })
-      .limit(1000),
-    supabase
-      .from("documents")
-      .select("id, carrier_id, type, file_name, created_at")
-      .eq("status", "pending")
-      .order("created_at", { ascending: true })
-      .limit(50),
-    supabase
-      .from("carriers")
-      .select("id, company_name, insurance_expiry, active")
-      .not("insurance_expiry", "is", null)
-      .lte(
-        "insurance_expiry",
-        new Date(now + 30 * DAY).toISOString().slice(0, 10),
-      )
-      .order("insurance_expiry", { ascending: true })
-      .limit(50),
-    supabase
-      .from("carriers")
-      .select("id, company_name, created_at")
-      .is("agreement_signed_at", null)
-      .order("created_at", { ascending: false })
-      .limit(50),
+    leadsQuery,
+    pendingDocsQuery,
+    expiringQuery,
+    unsignedQuery,
   ]);
 
   // ---- M-34 datasets (second batch to keep each Promise.all readable) ----
+  let dashLoadsQuery = supabase
+    .from("loads")
+    .select(
+      "id, carrier_id, dispatcher_id, equipment, gross_rate, miles, dispatch_fee, status, created_at",
+    )
+    .order("created_at", { ascending: false })
+    .limit(1000);
+  if (scope.carrierIds !== null) {
+    dashLoadsQuery = dashLoadsQuery.in("carrier_id", scope.carrierIds);
+  }
+  let activeCarriersQuery = supabase
+    .from("carriers")
+    .select("id, home_state")
+    .eq("active", true)
+    .limit(1000);
+  if (scope.carrierIds !== null) {
+    activeCarriersQuery = activeCarriersQuery.in("id", scope.carrierIds);
+  }
+
   const [
     { data: loadRows },
     { data: activeCarriers },
@@ -94,18 +133,8 @@ export default async function AdminDashboardPage({
     { data: failedWebhooks },
     { data: postRows },
   ] = await Promise.all([
-    supabase
-      .from("loads")
-      .select(
-        "id, carrier_id, dispatcher_id, equipment, gross_rate, miles, dispatch_fee, status, created_at",
-      )
-      .order("created_at", { ascending: false })
-      .limit(1000),
-    supabase
-      .from("carriers")
-      .select("id, home_state")
-      .eq("active", true)
-      .limit(1000),
+    dashLoadsQuery,
+    activeCarriersQuery,
     supabase
       .from("profiles")
       .select("id, full_name, role")
@@ -295,6 +324,13 @@ export default async function AdminDashboardPage({
           Open leads pipeline →
         </Link>
       </div>
+
+      {scope.restricted ? (
+        <p className="pempty" style={{ padding: "0 0 12px" }}>
+          Scoped view (dispatcher): your assigned carriers (
+          {scope.carrierIds?.length ?? 0}) and your own + unassigned leads.
+        </p>
+      ) : null}
 
       <span className="psec">Sales</span>
       <div className="ptiles">

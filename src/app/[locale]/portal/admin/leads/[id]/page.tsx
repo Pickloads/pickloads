@@ -43,7 +43,7 @@ export default async function LeadDetailPage({
   params: Promise<{ locale: string; id: string }>;
 }) {
   const { locale, id } = await params;
-  await requireStaff(locale);
+  const session = await requireStaff(locale);
   if (!z.uuid().safeParse(id).success) notFound();
 
   const supabase = await createClient();
@@ -62,6 +62,15 @@ export default async function LeadDetailPage({
         .in("role", ["admin", "dispatcher"]),
     ]);
   if (!lead) notFound();
+  // M-58 least privilege: dispatchers open only their own or unassigned
+  // leads — a foreign assigned lead 404s (matches the list scope).
+  if (
+    session.role === "dispatcher" &&
+    lead.assigned_to !== null &&
+    lead.assigned_to !== session.userId
+  ) {
+    notFound();
+  }
 
   const staff: StaffOption[] = (staffRows ?? []).map((s) => ({
     id: s.id,

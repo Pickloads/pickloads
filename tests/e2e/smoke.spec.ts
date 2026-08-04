@@ -194,6 +194,29 @@ test.describe("auth states (M-54)", () => {
   });
 });
 
+test.describe("staff invite (M-58, secretless)", () => {
+  test("/invite/[token] renders and degrades honestly without env", async ({
+    page,
+  }) => {
+    await page.goto(`/invite/${"ab".repeat(32)}`);
+    await expect(
+      page.getByRole("heading", { name: "Accept your staff invite" }),
+    ).toBeVisible();
+    await page.locator("#ai-name").fill("Smoke Dispatcher");
+    await page.locator("#ai-pass").fill("hunter22b");
+    await page.getByRole("button", { name: /Accept Invite/ }).click();
+    // No service credentials → the action states NOTHING was created.
+    await expect(page.locator(".form-err.show")).toContainText(
+      "no account was created",
+    );
+  });
+
+  test("malformed invite tokens 404", async ({ page }) => {
+    const response = await page.goto("/invite/not-a-real-token");
+    expect(response?.status()).toBe(404);
+  });
+});
+
 test.describe("password recovery (M-42, secretless)", () => {
   test("/login links to /forgot-password, which degrades gracefully", async ({
     page,

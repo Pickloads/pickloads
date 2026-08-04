@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Link } from "@/i18n/navigation";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { getStaffScope } from "@/lib/staff-scope";
 import { LoadStatusActions } from "@/components/portal/LoadForms";
 import { GenerateInvoiceButton } from "@/components/portal/InvoiceActions";
 import { isStripeConfigured } from "@/lib/stripe";
@@ -43,7 +44,7 @@ export default async function AdminLoadsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { locale } = await params;
-  await requireStaff(locale);
+  const session = await requireStaff(locale);
   const sp = await searchParams;
   const filterStatus = parseStatus(typeof sp.status === "string" ? sp.status : undefined);
   const filterCarrier =
@@ -54,6 +55,8 @@ export default async function AdminLoadsPage({
       : null;
 
   const supabase = await createClient();
+  // M-58 least privilege: dispatchers see only their assigned carriers.
+  const scope = await getStaffScope(supabase, session);
 
   let query = supabase
     .from("loads")
@@ -62,17 +65,23 @@ export default async function AdminLoadsPage({
     )
     .order("created_at", { ascending: false })
     .limit(200);
+  if (scope.carrierIds !== null) query = query.in("carrier_id", scope.carrierIds);
   if (filterStatus) query = query.eq("status", filterStatus);
   if (filterCarrier) query = query.eq("carrier_id", filterCarrier);
   if (filterDispatcher) query = query.eq("dispatcher_id", filterDispatcher);
 
+  let carrierQuery = supabase
+    .from("carriers")
+    .select("id, company_name, dispatch_fee_pct")
+    .order("company_name");
+  if (scope.carrierIds !== null) {
+    carrierQuery = carrierQuery.in("id", scope.carrierIds);
+  }
+
   const [{ data: loadRows, error }, { data: carrierRows }, { data: staffRows }] =
     await Promise.all([
       query,
-      supabase
-        .from("carriers")
-        .select("id, company_name, dispatch_fee_pct")
-        .order("company_name"),
+      carrierQuery,
       supabase
         .from("profiles")
         .select("id, full_name, role")
@@ -114,6 +123,13 @@ export default async function AdminLoadsPage({
           + Book a load
         </Link>
       </div>
+
+      {scope.restricted ? (
+        <p className="pempty" style={{ padding: "0 0 12px" }}>
+          Scoped view: your assigned carriers only ({scope.carrierIds?.length ?? 0}).
+          Ask an admin to assign carriers on the Users page.
+        </p>
+      ) : null}
 
       <form method="get" className="kfilters">
         <div className="field">

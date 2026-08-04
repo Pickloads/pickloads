@@ -24,17 +24,26 @@ export default async function LeadsPage({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
-  await requireStaff(locale);
+  const session = await requireStaff(locale);
   const supabase = await createClient();
 
+  // M-58 least privilege: dispatchers see their own + unassigned leads
+  // (someone must work the new-lead queue); admins see everything.
+  let leadsQuery = supabase
+    .from("carrier_leads")
+    .select(
+      "id, full_name, phone, truck_type, trailer_type, lead_type, source, status, priority, tags, assigned_to, callback_at, created_at",
+    )
+    .order("created_at", { ascending: false })
+    .limit(500);
+  if (session.role === "dispatcher") {
+    leadsQuery = leadsQuery.or(
+      `assigned_to.eq.${session.userId},assigned_to.is.null`,
+    );
+  }
+
   const [{ data: leadRows, error }, { data: staffRows }] = await Promise.all([
-    supabase
-      .from("carrier_leads")
-      .select(
-        "id, full_name, phone, truck_type, trailer_type, lead_type, source, status, priority, tags, assigned_to, callback_at, created_at",
-      )
-      .order("created_at", { ascending: false })
-      .limit(500),
+    leadsQuery,
     supabase
       .from("profiles")
       .select("id, full_name, role")

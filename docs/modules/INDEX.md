@@ -41,6 +41,7 @@ suites from M-40 on). Details live in each module's doc.
 | M-55 | U | [M-55-carrier-portal-completion.md](M-55-carrier-portal-completion.md) | Carrier portal completion: overview dashboard, D5 profile editing + change requests, trucks/drivers CRUD, agreements + re-send, invoices mirror surface, notifications, support threads (+staff inbox), account settings; migration 0010 |
 | M-56 | U | [M-56-shipper-portal-completion.md](M-56-shipper-portal-completion.md) | Shipper portal completion: overview with brokerage-gated tracking waitlist, full professional quote form (0011 fields, membership-verified insert), quotes status timeline, honest documents/billing states, support, company + account settings |
 | M-57 | U | [M-57-membership-architecture.md](M-57-membership-architecture.md) | Membership doctrine surfaced app-wide: wizard claims now write owner memberships, last profile_id lookups converted (loads page, billing email, cron alerts — owner-first with legacy fallback), statically pinned by test; invite-teammate extension path documented |
+| M-58 | U | [M-58-admin-account-management.md](M-58-admin-account-management.md) | Admin account management: /portal/admin/users (filter/paginate, approve/suspend + history/audit/email/notification, onboarding progress, dispatcher assignment), tokenized single-use staff invites (0012), security log, dispatcher least-privilege query scoping |
 
 Phases: 0 = foundations · 1 = public site · 2 = onboarding/CRM · 3 =
 loads/billing/content · H = hardening · U = upgrade directive (M-50a audit).

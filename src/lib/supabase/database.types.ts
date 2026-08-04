@@ -420,6 +420,19 @@ type NotificationRow = {
   created_at: string;
 }
 
+/** M-58 (0012): in-app staff invites (S-04 made self-service). */
+type StaffInviteRow = {
+  id: string;
+  email: string;
+  role: UserRole;
+  /** SHA-256 hex of the raw token — the token itself is never stored. */
+  token_hash: string;
+  invited_by: string;
+  expires_at: string;
+  accepted_at: string | null;
+  created_at: string;
+}
+
 type InvoiceRow = {
   id: string;
   carrier_id: string;
@@ -595,6 +608,15 @@ export type Database = {
         Row: InvoiceRow;
         Insert: Insertable<InvoiceRow, "carrier_id" | "amount_cents">;
         Update: Partial<InvoiceRow>;
+        Relationships: [];
+      };
+      staff_invites: {
+        Row: StaffInviteRow;
+        Insert: Insertable<
+          StaffInviteRow,
+          "email" | "role" | "token_hash" | "invited_by" | "expires_at"
+        >;
+        Update: Partial<StaffInviteRow>;
         Relationships: [];
       };
     };
