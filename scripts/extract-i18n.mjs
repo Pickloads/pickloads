@@ -99,6 +99,60 @@ function addEntry(en, translations, isRich) {
 }
 
 for (const [en, tr] of Object.entries(flat)) addEntry(en, tr, false);
+
+/*
+ * M-42: supplemental strings — the most visible public copy on Phase 2/3
+ * pages composed AFTER the V4 prototype froze (become-a-carrier,
+ * start-your-trucking-company). es/fr are provided; ru/ht intentionally
+ * fall back to English pending native review (addEntry copies English for
+ * missing locales) — tracked as a content prerequisite in
+ * docs/LAUNCH-RUNBOOK.md. Portal/admin strings stay English by design.
+ */
+const SUPPLEMENTAL = {
+  "Four steps, about 10 minutes: your company info, your documents, a plain-English agreement and your own portal. A dispatcher calls you the same day.":
+    {
+      es: "Cuatro pasos, unos 10 minutos: los datos de tu empresa, tus documentos, un acuerdo en lenguaje claro y tu propio portal. Un dispatcher te llama el mismo día.",
+      fr: "Quatre étapes, environ 10 minutes : les infos de votre entreprise, vos documents, un accord en langage clair et votre propre portail. Un dispatcher vous appelle le jour même.",
+    },
+  "Prefer a human? Call (908) 404-5373 and we'll complete onboarding with you over the phone.":
+    {
+      es: "¿Prefieres hablar con alguien? Llama al (908) 404-5373 y completamos tu registro por teléfono.",
+      fr: "Vous préférez parler à quelqu'un ? Appelez le (908) 404-5373 et nous finaliserons votre inscription par téléphone.",
+    },
+  "Your launch checklist": {
+    es: "Tu checklist de lanzamiento",
+    fr: "Votre checklist de lancement",
+  },
+  "From paperwork to first load.": {
+    es: "Del papeleo a la primera carga.",
+    fr: "De la paperasse au premier chargement.",
+  },
+  "Form the company": {
+    es: "Constituye la empresa",
+    fr: "Créez la société",
+  },
+  "File your authority": {
+    es: "Presenta tu autoridad",
+    fr: "Déposez votre autorité MC",
+  },
+  "Get insured": {
+    es: "Consigue tu seguro",
+    fr: "Obtenez votre assurance",
+  },
+  "Activate & dispatch": {
+    es: "Activación y dispatch",
+    fr: "Activation et dispatch",
+  },
+  "Before you start": {
+    es: "Antes de empezar",
+    fr: "Avant de commencer",
+  },
+  "Straight talk:": {
+    es: "Hablando claro:",
+    fr: "Parlons franchement :",
+  },
+};
+for (const [en, tr] of Object.entries(SUPPLEMENTAL)) addEntry(en, tr, false);
 // RICH entries are keyed by data-i18n id (hero.title etc.) with per-locale HTML;
 // English source is the element's innerHTML — we keep the id-based key.
 const RICH_EN = {

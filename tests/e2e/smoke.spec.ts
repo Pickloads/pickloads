@@ -101,6 +101,38 @@ test.describe("portal auth wall", () => {
   });
 });
 
+test.describe("password recovery (M-42, secretless)", () => {
+  test("/login links to /forgot-password, which degrades gracefully", async ({
+    page,
+  }) => {
+    await page.goto("/login");
+    await page.getByRole("link", { name: "Forgot password?" }).click();
+    await expect(page).toHaveURL(/\/forgot-password$/);
+    await expect(
+      page.getByRole("heading", { name: "Reset your password" }),
+    ).toBeVisible();
+    // Placeholder Supabase env → the form must refuse with a clear message,
+    // not crash or fire a network call.
+    await page.locator("#forgot-email").fill("driver@example.com");
+    await page.getByRole("button", { name: /Send Reset Link/ }).click();
+    await expect(page.locator(".form-err.show")).toContainText(
+      "not configured",
+    );
+  });
+
+  test("/reset-password renders and flags the missing recovery session", async ({
+    page,
+  }) => {
+    await page.goto("/reset-password");
+    await expect(
+      page.getByRole("heading", { name: "Choose a new password" }),
+    ).toBeVisible();
+    await expect(page.locator(".form-err.show")).toContainText(
+      "invalid or has expired",
+    );
+  });
+});
+
 test.describe("SEO surface", () => {
   test("sitemap.xml lists localized public routes", async ({ request }) => {
     const response = await request.get("/sitemap.xml");

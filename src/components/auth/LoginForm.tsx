@@ -78,7 +78,7 @@ export function LoginForm() {
             placeholder="you@company.com"
           />
         </div>
-        <div className="field" style={{ marginBottom: 20 }}>
+        <div className="field" style={{ marginBottom: 8 }}>
           <label htmlFor="login-password">{tv("Password")}</label>
           <input
             id="login-password"
@@ -90,6 +90,14 @@ export function LoginForm() {
             aria-describedby="login-err"
           />
         </div>
+        <p style={{ textAlign: "right", margin: "0 0 20px", fontSize: ".82rem" }}>
+          <Link
+            href="/forgot-password"
+            style={{ color: "var(--amber-deep)", textDecoration: "underline" }}
+          >
+            {tv("Forgot password?")}
+          </Link>
+        </p>
         <button
           className="btn btn-amber"
           type="submit"
