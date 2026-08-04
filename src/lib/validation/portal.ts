@@ -74,6 +74,33 @@ export const supportReplySchema = z.object({
     .max(5000, "Messages are capped at 5,000 characters."),
 });
 
+/** M-56 — shipper company settings (self-serve; nothing regulated here). */
+export const shipperCompanySchema = z.object({
+  company_name: z
+    .string()
+    .trim()
+    .min(2, "Enter your company name.")
+    .max(120, "That entry is too long."),
+  industry: optionalText(80),
+  shipping_frequency: optionalText(40),
+  regions: z
+    .string()
+    .max(400, "That entry is too long.")
+    .optional()
+    .transform((v) =>
+      (v ?? "")
+        .split(",")
+        .map((r) => r.trim())
+        .filter(Boolean)
+        .slice(0, 12),
+    ),
+  phone: optionalPhoneField,
+  billing_email: z
+    .union([z.literal(""), z.email("Enter a valid email address.").trim().max(254)])
+    .optional()
+    .transform((v) => (v ? v : null)),
+});
+
 export const accountPreferencesSchema = z.object({
   preferred_language: z.enum(["en", "es", "fr", "ru", "ht"], {
     message: "Choose a language.",

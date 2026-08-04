@@ -62,10 +62,15 @@ export function PortalSidebar({
         </>
       ) : role === "shipper" ? (
         <>
-          {/* M-56 completes this nav (overview/quote form/support/settings). */}
           <span className="plabel">{tv("Shipper portal")}</span>
-          {item("/portal/shipper", tv("My Quotes"), true)}
-          <Link href="/shippers">{tv("Request a quote")}</Link>
+          {item("/portal/shipper", tv("Overview"), true)}
+          {item("/portal/shipper/quotes/new", tv("Request a Quote"))}
+          {item("/portal/shipper/quotes", tv("My Quotes"), true)}
+          {item("/portal/shipper/documents", tv("Documents"))}
+          {item("/portal/shipper/billing", tv("Billing"))}
+          {item("/portal/shipper/support", tv("Support"))}
+          {item("/portal/shipper/company", tv("Company Settings"))}
+          {item("/portal/shipper/settings", tv("Account Settings"))}
         </>
       ) : (
         <>

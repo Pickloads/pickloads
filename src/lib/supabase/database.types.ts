@@ -126,6 +126,12 @@ type FreightQuoteRow = {
   delivery_address: string | null;
   delivery_city: string | null;
   delivery_state: string | null;
+  /** M-56 (0011): remaining professional quote-form fields. */
+  pickup_company: string | null;
+  delivery_company: string | null;
+  delivery_deadline: string | null;
+  special_instructions: string | null;
+  contact_name: string | null;
   created_at: string;
   updated_at: string;
 }

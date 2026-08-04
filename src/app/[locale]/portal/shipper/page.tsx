@@ -1,135 +1,59 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { getPathname, Link } from "@/i18n/navigation";
-import { requireProfile, portalHomeFor } from "@/lib/auth";
+import { Link } from "@/i18n/navigation";
+import { requireShipper } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { tryCreateAdminClient } from "@/lib/supabase/admin";
 import { getV4 } from "@/i18n/v4-server";
-import type { LeadStatus } from "@/lib/supabase/database.types";
+import { getShipperQuotes, QUOTE_STATUS } from "@/lib/shipper-quotes";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "My Quotes — PickLoads Shipper Portal",
+  title: "Overview — PickLoads Shipper Portal",
   robots: { index: false, follow: false },
 };
 
 /**
- * M-32 shipper portal, upgraded in M-53 with the M-50 data model:
- *
- * SELF-SIGNUP PATH (shipper_memberships row exists): quotes are read through
- * the cookie-bound server client under the 0009 "member read own quotes" RLS
- * policy (`shipper_id in my_shipper_ids()`). Before reading, un-owned
- * historical quotes whose email equals the **Supabase-verified session
- * email** are claimed one-shot (service role) — never signup input, so an
- * attacker registering someone else's address can't read anything until that
- * address itself is verified (audit §6.3).
- *
- * LEGACY PATH (staff-invited account, no membership): the documented M-32
- * email-matching read stays — admin client strictly scoped to
- * `.eq("email", session.email)` after the role gate.
+ * M-56 — shipper portal overview. Quote aggregates via the shared dual-path
+ * read (membership RLS / documented legacy email match). The shipments &
+ * tracking card is gated by `company_settings.brokerage_active` (decision
+ * D1/D6): pre-brokerage it's an HONEST waitlist state, never fake tracking.
  */
-
-/** Shipper-facing labels for the internal lead_status pipeline. */
-const QUOTE_STATUS: Partial<Record<LeadStatus, { label: string; badge: string }>> = {
-  new: { label: "Received", badge: "amber" },
-  call: { label: "In review", badge: "amber" },
-  qualified: { label: "In review", badge: "amber" },
-  appointment: { label: "In review", badge: "amber" },
-  agreement: { label: "Quoted", badge: "green" },
-  waiting_documents: { label: "Quoted", badge: "green" },
-  active: { label: "Booked", badge: "green" },
-  inactive: { label: "Closed", badge: "" },
-  lost: { label: "Closed", badge: "" },
-};
-
-export default async function ShipperPortalPage({
+export default async function ShipperOverviewPage({
   params,
 }: {
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
-  const session = await requireProfile(locale);
-  if (session.role !== "shipper") {
-    redirect(getPathname({ href: portalHomeFor(session.role), locale }));
-  }
+  const session = await requireShipper(locale);
   const tv = await getV4(locale);
-
-  const QUOTE_COLUMNS =
-    "id, pickup_zip, delivery_zip, pickup_date, commodity, weight_lbs, equipment, frequency, status, quoted_rate, created_at";
-
   const supabase = await createClient();
-  const { data: membership } = await supabase
-    .from("shipper_memberships")
-    .select("shipper_id")
-    .limit(1)
-    .maybeSingle();
 
-  let quoteRows: Array<{
-    id: string;
-    pickup_zip: string | null;
-    delivery_zip: string | null;
-    pickup_date: string | null;
-    commodity: string | null;
-    weight_lbs: number | null;
-    equipment: string | null;
-    frequency: string | null;
-    status: LeadStatus;
-    quoted_rate: number | null;
-    created_at: string;
-  }> = [];
+  const [{ quotes, shipperId }, { data: brokerageSetting }] = await Promise.all([
+    getShipperQuotes(supabase, session, 100),
+    supabase
+      .from("company_settings")
+      .select("value")
+      .eq("key", "brokerage_active")
+      .maybeSingle(),
+  ]);
+  const brokerageActive = brokerageSetting?.value === true;
 
-  if (membership) {
-    // Post-verification claim: link legacy un-owned quotes submitted under
-    // the verified session email (one-shot; % and _ escaped for ilike).
-    const admin = session.email ? tryCreateAdminClient() : null;
-    if (admin && session.email) {
-      const { error: claimError } = await admin
-        .from("freight_quotes")
-        .update({ shipper_id: membership.shipper_id })
-        .is("shipper_id", null)
-        .ilike("email", session.email.replace(/[%_]/g, "\\$&"));
-      if (claimError) {
-        console.error("[shipper-portal] quote claim failed", claimError.message);
-      }
-    }
-    // Cookie-bound read under the "member read own quotes" RLS policy.
-    const { data } = await supabase
-      .from("freight_quotes")
-      .select(QUOTE_COLUMNS)
-      .eq("shipper_id", membership.shipper_id)
-      .order("created_at", { ascending: false })
-      .limit(100);
-    quoteRows = data ?? [];
-  } else {
-    // Legacy staff-invited account: documented M-32 email-matching read.
-    const admin = session.email ? tryCreateAdminClient() : null;
-    if (admin && session.email) {
-      const { data } = await admin
-        .from("freight_quotes")
-        .select(QUOTE_COLUMNS)
-        .eq("email", session.email)
-        .order("created_at", { ascending: false })
-        .limit(100);
-      quoteRows = data ?? [];
-    }
-  }
-  const quotes = quoteRows;
-
-  const open = quotes.filter(
-    (q) => q.status !== "inactive" && q.status !== "lost",
-  ).length;
-  const quoted = quotes.filter((q) => q.quoted_rate !== null).length;
+  const pending = quotes.filter((q) => {
+    const s = QUOTE_STATUS[q.status];
+    return s !== undefined && (s.stage === 0 || s.stage === 1);
+  }).length;
+  const quoted = quotes.filter((q) => QUOTE_STATUS[q.status]?.stage === 2).length;
+  const booked = quotes.filter((q) => QUOTE_STATUS[q.status]?.stage === 3).length;
 
   return (
     <main>
       <div className="pbar">
         <div>
           <span className="crumb">{tv("Shipper portal")}</span>
-          <h1>{tv("My Quotes")}</h1>
+          <h1>{tv("Overview")}</h1>
         </div>
-        <Link className="btn btn-amber btn-sm" href="/shippers">
-          {tv("Request a new quote")} →
+        <Link className="btn btn-amber btn-sm" href="/portal/shipper/quotes/new">
+          {tv("Request a Quote")} →
         </Link>
       </div>
 
@@ -138,94 +62,62 @@ export default async function ShipperPortalPage({
           <b>{quotes.length}</b>
           <span>{tv("Quote requests")}</span>
         </div>
-        <div className="ptile">
-          <b>{open}</b>
-          <span>{tv("Open")}</span>
+        <div className={`ptile ${pending > 0 ? "warn" : ""}`}>
+          <b>{pending}</b>
+          <span>{tv("Pending review")}</span>
         </div>
-        <div className="ptile">
+        <div className={`ptile ${quoted > 0 ? "good" : ""}`}>
           <b>{quoted}</b>
           <span>{tv("Rates quoted")}</span>
         </div>
+        <div className={`ptile ${booked > 0 ? "good" : ""}`}>
+          <b>{booked}</b>
+          <span>{tv("Booked")}</span>
+        </div>
       </div>
 
-      <div className="ptable-wrap">
-        {quotes.length === 0 ? (
-          membership ? (
-            <p className="pempty">
+      <div className="pgrid2">
+        <div className="pcard">
+          <h2>{tv("Shipments & tracking")}</h2>
+          {brokerageActive ? (
+            <p className="pempty" style={{ padding: 0 }}>
               {tv(
-                "No quote requests yet. Request your first quote and it shows up here — along with any past requests made under your verified email.",
+                "Tracking activates with your first booked shipment — your dispatcher shares live status here.",
               )}
             </p>
           ) : (
-            <p className="pempty">
+            <>
+              <span className="pbadge amber">{tv("Launching soon")}</span>
+              <p className="pempty" style={{ padding: "10px 0 0" }}>
+                {tv(
+                  "Our brokerage division launches once our FMCSA authority and BMC-84 bond are active — you're on the early list, and shipment tracking appears right here. Until then we quote and coordinate every request personally.",
+                )}
+              </p>
+            </>
+          )}
+        </div>
+
+        <div className="pcard">
+          <h2>{tv("Quick links")}</h2>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+            <Link className="btn btn-ghost btn-sm" href="/portal/shipper/quotes">
+              {tv("My Quotes")} →
+            </Link>
+            <Link className="btn btn-ghost btn-sm" href="/portal/shipper/support">
+              {tv("Support")} →
+            </Link>
+            <Link className="btn btn-ghost btn-sm" href="/portal/shipper/company">
+              {tv("Company Settings")} →
+            </Link>
+          </div>
+          {!shipperId ? (
+            <p className="pempty" style={{ padding: "12px 0 0" }}>
               {tv(
-                "No quote requests found for this email address. Quotes are matched to your sign-in email",
-              )}
-              {session.email ? ` (${session.email})` : ""} —{" "}
-              {tv(
-                "if you requested one under a different address, call (908) 404-5373 and we'll link it.",
+                "Your account was set up by our team and isn't linked to a company record yet — quotes are matched by your sign-in email. Call (908) 404-5373 to link it.",
               )}
             </p>
-          )
-        ) : (
-          <table className="ptable">
-            <thead>
-              <tr>
-                <th>{tv("Requested")}</th>
-                <th>{tv("Lane")}</th>
-                <th>{tv("Pickup")}</th>
-                <th>{tv("Commodity")}</th>
-                <th>{tv("Weight")}</th>
-                <th>{tv("Equipment")}</th>
-                <th>{tv("Frequency")}</th>
-                <th>{tv("Quoted rate")}</th>
-                <th>{tv("Status")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {quotes.map((q) => {
-                const s = QUOTE_STATUS[q.status] ?? {
-                  label: q.status,
-                  badge: "",
-                };
-                return (
-                  <tr key={q.id}>
-                    <td style={{ whiteSpace: "nowrap" }}>
-                      {new Date(q.created_at).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                    </td>
-                    <td style={{ whiteSpace: "nowrap" }}>
-                      {q.pickup_zip ?? "—"} → {q.delivery_zip ?? "—"}
-                    </td>
-                    <td>{q.pickup_date ?? "—"}</td>
-                    <td>{q.commodity ?? "—"}</td>
-                    <td>
-                      {q.weight_lbs !== null
-                        ? `${q.weight_lbs.toLocaleString("en-US")} lbs`
-                        : "—"}
-                    </td>
-                    <td>{q.equipment ?? "—"}</td>
-                    <td>{q.frequency ?? "—"}</td>
-                    <td>
-                      {q.quoted_rate !== null
-                        ? q.quoted_rate.toLocaleString("en-US", {
-                            style: "currency",
-                            currency: "USD",
-                          })
-                        : "—"}
-                    </td>
-                    <td>
-                      <span className={`pbadge ${s.badge}`}>{tv(s.label)}</span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
+          ) : null}
+        </div>
       </div>
 
       <p className="pempty" style={{ paddingLeft: 0 }}>
