@@ -3,12 +3,22 @@ import { setRequestLocale } from "next-intl/server";
 import { PageHero } from "@/components/ui/PageHero";
 import { FreightQuoteForm } from "@/components/forms/FreightQuoteForm";
 import { useV4 } from "@/i18n/v4";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Freight Shipping for Shippers — PickLoads Logistics Group",
-  description:
-    "Full truckload and partial freight with vetted carriers, live tracking and one point of contact from pickup to proof of delivery. Request a quote — answered within one business hour.",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  return pageMetadata({
+    locale,
+    href: "/shippers",
+    title: "Freight Shipping for Shippers — PickLoads Logistics Group",
+    description:
+      "Full truckload and partial freight with vetted carriers, live tracking and one point of contact from pickup to proof of delivery. Request a quote — answered within one business hour.",
+  });
+}
 
 export default async function ShippersPage({
   params,

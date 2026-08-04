@@ -3,13 +3,26 @@ import { setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { PageHero } from "@/components/ui/PageHero";
 import { useV4 } from "@/i18n/v4";
+import { getV4 } from "@/i18n/v4-server";
 import { CARRIER_FAQ, SHIPPER_FAQ } from "@/content/faq";
+import { pageMetadata } from "@/lib/seo";
+import { faqPageJsonLd } from "@/lib/jsonld";
+import { JsonLd } from "@/components/seo/JsonLd";
 
-export const metadata: Metadata = {
-  title: "FAQ — Truck Dispatch & Freight Questions Answered | PickLoads",
-  description:
-    "How much does dispatch cost? Is it forced dispatch? How do carriers get paid? Straight answers to the questions carriers and shippers actually ask.",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  return pageMetadata({
+    locale,
+    href: "/faq",
+    title: "FAQ — Truck Dispatch & Freight Questions Answered | PickLoads",
+    description:
+      "How much does dispatch cost? Is it forced dispatch? How do carriers get paid? Straight answers to the questions carriers and shippers actually ask.",
+  });
+}
 
 export default async function FaqPage({
   params,
@@ -18,7 +31,20 @@ export default async function FaqPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  return <FaqContent />;
+
+  /* M-15: FAQPage JSON-LD from the same typed arrays that render the page,
+     localized through the server-side V4 bridge (falls back to English). */
+  const tv = await getV4(locale);
+  const jsonLd = faqPageJsonLd(
+    [...CARRIER_FAQ, ...SHIPPER_FAQ].map(([q, a]) => [tv(q), tv(a)] as const),
+  );
+
+  return (
+    <>
+      <JsonLd data={jsonLd} />
+      <FaqContent />
+    </>
+  );
 }
 
 function FaqContent() {

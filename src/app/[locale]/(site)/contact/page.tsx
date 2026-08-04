@@ -4,12 +4,22 @@ import { Link } from "@/i18n/navigation";
 import { PageHero } from "@/components/ui/PageHero";
 import { ContactForm } from "@/components/forms/ContactForm";
 import { useV4, useV4Rich } from "@/i18n/v4";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Contact PickLoads — Talk to a Human Today",
-  description:
-    "Dispatch questions, freight quotes, partnerships — we answer fast. Call (908) 404-5373 or email support@pickloads.com. Office in Irvington, NJ.",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  return pageMetadata({
+    locale,
+    href: "/contact",
+    title: "Contact PickLoads — Talk to a Human Today",
+    description:
+      "Dispatch questions, freight quotes, partnerships — we answer fast. Call (908) 404-5373 or email support@pickloads.com. Office in Irvington, NJ.",
+  });
+}
 
 /*
  * Map: keyless Google Maps embed (no API key required for the basic iframe;

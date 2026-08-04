@@ -4,12 +4,22 @@ import { setRequestLocale } from "next-intl/server";
 import { PageHero } from "@/components/ui/PageHero";
 import { NewsletterForm } from "@/components/forms/NewsletterForm";
 import { useV4 } from "@/i18n/v4";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Freight Insights — Market Updates & Dispatch Strategy | PickLoads",
-  description:
-    "Market updates, dispatch strategy and FMCSA news — written for the people actually running trucks.",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  return pageMetadata({
+    locale,
+    href: "/blog",
+    title: "Freight Insights — Market Updates & Dispatch Strategy | PickLoads",
+    description:
+      "Market updates, dispatch strategy and FMCSA news — written for the people actually running trucks.",
+  });
+}
 
 /*
  * M-33 replaces this array with a Supabase query on `posts`

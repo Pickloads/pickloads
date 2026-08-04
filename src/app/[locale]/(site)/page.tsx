@@ -1,5 +1,9 @@
+import type { Metadata } from "next";
 import { Hero } from "@/components/sections/Hero";
 import { setRequestLocale } from "next-intl/server";
+import { pageMetadata } from "@/lib/seo";
+import { localBusinessJsonLd } from "@/lib/jsonld";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { LoadTicker } from "@/components/sections/LoadTicker";
 import { QuickQuote } from "@/components/sections/QuickQuote";
 import { ServicesSplit } from "@/components/sections/ServicesSplit";
@@ -23,6 +27,21 @@ import { CtaBand } from "@/components/sections/CtaBand";
  * company_settings gate once verified reviews exist.
  * NOTE: moves to src/app/[locale]/page.tsx in M-13.
  */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  return pageMetadata({
+    locale,
+    href: "/",
+    title: "PickLoads Logistics Group — Truck Dispatching & Freight Brokerage",
+    description:
+      "Nationwide truck dispatching for owner-operators and small fleets. Dry van, reefer, flatbed, power only and more. Carrier setup in 5 minutes. Call (908) 404-5373.",
+  });
+}
+
 export default async function HomePage({
   params,
 }: {
@@ -33,6 +52,8 @@ export default async function HomePage({
 
   return (
     <main>
+        {/* M-15: LocalBusiness + Service structured data */}
+        <JsonLd data={localBusinessJsonLd()} />
         <Hero />
         <LoadTicker />
         <QuickQuote />

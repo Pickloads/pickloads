@@ -381,3 +381,13 @@ details .a{padding:0 22px 20px;font-size:.93rem;color:#4a545b}
 .socials{display:flex;gap:12px;margin-top:6px}
 .socials a{border:1px solid var(--line);border-radius:6px;padding:8px 16px;font-family:var(--font-mono);font-size:.74rem;color:#a9b2b8}
 .socials a:hover{border-color:var(--amber);color:var(--amber)}
+
+/* U-03-style derivation (M-15, audit S-05): consent bar — net-new element
+   composed strictly from existing tokens (asphalt2 surface, amber border
+   accent, mono copy, .btn vocabulary), bottom-bar layout like .call-fab. */
+.consentbar{position:fixed;bottom:0;left:0;right:0;z-index:90;background:var(--asphalt2);border-top:1px solid var(--line);box-shadow:0 -10px 40px rgba(0,0,0,.5);padding:16px 22px;display:flex;gap:18px;align-items:center;justify-content:center;flex-wrap:wrap}
+.consentbar p{font-family:var(--font-mono);font-size:.76rem;color:var(--color-fog);margin:0;max-width:640px}
+.consentbar p a{color:var(--amber);text-decoration:underline}
+.consentbar .btns{display:flex;gap:10px}
+.consentbar .btn{padding:10px 18px;font-size:.82rem}
+@media(max-width:640px){.consentbar{padding:14px 16px;bottom:0}.consentbar .btns{width:100%;justify-content:center}}
