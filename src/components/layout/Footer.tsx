@@ -1,6 +1,5 @@
 import { Link } from "@/i18n/navigation";
 import { Logo } from "@/components/ui/Logo";
-import { ComingSoonLink } from "@/components/ui/ComingSoonLink";
 import { useV4 } from "@/i18n/v4";
 
 /*
@@ -93,7 +92,8 @@ export function Footer() {
             <Link href="/blog">{tv("Freight Insights")}</Link>
             <Link href="/faq">{tv("FAQ")}</Link>
             <Link href="/contact">{tv("Contact")}</Link>
-            <ComingSoonLink kind="Shipper">{tv("Shipper Login")}</ComingSoonLink>
+            {/* M-32: shipper portal is live (invite-only accounts). */}
+            <Link href="/login">{tv("Shipper Login")}</Link>
           </div>
         </div>
         <div className="foot-bottom">

@@ -93,6 +93,32 @@ export function equipmentServiceJsonLd({
   };
 }
 
+/** Per-state Service JSON-LD (M-35). */
+export function stateServiceJsonLd({
+  name,
+  description,
+  slug,
+  stateName,
+  locale,
+}: {
+  name: string;
+  description: string;
+  slug: string;
+  stateName: string;
+  locale: string;
+}): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    name,
+    serviceType: "Truck dispatch service",
+    url: absoluteUrl(`/truck-dispatch/${slug}`, locale),
+    provider: { "@id": BUSINESS_ID },
+    areaServed: { "@type": "State", name: stateName },
+    description,
+  };
+}
+
 /** Article JSON-LD for published blog posts (M-33). */
 export function articleJsonLd({
   title,

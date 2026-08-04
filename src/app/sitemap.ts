@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { routing } from "@/i18n/routing";
 import { absoluteUrl, languageAlternates, PUBLIC_ROUTES } from "@/lib/seo";
 import { EQUIPMENT_SLUGS } from "@/content/equipment";
+import { STATE_SLUGS } from "@/content/states";
 import { fetchPublishedPostRefs } from "@/lib/posts";
 
 /**
@@ -16,6 +17,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const routes: string[] = [
     ...PUBLIC_ROUTES,
     ...EQUIPMENT_SLUGS.map((slug) => `/dispatch/${slug}`),
+    // M-35: six priority state pages
+    ...STATE_SLUGS.map((slug) => `/truck-dispatch/${slug}`),
   ];
 
   const entries: MetadataRoute.Sitemap = [];

@@ -12,7 +12,10 @@ export const SITE_URL =
 
 export const SITE_NAME = "PickLoads Logistics Group";
 
-/** Public, indexable routes (per locale). M-16 appends /dispatch/[equipment]. */
+/**
+ * Public, indexable routes (per locale). M-16 appends /dispatch/[equipment];
+ * M-35 appends /truck-dispatch/[state].
+ */
 export const PUBLIC_ROUTES = [
   "/",
   "/about",
@@ -22,6 +25,7 @@ export const PUBLIC_ROUTES = [
   "/contact",
   "/become-a-carrier",
   "/start-your-trucking-company",
+  "/truck-dispatch",
 ] as const;
 
 type Href = Parameters<typeof getPathname>[0]["href"];
