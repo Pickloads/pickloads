@@ -1,3 +1,4 @@
+import { Link } from "@/i18n/navigation";
 import { useV4 } from "@/i18n/v4";
 import { ComingSoonLink } from "@/components/ui/ComingSoonLink";
 import { LangSelect } from "./LangSelect";
@@ -12,7 +13,8 @@ export function Topbar() {
         </a>
         <div className="right">
           <a href="mailto:support@pickloads.com">support@pickloads.com</a>
-          <ComingSoonLink kind="Carrier">{tv("Carrier Login")}</ComingSoonLink>
+          {/* M-02b: carrier portal is live; shipper portal lands in M-32. */}
+          <Link href="/login">{tv("Carrier Login")}</Link>
           <ComingSoonLink kind="Shipper">{tv("Shipper Login")}</ComingSoonLink>
           <LangSelect />
         </div>

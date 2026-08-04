@@ -84,7 +84,7 @@ export function Footer() {
             <Link href="/#packet">{tv("Insurance Requirements")}</Link>
             <Link href="/#packet">{tv("Factoring")}</Link>
             <Link href="/faq">{tv("Carrier FAQ")}</Link>
-            <ComingSoonLink kind="Carrier">{tv("Carrier Login")}</ComingSoonLink>
+            <Link href="/login">{tv("Carrier Login")}</Link>
           </div>
           <div>
             <h4>{tv("Company")}</h4>

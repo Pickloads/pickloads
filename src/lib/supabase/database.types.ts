@@ -151,6 +151,67 @@ type EmailLogRow = {
   created_at: string;
 }
 
+/* ---------- Phase 2 rows (M-02b — carriers/documents/CRM/webhooks) ---------- */
+
+type CarrierRow = {
+  id: string;
+  profile_id: string | null;
+  company_name: string;
+  mc_number: string | null;
+  dot_number: string | null;
+  /** S-01: AES-256-GCM ciphertext (src/lib/crypto.ts) — never plaintext. */
+  ein: string | null;
+  home_state: string | null;
+  factoring_company: string | null;
+  insurance_expiry: string | null;
+  dispatch_fee_pct: number;
+  agreement_signed_at: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+type DocumentRow = {
+  id: string;
+  carrier_id: string;
+  type: DocType;
+  storage_path: string;
+  file_name: string | null;
+  file_size_bytes: number | null;
+  mime_type: string | null;
+  uploaded_by: string | null;
+  status: DocStatus;
+  reviewed_by: string | null;
+  review_note: string | null;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+type LeadActivityRow = {
+  id: string;
+  lead_id: string | null;
+  quote_id: string | null;
+  type: ActivityType;
+  body: string | null;
+  old_status: LeadStatus | null;
+  new_status: LeadStatus | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+type WebhookEventRow = {
+  id: string;
+  provider: string;
+  event_id: string;
+  event_type: string;
+  payload: unknown;
+  status: string;
+  error: string | null;
+  processed_at: string | null;
+  created_at: string;
+}
+
 type Insertable<Row, Required extends keyof Row> = Pick<Row, Required> &
   Partial<Omit<Row, Required>>;
 
@@ -199,10 +260,37 @@ export type Database = {
         Update: Partial<EmailLogRow>;
         Relationships: [];
       };
+      carriers: {
+        Row: CarrierRow;
+        Insert: Insertable<CarrierRow, "company_name">;
+        Update: Partial<CarrierRow>;
+        Relationships: [];
+      };
+      documents: {
+        Row: DocumentRow;
+        Insert: Insertable<DocumentRow, "carrier_id" | "type" | "storage_path">;
+        Update: Partial<DocumentRow>;
+        Relationships: [];
+      };
+      lead_activities: {
+        Row: LeadActivityRow;
+        Insert: Insertable<LeadActivityRow, "type">;
+        Update: Partial<LeadActivityRow>;
+        Relationships: [];
+      };
+      webhook_events: {
+        Row: WebhookEventRow;
+        Insert: Insertable<
+          WebhookEventRow,
+          "provider" | "event_id" | "event_type" | "payload"
+        >;
+        Update: Partial<WebhookEventRow>;
+        Relationships: [];
+      };
       /*
-       * Phase 2/3 tables (carriers, documents, loads, lead_activities, posts,
-       * webhook_events) are added here by their owning modules — or the whole
-       * file is replaced by `supabase gen types` output once a project is linked.
+       * Phase 3 tables (loads, posts) are added here by their owning modules —
+       * or the whole file is replaced by `supabase gen types` output once a
+       * project is linked.
        */
     };
     Views: Record<string, never>;
