@@ -49,6 +49,7 @@ export function PortalSidebar({
           {item("/portal/admin", "Dashboard", true)}
           {item("/portal/admin/leads", "Leads CRM")}
           {item("/portal/admin/loads", "Loads")}
+          {item("/portal/admin/posts", "Blog posts")}
           {role === "admin" ? item("/portal/admin/settings", "Settings") : null}
         </>
       ) : role === "shipper" ? (

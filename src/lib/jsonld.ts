@@ -93,6 +93,36 @@ export function equipmentServiceJsonLd({
   };
 }
 
+/** Article JSON-LD for published blog posts (M-33). */
+export function articleJsonLd({
+  title,
+  description,
+  slug,
+  locale,
+  publishedAt,
+  modifiedAt,
+}: {
+  title: string;
+  description: string | null;
+  slug: string;
+  locale: string;
+  publishedAt: string | null;
+  modifiedAt: string;
+}): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: title,
+    ...(description ? { description } : {}),
+    url: absoluteUrl(`/blog/${slug}`, locale),
+    inLanguage: locale,
+    ...(publishedAt ? { datePublished: publishedAt } : {}),
+    dateModified: modifiedAt,
+    author: { "@id": BUSINESS_ID },
+    publisher: { "@id": BUSINESS_ID },
+  };
+}
+
 export function faqPageJsonLd(
   entries: ReadonlyArray<readonly [string, string]>,
 ): Record<string, unknown> {
