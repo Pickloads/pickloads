@@ -1,26 +1,79 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * PickLoads design tokens — extracted VERBATIM from the approved V4 prototype
+ * (pickloadssitev4.html :root block). Do not modify values without an approved
+ * design change. WCAG AA contrast exceptions are handled per decision Q7 with
+ * dedicated `*-aa` tokens documented in docs/modules/M-00.md.
+ */
+@theme {
+  /* Core palette (V4 :root) */
+  --color-asphalt: #12161a;
+  --color-asphalt-2: #1a2026;
+  --color-paper: #f4f6f5;
+  --color-amber: #ffb020;
+  --color-amber-deep: #e29500;
+  --color-green: #0e5a3c;
+  --color-green-bright: #1b7a54;
+  --color-steel: #97a1a8;
+  --color-ink: #1b2126;
+
+  /* Named secondary colors used across V4 (hex values as they appear in the prototype CSS) */
+  --color-night: #0b0e11; /* topbar / footer / board background */
+  --color-mint: #4cc492; /* broker-green accents, success text */
+  --color-fog: #a9b2b8; /* p.sub on dark */
+  --color-fog-2: #b8c0c6; /* page-hero p */
+  --color-fog-3: #c4ccd1; /* hero lead */
+  --color-cloud: #cfd6da; /* navlinks */
+  --color-slate-body: #4a545b; /* body text on light */
+  --color-slate-mid: #6a747b; /* secondary on light */
+  --color-slate-soft: #8a949b; /* muted on light */
+  --color-gray-cool: #9aa4ab; /* card body on dark */
+  --color-gray-mid: #aeb7bd; /* board rows */
+  --color-dim: #5c666d; /* mono footnotes */
+
+  /* Borders */
+  --color-line: rgb(255 255 255 / 0.12);
+  --color-line-dark: rgb(18 22 26 / 0.14);
+
+  /* Typography (V4) */
+  --font-display: "Overpass", sans-serif;
+  --font-sans: "Barlow", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+
+  /* Layout rhythm (V4) */
+  --spacing-section: 88px;
+  --spacing-section-mobile: 64px;
+  --container-wrap: 1180px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* V4 base styles */
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  background: var(--color-asphalt);
+  color: var(--color-paper);
+  line-height: 1.6;
+  font-size: 16.5px;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-amber);
+  outline-offset: 2px;
+}
+
+/* Anchor targets clear the sticky nav (audit U-05 — invisible fix) */
+[id] {
+  scroll-margin-top: 84px;
 }
