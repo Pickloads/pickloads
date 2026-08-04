@@ -3,6 +3,8 @@ import { Link } from "@/i18n/navigation";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { LoadStatusActions } from "@/components/portal/LoadForms";
+import { GenerateInvoiceButton } from "@/components/portal/InvoiceActions";
+import { isStripeConfigured } from "@/lib/stripe";
 import {
   LOAD_STATUSES,
   LOAD_STATUS_BADGE,
@@ -29,7 +31,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /**
  * M-30 — staff loads board: filterable list (status / carrier / dispatcher),
  * RPM display, status transitions per the M-30 state machine.
- * Reads run under the staff RLS policies (cookie-bound client).
+ * M-31 adds "Generate invoice" on delivered rows + Stripe payment history
+ * (read from the webhook_events ledger). Reads run under the staff RLS
+ * policies (cookie-bound client).
  */
 export default async function AdminLoadsPage({
   params,
@@ -82,6 +86,17 @@ export default async function AdminLoadsPage({
     carriers.find((c) => c.id === id)?.company_name ?? "Unknown";
   const dispatcherName = (id: string | null) =>
     id === null ? "—" : (staff.find((s) => s.id === id)?.full_name ?? "Staff");
+
+  // M-31 payment history — Stripe events recorded by the invoice action and
+  // the signature-verified webhook (no schema change: webhook_events is the
+  // audit ledger; Stripe itself stays the billing source of truth).
+  const { data: stripeEvents } = await supabase
+    .from("webhook_events")
+    .select("id, event_type, payload, status, created_at")
+    .eq("provider", "stripe")
+    .order("created_at", { ascending: false })
+    .limit(25);
+  const stripeReady = isStripeConfigured();
 
   const totals = {
     gross: loads.reduce((sum, l) => sum + (l.gross_rate ?? 0), 0),
@@ -214,6 +229,13 @@ export default async function AdminLoadsPage({
                     </span>
                   </td>
                   <td>
+                    {l.status === "delivered" ? (
+                      <GenerateInvoiceButton
+                        loadId={l.id}
+                        fee={l.dispatch_fee}
+                        configured={stripeReady}
+                      />
+                    ) : null}{" "}
                     <LoadStatusActions loadId={l.id} status={l.status} />
                   </td>
                 </tr>
@@ -223,6 +245,86 @@ export default async function AdminLoadsPage({
         )}
       </div>
 
+      <span className="psec">Billing — Stripe payment history</span>
+      <p className="pempty" style={{ padding: "0 0 12px" }}>
+        {/* Compliance rule (src/lib/stripe.ts): dispatch fee only. */}
+        Only the dispatch fee is invoiced through Stripe. Freight payments go
+        broker → carrier/factoring and never touch PickLoads.
+      </p>
+      <div className="ptable-wrap">
+        {stripeEvents && stripeEvents.length > 0 ? (
+          <table className="ptable">
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>Event</th>
+                <th>Invoice</th>
+                <th>Load</th>
+                <th>Amount</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stripeEvents.map((e) => {
+                const p =
+                  typeof e.payload === "object" && e.payload !== null
+                    ? (e.payload as Record<string, unknown>)
+                    : {};
+                const invoiceId =
+                  typeof p.invoice_id === "string" ? p.invoice_id : null;
+                const hostedUrl =
+                  typeof p.hosted_invoice_url === "string"
+                    ? p.hosted_invoice_url
+                    : null;
+                const loadId = typeof p.load_id === "string" ? p.load_id : null;
+                const amount =
+                  typeof p.amount_usd === "number"
+                    ? formatMoney(p.amount_usd)
+                    : "—";
+                return (
+                  <tr key={e.id}>
+                    <td style={{ whiteSpace: "nowrap" }}>
+                      {new Date(e.created_at).toLocaleString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </td>
+                    <td>{e.event_type}</td>
+                    <td style={{ fontFamily: "var(--font-mono)", fontSize: ".74rem" }}>
+                      {invoiceId && hostedUrl ? (
+                        <a href={hostedUrl} target="_blank" rel="noreferrer">
+                          {invoiceId}
+                        </a>
+                      ) : (
+                        (invoiceId ?? "—")
+                      )}
+                    </td>
+                    <td style={{ fontFamily: "var(--font-mono)", fontSize: ".74rem" }}>
+                      {loadId ? `${loadId.slice(0, 8)}…` : "—"}
+                    </td>
+                    <td>{amount}</td>
+                    <td>
+                      <span
+                        className={`pbadge ${e.status === "processed" ? "green" : e.status === "failed" ? "red" : "amber"}`}
+                      >
+                        {e.status}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : (
+          <p className="pempty">
+            {stripeReady
+              ? "No Stripe activity yet. Invoices appear here once a delivered load is invoiced."
+              : "Stripe isn't connected (STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET). Invoicing buttons activate once keys are set."}
+          </p>
+        )}
+      </div>
     </main>
   );
 }
