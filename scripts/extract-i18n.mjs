@@ -448,6 +448,91 @@ const SUPPLEMENTAL = {
     es: "✓ Correo verificado — ya puedes iniciar sesión.",
     fr: "✓ E-mail vérifié — vous pouvez vous connecter.",
   },
+  /* ---- M-53: shipper registration ---- */
+  "Create your shipper account": {
+    es: "Crea tu cuenta de shipper",
+    fr: "Créez votre compte expéditeur",
+  },
+  "Request quotes, see rates as they land, and coordinate freight with vetted carriers — from your own portal.":
+    {
+      es: "Solicita cotizaciones, mira las tarifas en cuanto llegan y coordina tu carga con carriers verificados — desde tu propio portal.",
+      fr: "Demandez des devis, consultez les tarifs dès leur arrivée et coordonnez votre fret avec des transporteurs vérifiés — depuis votre portail.",
+    },
+  "Your shipper account": {
+    es: "Tu cuenta de shipper",
+    fr: "Votre compte expéditeur",
+  },
+  "About 2 minutes. Request quotes and coordinate freight with vetted carriers — a dispatcher reviews every request personally.":
+    {
+      es: "Unos 2 minutos. Solicita cotizaciones y coordina tu carga con carriers verificados — un dispatcher revisa cada solicitud personalmente.",
+      fr: "Environ 2 minutes. Demandez des devis et coordonnez votre fret avec des transporteurs vérifiés — un dispatcher examine chaque demande personnellement.",
+    },
+  "Industry": {
+    es: "Industria",
+    fr: "Secteur",
+  },
+  "Shipping Frequency": {
+    es: "Frecuencia de envío",
+    fr: "Fréquence d'expédition",
+  },
+  "Select…": {
+    es: "Selecciona…",
+    fr: "Sélectionnez…",
+  },
+  "Construction & building materials": {
+    es: "Construcción y materiales",
+    fr: "Construction et matériaux",
+  },
+  "Other": {
+    es: "Otro",
+    fr: "Autre",
+  },
+  "Seasonal": {
+    es: "Estacional",
+    fr: "Saisonnier",
+  },
+  "Shipping Regions (check all that apply)": {
+    es: "Regiones de envío (marca todas las que apliquen)",
+    fr: "Régions d'expédition (cochez toutes celles qui s'appliquent)",
+  },
+  "Northeast": {
+    es: "Noreste",
+    fr: "Nord-Est",
+  },
+  "Southeast": {
+    es: "Sureste",
+    fr: "Sud-Est",
+  },
+  "Midwest": {
+    es: "Medio Oeste",
+    fr: "Midwest",
+  },
+  "Southwest": {
+    es: "Suroeste",
+    fr: "Sud-Ouest",
+  },
+  "West": {
+    es: "Oeste",
+    fr: "Ouest",
+  },
+  "Nationwide": {
+    es: "Todo el país",
+    fr: "Tout le pays",
+  },
+  "Your shipper portal tracks every quote request and rate — and any quotes you already requested under this email get linked automatically.":
+    {
+      es: "Tu portal de shipper sigue cada solicitud de cotización y tarifa — y las cotizaciones que ya pediste con este correo se vinculan automáticamente.",
+      fr: "Votre portail expéditeur suit chaque demande de devis et tarif — et les devis déjà demandés avec cet e-mail sont liés automatiquement.",
+    },
+  "New here? Create your shipper account →": {
+    es: "¿Primera vez? Crea tu cuenta de shipper →",
+    fr: "Nouveau ici ? Créez votre compte expéditeur →",
+  },
+  "No quote requests yet. Request your first quote and it shows up here — along with any past requests made under your verified email.":
+    {
+      es: "Aún no hay solicitudes de cotización. Pide tu primera cotización y aparecerá aquí — junto con las solicitudes anteriores hechas con tu correo verificado.",
+      fr: "Pas encore de demande de devis. Demandez votre premier devis et il apparaîtra ici — avec les demandes passées faites avec votre e-mail vérifié.",
+    },
 };
 for (const [en, tr] of Object.entries(SUPPLEMENTAL)) addEntry(en, tr, false);
 // RICH entries are keyed by data-i18n id (hero.title etc.) with per-locale HTML;

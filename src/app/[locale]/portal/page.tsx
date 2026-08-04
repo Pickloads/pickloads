@@ -93,8 +93,9 @@ export default async function PortalSelectPage({
                   {tv("Shipper Sign In →")}
                 </Link>
                 <span className="soon">
-                  <Link href="/shippers">
-                    {tv("New here? Request your first quote →")}
+                  {/* M-53: shipper self-signup door (decision D1). */}
+                  <Link href="/create-account/shipper">
+                    {tv("New here? Create your shipper account →")}
                   </Link>
                 </span>
               </div>

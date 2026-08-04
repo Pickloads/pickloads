@@ -151,6 +151,28 @@ test.describe("create account (M-52, secretless)", () => {
       "no account was created",
     );
   });
+
+  test("shipper registration (M-53) renders directive fields and degrades honestly", async ({
+    page,
+  }) => {
+    await page.goto("/create-account/shipper");
+    await expect(
+      page.getByRole("heading", { name: "Create your shipper account" }),
+    ).toBeVisible();
+    // Directive fields: industry / frequency / regions
+    await expect(page.locator("#sa-industry")).toBeVisible();
+    await expect(page.locator("#sa-frequency")).toBeVisible();
+    await expect(page.getByRole("checkbox", { name: "Midwest" })).toBeVisible();
+    await page.locator("#sa-company").fill("Smoke Shipping Inc");
+    await page.locator("#sa-name").fill("Smoke Shipper");
+    await page.locator("#sa-email").fill("shipper-smoke@example.com");
+    await page.locator("#sa-phone").fill("(908) 404-5373");
+    await page.locator("#sa-pass").fill("hunter22b");
+    await page.getByRole("button", { name: /Create Account/ }).click();
+    await expect(page.locator(".form-err.show")).toContainText(
+      "no account was created",
+    );
+  });
 });
 
 test.describe("password recovery (M-42, secretless)", () => {

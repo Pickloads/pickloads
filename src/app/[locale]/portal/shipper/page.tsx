@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getPathname, Link } from "@/i18n/navigation";
 import { requireProfile, portalHomeFor } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
 import { tryCreateAdminClient } from "@/lib/supabase/admin";
 import { getV4 } from "@/i18n/v4-server";
 import type { LeadStatus } from "@/lib/supabase/database.types";
@@ -14,18 +15,19 @@ export const metadata: Metadata = {
 };
 
 /**
- * M-32 — shipper portal v1: my quote requests + statuses + request-new-quote.
+ * M-32 shipper portal, upgraded in M-53 with the M-50 data model:
  *
- * DATA-LINK LIMITATION (documented, deliberate): the schema has NO FK from
- * freight_quotes to auth users — quotes come from the public form (Q3:
- * service-role inserts, email is the only identity captured). So this page
- * matches quotes on the signed-in user's VERIFIED auth email. Because no
- * "shipper reads own quotes" RLS policy exists (schema is FINAL this phase),
- * the read uses the admin client strictly scoped to `.eq("email", session
- * email)` AFTER the server-side role gate — the filter value comes from the
- * Supabase-verified session, never from request input. Quotes submitted
- * under a different email address won't appear; the empty state says so.
- * A proper shipper_id FK + RLS policy is the Phase 4 migration.
+ * SELF-SIGNUP PATH (shipper_memberships row exists): quotes are read through
+ * the cookie-bound server client under the 0009 "member read own quotes" RLS
+ * policy (`shipper_id in my_shipper_ids()`). Before reading, un-owned
+ * historical quotes whose email equals the **Supabase-verified session
+ * email** are claimed one-shot (service role) — never signup input, so an
+ * attacker registering someone else's address can't read anything until that
+ * address itself is verified (audit §6.3).
+ *
+ * LEGACY PATH (staff-invited account, no membership): the documented M-32
+ * email-matching read stays — admin client strictly scoped to
+ * `.eq("email", session.email)` after the role gate.
  */
 
 /** Shipper-facing labels for the internal lead_status pipeline. */
@@ -53,18 +55,66 @@ export default async function ShipperPortalPage({
   }
   const tv = await getV4(locale);
 
-  const admin = session.email ? tryCreateAdminClient() : null;
-  const { data: quoteRows } = admin && session.email
-    ? await admin
+  const QUOTE_COLUMNS =
+    "id, pickup_zip, delivery_zip, pickup_date, commodity, weight_lbs, equipment, frequency, status, quoted_rate, created_at";
+
+  const supabase = await createClient();
+  const { data: membership } = await supabase
+    .from("shipper_memberships")
+    .select("shipper_id")
+    .limit(1)
+    .maybeSingle();
+
+  let quoteRows: Array<{
+    id: string;
+    pickup_zip: string | null;
+    delivery_zip: string | null;
+    pickup_date: string | null;
+    commodity: string | null;
+    weight_lbs: number | null;
+    equipment: string | null;
+    frequency: string | null;
+    status: LeadStatus;
+    quoted_rate: number | null;
+    created_at: string;
+  }> = [];
+
+  if (membership) {
+    // Post-verification claim: link legacy un-owned quotes submitted under
+    // the verified session email (one-shot; % and _ escaped for ilike).
+    const admin = session.email ? tryCreateAdminClient() : null;
+    if (admin && session.email) {
+      const { error: claimError } = await admin
         .from("freight_quotes")
-        .select(
-          "id, pickup_zip, delivery_zip, pickup_date, commodity, weight_lbs, equipment, frequency, status, quoted_rate, created_at",
-        )
+        .update({ shipper_id: membership.shipper_id })
+        .is("shipper_id", null)
+        .ilike("email", session.email.replace(/[%_]/g, "\\$&"));
+      if (claimError) {
+        console.error("[shipper-portal] quote claim failed", claimError.message);
+      }
+    }
+    // Cookie-bound read under the "member read own quotes" RLS policy.
+    const { data } = await supabase
+      .from("freight_quotes")
+      .select(QUOTE_COLUMNS)
+      .eq("shipper_id", membership.shipper_id)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    quoteRows = data ?? [];
+  } else {
+    // Legacy staff-invited account: documented M-32 email-matching read.
+    const admin = session.email ? tryCreateAdminClient() : null;
+    if (admin && session.email) {
+      const { data } = await admin
+        .from("freight_quotes")
+        .select(QUOTE_COLUMNS)
         .eq("email", session.email)
         .order("created_at", { ascending: false })
-        .limit(100)
-    : { data: [] };
-  const quotes = quoteRows ?? [];
+        .limit(100);
+      quoteRows = data ?? [];
+    }
+  }
+  const quotes = quoteRows;
 
   const open = quotes.filter(
     (q) => q.status !== "inactive" && q.status !== "lost",
@@ -100,15 +150,23 @@ export default async function ShipperPortalPage({
 
       <div className="ptable-wrap">
         {quotes.length === 0 ? (
-          <p className="pempty">
-            {tv(
-              "No quote requests found for this email address. Quotes are matched to your sign-in email",
-            )}
-            {session.email ? ` (${session.email})` : ""} —{" "}
-            {tv(
-              "if you requested one under a different address, call (908) 404-5373 and we'll link it.",
-            )}
-          </p>
+          membership ? (
+            <p className="pempty">
+              {tv(
+                "No quote requests yet. Request your first quote and it shows up here — along with any past requests made under your verified email.",
+              )}
+            </p>
+          ) : (
+            <p className="pempty">
+              {tv(
+                "No quote requests found for this email address. Quotes are matched to your sign-in email",
+              )}
+              {session.email ? ` (${session.email})` : ""} —{" "}
+              {tv(
+                "if you requested one under a different address, call (908) 404-5373 and we'll link it.",
+              )}
+            </p>
+          )
         ) : (
           <table className="ptable">
             <thead>

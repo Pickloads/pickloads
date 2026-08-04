@@ -7,7 +7,10 @@ import {
   guardPublicForm,
   SERVER_ERROR_MESSAGE,
 } from "@/lib/forms/guard";
-import { createCarrierAccountSchema } from "@/lib/validation/account";
+import {
+  createCarrierAccountSchema,
+  createShipperAccountSchema,
+} from "@/lib/validation/account";
 import { firstIssueMessage } from "@/lib/validation/shared";
 import { tryCreateAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -258,4 +261,150 @@ export async function createCarrierAccount(
   });
 
   return { status: "success", verification, next: routing.next };
+}
+
+/**
+ * M-53 — shipper registration (directive fields: industry / frequency /
+ * regions). Same guard stack and never-auto-confirmed signUp as the carrier
+ * branch. The role promotion to 'shipper' happens strictly server-side via
+ * the service role (audit §6.5 — `guard_role_change` blocks client sessions).
+ * Historical quotes are NOT linked here: claiming happens post-verification
+ * in the shipper portal against the Supabase-verified session email only
+ * (audit §6.3 — signup input must never re-link another address's quotes).
+ */
+export async function createShipperAccount(
+  _prev: SignupState,
+  formData: FormData,
+): Promise<SignupState> {
+  const guard = await guardPublicForm("create-account", formData);
+  if (!guard.ok) return { status: "error", message: guard.message };
+
+  const parsed = createShipperAccountSchema.safeParse({
+    company_name: field(formData, "company_name"),
+    full_name: field(formData, "full_name"),
+    email: field(formData, "email"),
+    phone: field(formData, "phone"),
+    industry: field(formData, "industry"),
+    shipping_frequency: field(formData, "shipping_frequency"),
+    regions: field(formData, "regions"),
+    password: field(formData, "password"),
+    locale: field(formData, "locale"),
+  });
+  if (!parsed.success) {
+    return { status: "error", message: firstIssueMessage(parsed.error) };
+  }
+  const input = parsed.data;
+
+  const admin = tryCreateAdminClient();
+  if (!admin) {
+    return { status: "success", verification: "unconfigured" };
+  }
+
+  const { ip, origin } = await requestMeta();
+
+  let userId: string;
+  let verification: "sent" | "none";
+  try {
+    const supabase = await createClient();
+    const loginPath = getPathname({ href: "/login", locale: input.locale });
+    const { data, error } = await supabase.auth.signUp({
+      email: input.email,
+      password: input.password,
+      options: {
+        emailRedirectTo: `${origin}${loginPath}?verified=1`,
+        data: {
+          full_name: input.full_name,
+          preferred_language: input.locale,
+        },
+      },
+    });
+    if (error) {
+      const exists = /already|registered|exists/i.test(error.message);
+      return {
+        status: "error",
+        message: exists ? DUPLICATE_MESSAGE : SERVER_ERROR_MESSAGE,
+      };
+    }
+    if (!data.user || (data.user.identities ?? []).length === 0) {
+      return { status: "error", message: DUPLICATE_MESSAGE };
+    }
+    userId = data.user.id;
+    verification = data.session ? "none" : "sent";
+  } catch (err) {
+    console.error("[account] shipper signUp failed", err);
+    return { status: "error", message: SERVER_ERROR_MESSAGE };
+  }
+
+  try {
+    // Server-side role assignment — the only path to a shipper role.
+    const { error: profileError } = await admin
+      .from("profiles")
+      .update({
+        role: "shipper",
+        phone: input.phone,
+        company_name: input.company_name,
+      })
+      .eq("id", userId);
+    if (profileError) throw new Error(profileError.message);
+
+    const { data: shipper, error: shipperError } = await admin
+      .from("shippers")
+      .insert({
+        company_name: input.company_name,
+        industry: input.industry,
+        shipping_frequency: input.shipping_frequency,
+        regions: input.regions.length > 0 ? input.regions : null,
+        phone: input.phone,
+        billing_email: input.email,
+      })
+      .select("id")
+      .single();
+    if (shipperError) throw new Error(shipperError.message);
+
+    const { error: membershipError } = await admin
+      .from("shipper_memberships")
+      .insert({ shipper_id: shipper.id, profile_id: userId, role: "owner" });
+    if (membershipError) throw new Error(membershipError.message);
+
+    const { error: auditError } = await admin.from("audit_events").insert({
+      action: "account.signup",
+      target_table: "profiles",
+      target_id: userId,
+      detail: {
+        kind: "shipper",
+        industry: input.industry,
+        shipping_frequency: input.shipping_frequency,
+      },
+      ip: ip !== "unknown" ? ip : null,
+    });
+    if (auditError) console.error("[account] audit insert failed", auditError.message);
+  } catch (err) {
+    console.error("[account] shipper signup post-processing failed", err);
+    return { status: "error", message: SERVER_ERROR_MESSAGE };
+  }
+
+  const details = [
+    input.industry ? `Industry: ${input.industry}` : null,
+    input.shipping_frequency ? `Frequency: ${input.shipping_frequency}` : null,
+    input.regions.length > 0 ? `Regions: ${input.regions.join(", ")}` : null,
+  ].filter((d): d is string => d !== null);
+
+  await sendEmail({
+    to: EMAIL_INTERNAL_TO,
+    subject: `Shipper account created — ${input.company_name}`,
+    template: "account-signup-shipper",
+    react: (
+      <AccountSignupEmail
+        kind="shipper"
+        companyName={input.company_name}
+        fullName={input.full_name}
+        email={input.email}
+        phone={input.phone}
+        routing="Shipper self-signup (D1) → shipper portal after email verification"
+        {...(details.length > 0 ? { detail: details.join(" · ") } : {})}
+      />
+    ),
+  });
+
+  return { status: "success", verification };
 }

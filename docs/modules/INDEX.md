@@ -36,6 +36,7 @@ suites from M-40 on). Details live in each module's doc.
 | M-50 | U | [M-50-data-model.md](M-50-data-model.md) | Upgrade data model: migrations 0005–0009 (shippers, memberships + backfill, account status/history, audit, preferences, fleet, support, notifications, invoices, `freight_quotes.shipper_id` FK + RLS), extended DB types |
 | M-51 | U | [M-51-portal-selection.md](M-51-portal-selection.md) | Pre-auth `/portal` selection page (two V4 cards), header Login + Get Started, mobile menu + Support entries, real topbar/footer auth links (Coming-Soon toasts removed) |
 | M-52 | U | [M-52-create-account-carrier.md](M-52-create-account-carrier.md) | `/create-account` chooser (D1-gated shipper door) + carrier registration with authority-status routing (onboarding / pending / new-authority / leased-on manual review), never-auto-confirmed signups, verified-email loop |
+| M-53 | U | [M-53-shipper-registration.md](M-53-shipper-registration.md) | Shipper registration (industry/frequency/regions, quote-request wording), server-side role promotion, post-verification quote claiming + RLS-scoped shipper portal reads (admin-client workaround retired for self-signups) |
 
 Phases: 0 = foundations · 1 = public site · 2 = onboarding/CRM · 3 =
 loads/billing/content · H = hardening · U = upgrade directive (M-50a audit).

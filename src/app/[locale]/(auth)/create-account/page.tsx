@@ -91,9 +91,8 @@ export default async function CreateAccountPage({
                     <li>{tv("See quoted rates as they come in")}</li>
                     <li>{tv("A dispatcher calls back within one business hour")}</li>
                   </ul>
-                  {/* M-53 replaces this with the shipper registration flow. */}
-                  <Link className="btn btn-green" href="/shippers">
-                    {tv("Request a Freight Quote →")}
+                  <Link className="btn btn-green" href="/create-account/shipper">
+                    {tv("Create Shipper Account →")}
                   </Link>
                   <span className="soon">
                     <Link href="/login">{tv("Already have an account? Sign in →")}</Link>
