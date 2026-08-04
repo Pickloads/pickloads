@@ -1,0 +1,158 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { setRequestLocale } from "next-intl/server";
+import { routing } from "@/i18n/routing";
+import { getV4 } from "@/i18n/v4-server";
+import { PageHero } from "@/components/ui/PageHero";
+import { CtaBand } from "@/components/sections/CtaBand";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { pageMetadata } from "@/lib/seo";
+import { equipmentServiceJsonLd } from "@/lib/jsonld";
+import {
+  EQUIPMENT_SLUGS,
+  getEquipmentContent,
+  type EquipmentContent,
+} from "@/content/equipment";
+
+/*
+ * M-16 — /dispatch/[equipment] (arch §8 SEO pages; audit F-10 route mapping).
+ * Template composed 100% from V4 vocabulary: PageHero → about-grid
+ * (story intro + .svc requirements card) → .flow lanes → light FAQ →
+ * CtaBand. Content from the typed module src/content/equipment.ts.
+ */
+export function generateStaticParams() {
+  return routing.locales.flatMap((locale) =>
+    EQUIPMENT_SLUGS.map((equipment) => ({ locale, equipment })),
+  );
+}
+
+export const dynamicParams = false;
+
+type Params = Promise<{ locale: string; equipment: string }>;
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Params;
+}): Promise<Metadata> {
+  const { locale, equipment } = await params;
+  const content = getEquipmentContent(equipment);
+  if (!content) return {};
+  return pageMetadata({
+    locale,
+    href: `/dispatch/${content.slug}`,
+    title: content.metaTitle,
+    description: content.metaDescription,
+  });
+}
+
+export default async function EquipmentPage({ params }: { params: Params }) {
+  const { locale, equipment } = await params;
+  const content = getEquipmentContent(equipment);
+  if (!content) notFound();
+  setRequestLocale(locale);
+  const tv = await getV4(locale);
+
+  return (
+    <main>
+      <JsonLd
+        data={equipmentServiceJsonLd({
+          name: content.name,
+          description: content.blurb,
+          slug: content.slug,
+          locale,
+        })}
+      />
+      <PageHero
+        eyebrow={`${tv("Equipment we dispatch")} · ${content.code}`}
+        title={tv(content.name)}
+      >
+        {content.heroLead}
+      </PageHero>
+
+      <section>
+        <div className="wrap about-grid">
+          <div className="story">
+            <span className="eyebrow">{tv("Dispatch")}</span>
+            <h2 className="sec" style={{ marginBottom: 24 }}>
+              {content.introHeading}
+            </h2>
+            {content.intro.map((paragraph) => (
+              <p key={paragraph.slice(0, 32)}>{paragraph}</p>
+            ))}
+            <p className="mono" style={{ fontSize: ".78rem", color: "var(--color-dim)" }}>
+              {content.ratesNote}
+            </p>
+          </div>
+          <div className="svc dispatch">
+            <span className="tag">{tv("Requirements")}</span>
+            <h3>{content.requirementsHeading}</h3>
+            <ul>
+              {content.requirements.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+            <span className="soon">
+              {"// "}
+              {tv(
+                "Document filing assistance only — we are not a law firm and do not provide legal advice.",
+              )}
+            </span>
+          </div>
+        </div>
+
+        <div className="wrap">
+          <div className="flow">
+            <span className="flow-title">{content.lanesTitle}</span>
+            <div className="flow-track">
+              {content.lanes.map((node, index) => (
+                <FlowNode
+                  key={node.label}
+                  node={node}
+                  isLast={index === content.lanes.length - 1}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="light">
+        <div className="wrap">
+          <span className="eyebrow">{tv("FAQ")}</span>
+          <h2 className="sec">{tv("Straight answers. No fine print.")}</h2>
+          <div className="faq-cols" style={{ gridTemplateColumns: "1fr" }}>
+            <div className="faq-col" style={{ maxWidth: 760 }}>
+              <h3>
+                ▸ {tv(content.name)}
+              </h3>
+              {content.faq.map(([question, answer]) => (
+                <details key={question}>
+                  <summary>{question}</summary>
+                  <div className="a">{answer}</div>
+                </details>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <CtaBand />
+    </main>
+  );
+}
+
+function FlowNode({
+  node,
+  isLast,
+}: {
+  node: EquipmentContent["lanes"][number];
+  isLast: boolean;
+}) {
+  return (
+    <>
+      <span className={`flow-node${node.hot ? " hot" : ""}`}>{node.label}</span>
+      {!isLast ? <span className="flow-arrow">→</span> : null}
+    </>
+  );
+}
