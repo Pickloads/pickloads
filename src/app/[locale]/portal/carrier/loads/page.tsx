@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { getPathname } from "@/i18n/navigation";
-import { requireProfile, portalHomeFor } from "@/lib/auth";
+import { requireCarrier } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { getMyCarrierId } from "@/lib/memberships";
 import { getV4 } from "@/i18n/v4-server";
 import {
   LOAD_STATUS_BADGE,
@@ -22,8 +21,9 @@ export const metadata: Metadata = {
 /**
  * M-30 — carrier portal "My Loads": read-only view of dispatched loads with
  * status and the dispatch fee (fee transparency is the brand promise). All
- * reads are RLS-scoped ("carrier own loads") through the cookie-bound
- * client — no carrier id travels in the request.
+ * reads are RLS-scoped ("member read loads") through the cookie-bound
+ * client — the carrier id resolves via the membership helper (M-57), never
+ * from the request.
  */
 export default async function CarrierLoadsPage({
   params,
@@ -31,18 +31,18 @@ export default async function CarrierLoadsPage({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
-  const session = await requireProfile(locale);
-  if (session.role !== "carrier") {
-    redirect(getPathname({ href: portalHomeFor(session.role), locale }));
-  }
+  await requireCarrier(locale);
   const tv = await getV4(locale);
   const supabase = await createClient();
 
-  const { data: carrier } = await supabase
-    .from("carriers")
-    .select("id, company_name, dispatch_fee_pct")
-    .eq("profile_id", session.userId)
-    .maybeSingle();
+  const carrierId = await getMyCarrierId(supabase);
+  const { data: carrier } = carrierId
+    ? await supabase
+        .from("carriers")
+        .select("id, company_name, dispatch_fee_pct")
+        .eq("id", carrierId)
+        .maybeSingle()
+    : { data: null };
 
   const { data: loadRows } = carrier
     ? await supabase

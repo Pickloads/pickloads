@@ -352,6 +352,19 @@ export async function completeOnboarding(
       .update({ profile_id: userId })
       .eq("id", account.carrier_id);
     if (linkError) throw new Error(linkError.message);
+
+    // M-57: memberships are the authoritative person↔company join (D4) —
+    // the M-50 backfill covered pre-existing links, and every claim after it
+    // must write the owner row too or the membership-routed portal (and all
+    // 0009 membership RLS policies) would see nothing for this carrier.
+    const { error: membershipError } = await admin
+      .from("carrier_memberships")
+      .insert({
+        carrier_id: account.carrier_id,
+        profile_id: userId,
+        role: "owner",
+      });
+    if (membershipError) throw new Error(membershipError.message);
   } catch (err) {
     console.error("[onboarding] account creation failed", err);
     return { status: "error", message: SERVER_ERROR_MESSAGE };

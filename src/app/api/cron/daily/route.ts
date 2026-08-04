@@ -76,6 +76,21 @@ export async function GET(request: Request) {
     .order("insurance_expiry", { ascending: true })
     .limit(200);
 
+  // M-57: alert the OWNER member (authoritative join); carriers.profile_id
+  // stays as legacy fallback. One batched membership read for the window.
+  const expiringIds = (expiring ?? []).map((c) => c.id);
+  const { data: ownerRows } = expiringIds.length
+    ? await admin
+        .from("carrier_memberships")
+        .select("carrier_id, profile_id, role, created_at")
+        .in("carrier_id", expiringIds)
+        .eq("role", "owner")
+        .order("created_at", { ascending: true })
+    : { data: [] };
+  const ownerOf = (carrierId: string): string | null =>
+    (ownerRows ?? []).find((m) => m.carrier_id === carrierId)?.profile_id ??
+    null;
+
   let carrierAlerts = 0;
   const digestRows: NotificationRow[] = [];
   for (const carrier of expiring ?? []) {
@@ -90,9 +105,10 @@ export async function GET(request: Request) {
       value: `${carrier.insurance_expiry} (${daysLeft <= 0 ? "EXPIRED" : `${daysLeft}d left`})`,
     });
 
-    if (!ALERT_THRESHOLDS.has(daysLeft) || !carrier.profile_id) continue;
+    const alertProfileId = ownerOf(carrier.id) ?? carrier.profile_id;
+    if (!ALERT_THRESHOLDS.has(daysLeft) || !alertProfileId) continue;
     const { data: authUser } = await admin.auth.admin.getUserById(
-      carrier.profile_id,
+      alertProfileId,
     );
     const email = authUser?.user?.email;
     if (!email) continue;

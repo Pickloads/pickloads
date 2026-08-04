@@ -82,14 +82,27 @@ export async function generateLoadInvoice(
     .eq("id", load.carrier_id)
     .maybeSingle();
   if (!carrier) return { ok: false, error: "Carrier record missing." };
-  if (!carrier.profile_id) {
+
+  // M-57: billing goes to the OWNER member (memberships are the
+  // authoritative join, decision D4); carriers.profile_id stays as the
+  // legacy fallback for rows predating the membership model.
+  const { data: ownerMembership } = await admin
+    .from("carrier_memberships")
+    .select("profile_id")
+    .eq("carrier_id", carrier.id)
+    .eq("role", "owner")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  const billingProfileId = ownerMembership?.profile_id ?? carrier.profile_id;
+  if (!billingProfileId) {
     return { ok: false, error: "Carrier has no portal account (no billing email on file)." };
   }
 
   // Carrier's billing email = their portal login email (profiles carries no
   // email column; auth.users is the source of truth → admin auth API).
   const { data: authUser, error: authError } =
-    await admin.auth.admin.getUserById(carrier.profile_id);
+    await admin.auth.admin.getUserById(billingProfileId);
   const email = authUser?.user?.email;
   if (authError || !email) {
     return { ok: false, error: "Couldn't resolve the carrier's billing email." };
