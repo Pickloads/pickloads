@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./v4.css";
 
 /*
  * PickLoads design tokens — extracted VERBATIM from the approved V4 prototype

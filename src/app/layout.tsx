@@ -1,31 +1,6 @@
 import type { Metadata } from "next";
-import { Barlow, IBM_Plex_Mono, Overpass } from "next/font/google";
+import { barlow, overpass, plexMono } from "./fonts";
 import "./globals.css";
-
-/*
- * Fonts are self-hosted via next/font (performance + privacy) using the exact
- * families and weights loaded by the V4 prototype from Google Fonts.
- */
-const overpass = Overpass({
-  subsets: ["latin"],
-  weight: ["600", "700", "800", "900"],
-  variable: "--font-display",
-  display: "swap",
-});
-
-const barlow = Barlow({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-sans",
-  display: "swap",
-});
-
-const plexMono = IBM_Plex_Mono({
-  subsets: ["latin", "cyrillic"],
-  weight: ["400", "500", "600"],
-  variable: "--font-mono",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "PickLoads Logistics Group — Truck Dispatching & Freight Brokerage",
