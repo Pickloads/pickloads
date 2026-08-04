@@ -382,6 +382,32 @@ details .a{padding:0 22px 20px;font-size:.93rem;color:#4a545b}
 .socials a{border:1px solid var(--line);border-radius:6px;padding:8px 16px;font-family:var(--font-mono);font-size:.74rem;color:#a9b2b8}
 .socials a:hover{border-color:var(--amber);color:var(--amber)}
 
+/* M-20 become-a-carrier wizard (audit U-10: the 4-step wizard is approved
+   net-new UI composed strictly from V4 vocabulary — .steps as the progress
+   indicator, .bigform fields, .upload dropzones; state colors reuse the U-03
+   palette and existing V4 grays; no new raw hex). */
+.wizard .steps{margin-top:36px;margin-bottom:10px}
+.wizard .step{opacity:.45}
+.wizard .step.current{opacity:1;border-top-color:var(--amber)}
+.wizard .step.done{opacity:1;border-top-color:var(--green-bright)}
+.wizard .step.done .n{background:var(--green-bright)}
+.upload-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:8px}
+@media(max-width:720px){.upload-grid{grid-template-columns:1fr}}
+.light .upload{border-color:var(--line-dark)}
+.light .upload span{color:#6a747b}
+.light .upload .mono{color:#8a949b}
+.upload.picked{border-style:solid;border-color:var(--green-bright)}
+.upload.err{border-color:#7a2a2a}
+.upload .st{font-family:var(--font-mono);font-size:.7rem;letter-spacing:.06em;margin-top:6px}
+.upload .st.ok{color:var(--green-bright)}
+.upload .st.bad{color:#7a2a2a}
+.upload input[type=file]{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+.esign-panel{border:1px solid var(--line-dark);border-left:4px solid var(--amber);border-radius:10px;background:#fff;padding:28px 26px;margin-bottom:16px}
+.esign-panel b{font-family:var(--font-display);font-weight:800;display:block;margin-bottom:8px}
+.esign-panel p{font-size:.93rem;color:#4a545b;margin-bottom:0}
+.consent-row{display:flex;gap:12px;align-items:flex-start;padding:16px 0;font-size:.92rem;color:#333c42}
+.consent-row input[type=checkbox]{width:18px;height:18px;margin-top:2px;accent-color:var(--amber-deep)}
+
 /* U-03-style derivation (M-15, audit S-05): consent bar — net-new element
    composed strictly from existing tokens (asphalt2 surface, amber border
    accent, mono copy, .btn vocabulary), bottom-bar layout like .call-fab. */

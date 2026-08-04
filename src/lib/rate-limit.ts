@@ -16,7 +16,7 @@ const WINDOW = "10 m";
 const limiters = new Map<string, Ratelimit>();
 let redis: Redis | null = null;
 
-function getLimiter(form: string): Ratelimit | null {
+function getLimiter(form: string, limit: number): Ratelimit | null {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) return null;
@@ -27,16 +27,24 @@ function getLimiter(form: string): Ratelimit | null {
   redis ??= new Redis({ url, token });
   const limiter = new Ratelimit({
     redis,
-    limiter: Ratelimit.slidingWindow(WINDOW_LIMIT, WINDOW),
+    limiter: Ratelimit.slidingWindow(limit, WINDOW),
     prefix: `rl:${form}`,
   });
   limiters.set(form, limiter);
   return limiter;
 }
 
-/** Returns true when the request is allowed. */
-export async function checkRateLimit(form: string, ip: string): Promise<boolean> {
-  const limiter = getLimiter(form);
+/**
+ * Returns true when the request is allowed. `limit` overrides the 5/10min
+ * default for multi-request flows (M-21 document uploads send 4+ files plus
+ * retries in one sitting — S-03 still caps them, just wider).
+ */
+export async function checkRateLimit(
+  form: string,
+  ip: string,
+  limit: number = WINDOW_LIMIT,
+): Promise<boolean> {
+  const limiter = getLimiter(form, limit);
   if (!limiter) {
     console.warn("[rate-limit] Upstash env unset — limiter disabled (dev mode)");
     return true;

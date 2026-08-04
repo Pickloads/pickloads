@@ -1,12 +1,13 @@
 "use client";
 
+import { Link } from "@/i18n/navigation";
 import { showToast } from "@/components/ui/PortalToast";
 import { useV4 } from "@/i18n/v4";
 
 /*
  * Download links stay inert until lawyer-approved PDFs exist
- * (company_settings.packet_downloads_live, audit U-09). Upload card shows the
- * V4 "coming soon" toast until the M-21 secure-upload flow ships.
+ * (company_settings.packet_downloads_live, audit U-09). M-21: the upload card
+ * now routes to the live secure-upload wizard at /become-a-carrier.
  */
 const PACKET_DOCS = [
   ["Dispatch Agreement", "Month-to-month service terms — plain English"],
@@ -17,13 +18,6 @@ const PACKET_DOCS = [
 
 export function Packet() {
   const tv = useV4();
-  const uploadToast = () =>
-    showToast({
-      title: tv("Secure upload — Coming Soon."),
-      body: tv(
-        "Document upload + e-signature launch with the production build. Email your docs to support@pickloads.com for now.",
-      ),
-    });
   return (
     <section id="packet">
       <div className="wrap">
@@ -65,17 +59,10 @@ export function Packet() {
               </div>
             ))}
           </div>
-          <div
+          <Link
             className="upload"
-            role="button"
-            tabIndex={0}
-            onClick={uploadToast}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                uploadToast();
-              }
-            }}
+            href="/become-a-carrier"
+            style={{ color: "inherit" }}
           >
             <span className="big" aria-hidden="true">⇪</span>
             <b>{tv("Upload your documents")}</b>
@@ -86,11 +73,9 @@ export function Packet() {
             </span>
             <span className="mono">
               {"// "}
-              {tv(
-                "Secure upload + e-signature go live with the production build",
-              )}
+              {tv("Secure upload — part of carrier onboarding")}
             </span>
-          </div>
+          </Link>
         </div>
       </div>
     </section>
