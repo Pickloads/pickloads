@@ -6,6 +6,7 @@ import { tryCreateAdminClient } from "@/lib/supabase/admin";
 import {
   AccountStatusActions,
   AssignDispatcherSelect,
+  CarrierActiveToggle,
   StaffInviteForm,
   type DispatcherOption,
 } from "@/components/portal/UserAdminForms";
@@ -251,6 +252,12 @@ export default async function AdminUsersPage({
                             {carrier.mc_number ? `MC ${carrier.mc_number} · ` : ""}
                             onboarding {progress?.done}/{progress?.total}
                             {carrier.active ? " · ACTIVE" : ""}
+                          </span>
+                          <span style={{ display: "block", marginTop: 6 }}>
+                            <CarrierActiveToggle
+                              carrierId={carrier.id}
+                              active={carrier.active}
+                            />
                           </span>
                         </>
                       ) : (

@@ -5,6 +5,11 @@ import { tryCreateStripe } from "@/lib/stripe";
 import { tryCreateAdminClient } from "@/lib/supabase/admin";
 import { EMAIL_INTERNAL_TO, sendEmail } from "@/lib/email/send";
 import { WebhookFailureEmail } from "@/emails/WebhookFailureEmail";
+import {
+  buildPaymentFailedEmail,
+  buildPaymentReceivedEmail,
+} from "@/emails/customer-templates";
+import { getCarrierOwnerRecipient, notifyCustomer } from "@/lib/notify";
 
 export const dynamic = "force-dynamic";
 
@@ -133,6 +138,30 @@ export async function POST(request: Request) {
       if (mirrorError) {
         console.error("[stripe-webhook] mirror update failed", mirrorError.message);
       }
+
+      // M-60: thank the carrier (email + portal feed). Idempotent by the
+      // webhook_events gate above — a duplicate delivery never reaches here.
+      const paidCarrierId = z.uuid().safeParse(
+        invoice.data.metadata?.["carrier_id"],
+      );
+      if (paidCarrierId.success) {
+        const recipient = await getCarrierOwnerRecipient(
+          admin,
+          paidCarrierId.data,
+        );
+        if (recipient) {
+          const email = buildPaymentReceivedEmail(recipient.locale, {
+            amountUsd: (invoice.data.amount_paid ?? 0) / 100,
+          });
+          await notifyCustomer({
+            recipient,
+            kind: "payment_received",
+            title: email.subject,
+            href: "/portal/carrier/invoices",
+            email,
+          });
+        }
+      }
     } else if (
       event.type === "invoice.voided" ||
       event.type === "invoice.marked_uncollectible"
@@ -157,6 +186,33 @@ export async function POST(request: Request) {
     } else if (event.type === "invoice.payment_failed") {
       const invoice = invoiceObjectSchema.safeParse(event.data.object);
       const invoiceId = invoice.success ? invoice.data.id : "unknown";
+
+      // M-60: tell the carrier directly (Stripe dunning retries; the ops
+      // alert below still fires so the desk can call).
+      const failedCarrierId = z.uuid().safeParse(
+        invoice.success ? invoice.data.metadata?.["carrier_id"] : undefined,
+      );
+      if (failedCarrierId.success) {
+        const recipient = await getCarrierOwnerRecipient(
+          admin,
+          failedCarrierId.data,
+        );
+        if (recipient) {
+          const email = buildPaymentFailedEmail(recipient.locale, {
+            hostedUrl: invoice.success
+              ? (invoice.data.hosted_invoice_url ?? null)
+              : null,
+          });
+          await notifyCustomer({
+            recipient,
+            kind: "payment_failed",
+            title: email.subject,
+            href: "/portal/carrier/invoices",
+            email,
+          });
+        }
+      }
+
       await sendEmail({
         to: EMAIL_INTERNAL_TO,
         subject: `Stripe payment failed — invoice ${invoiceId}`,

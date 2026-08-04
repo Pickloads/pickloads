@@ -14,6 +14,8 @@ import {
 import { firstIssueMessage } from "@/lib/validation/shared";
 import { sendAgreementSignatureRequest } from "@/lib/esign";
 import { EMAIL_INTERNAL_TO, sendEmail } from "@/lib/email/send";
+import { buildAgreementSentEmail } from "@/emails/customer-templates";
+import { getRecipientByProfile, notifyCustomer } from "@/lib/notify";
 import { InternalNotification } from "@/emails/InternalNotification";
 import type { FormState } from "@/lib/form-state";
 
@@ -279,6 +281,20 @@ export async function requestAgreementResend(): Promise<FormState> {
     });
     if (auditError) {
       console.error("[carrier-portal] audit insert failed", auditError.message);
+    }
+    // M-60: confirmation email + portal notification in the user's language.
+    const recipient = await getRecipientByProfile(admin, user.id);
+    if (recipient) {
+      const email = buildAgreementSentEmail(recipient.locale, {
+        companyName: carrier.company_name,
+      });
+      await notifyCustomer({
+        recipient,
+        kind: "agreement_sent",
+        title: email.subject,
+        href: "/portal/carrier/agreements",
+        email,
+      });
     }
   }
   return { status: "success" };

@@ -9,6 +9,8 @@ import { portalQuoteSchema } from "@/lib/validation/portal-quote";
 import { shipperCompanySchema } from "@/lib/validation/portal";
 import { firstIssueMessage } from "@/lib/validation/shared";
 import { EMAIL_INTERNAL_TO, sendEmail } from "@/lib/email/send";
+import { buildQuoteReceivedEmail } from "@/emails/customer-templates";
+import { getRecipientByProfile } from "@/lib/notify";
 import { InternalNotification } from "@/emails/InternalNotification";
 import type { FormState } from "@/lib/form-state";
 
@@ -94,7 +96,7 @@ export async function submitPortalQuote(
     .eq("id", shipperId)
     .maybeSingle();
 
-  const { error } = await admin.from("freight_quotes").insert({
+  const { data: insertedQuote, error } = await admin.from("freight_quotes").insert({
     shipper_id: shipperId,
     email: user.email, // verified session email — never form input (§6.3)
     company_name: shipper?.company_name ?? null,
@@ -125,13 +127,31 @@ export async function submitPortalQuote(
     hazmat: q.hazmat,
     frequency: q.frequency,
     special_instructions: q.special_instructions,
-  });
+  }).select("id").single();
   if (error) {
     console.error("[shipper-portal] quote insert failed", error.message);
     return {
       status: "error",
       message: "Couldn't submit the request. Retry — or call (908) 404-5373.",
     };
+  }
+
+  // M-60: shipper confirmation in their preferred language (email only —
+  // the request already appears in their My Quotes feed).
+  {
+    const recipient = await getRecipientByProfile(admin, user.id);
+    if (recipient?.email) {
+      const confirmation = buildQuoteReceivedEmail(recipient.locale, {
+        lane: `${q.pickup_city}, ${q.pickup_state} → ${q.delivery_city}, ${q.delivery_state}`,
+      });
+      await sendEmail({
+        to: recipient.email,
+        subject: confirmation.subject,
+        template: confirmation.template,
+        react: confirmation.react,
+        ...(insertedQuote ? { quoteId: insertedQuote.id } : {}),
+      });
+    }
   }
 
   await sendEmail({

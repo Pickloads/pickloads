@@ -26,6 +26,13 @@ import { createClient } from "@/lib/supabase/server";
 import { sendAgreementSignatureRequest } from "@/lib/esign";
 import { EMAIL_INTERNAL_TO, sendEmail } from "@/lib/email/send";
 import { OnboardingNotificationEmail } from "@/emails/OnboardingNotificationEmail";
+import {
+  buildAgreementSentEmail,
+  buildDocumentsReceivedEmail,
+  buildOnboardingStartedEmail,
+} from "@/emails/customer-templates";
+import { resolveEmailLocale } from "@/emails/i18n";
+import { getRecipientByProfile, notifyCustomer } from "@/lib/notify";
 import type {
   AccountState,
   StartState,
@@ -121,6 +128,21 @@ export async function startOnboarding(
   } catch (err) {
     console.error("[onboarding] carrier insert failed", err);
     return { status: "error", message: SERVER_ERROR_MESSAGE };
+  }
+
+  // M-60: customer confirmation in the wizard locale.
+  {
+    const started = buildOnboardingStartedEmail(resolveEmailLocale(info.locale), {
+      fullName: info.full_name,
+      companyName: info.company_name,
+    });
+    await sendEmail({
+      to: info.email,
+      subject: started.subject,
+      template: started.template,
+      react: started.react,
+      ...(leadId ? { leadId } : {}),
+    });
   }
 
   await sendEmail({
@@ -250,6 +272,25 @@ export async function uploadCarrierDocument(
       .select("id")
       .single();
     if (docError) throw new Error(docError.message);
+
+    // M-60: authenticated replacement uploads (claimed carrier) get a
+    // per-document received-confirmation + portal notification. Anonymous
+    // wizard uploads are covered by the batch email at completeOnboarding.
+    if (user && carrier.profile_id === user.id) {
+      const recipient = await getRecipientByProfile(admin, user.id);
+      if (recipient) {
+        const received = buildDocumentsReceivedEmail(recipient.locale, {
+          docType: doc_type,
+        });
+        await notifyCustomer({
+          recipient,
+          kind: "document_received",
+          title: received.subject,
+          href: "/portal/carrier/documents",
+          email: received,
+        });
+      }
+    }
 
     return { ok: true, documentId: doc.id, fileName };
   } catch (err) {
@@ -401,6 +442,32 @@ export async function completeOnboarding(
     }
   } catch (err) {
     console.error("[onboarding] CRM journaling failed", err);
+  }
+
+  // M-60: customer-facing wrap-up — the batch documents-received note
+  // (per-file emails during the anonymous wizard would be spam; the portal
+  // replacement flow emails per document instead) and, when Dropbox Sign
+  // actually sent, the agreement-sent note.
+  {
+    const locale = resolveEmailLocale(account.locale);
+    const docs = buildDocumentsReceivedEmail(locale, { docType: null });
+    await sendEmail({
+      to: account.email,
+      subject: docs.subject,
+      template: docs.template,
+      react: docs.react,
+    });
+    if (esign.sent) {
+      const sent = buildAgreementSentEmail(locale, {
+        companyName: account.company_name,
+      });
+      await sendEmail({
+        to: account.email,
+        subject: sent.subject,
+        template: sent.template,
+        react: sent.react,
+      });
+    }
   }
 
   await sendEmail({

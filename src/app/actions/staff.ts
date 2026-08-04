@@ -15,6 +15,9 @@ import {
 import { firstIssueMessage } from "@/lib/validation/shared";
 import { EMAIL_INTERNAL_TO, sendEmail } from "@/lib/email/send";
 import { AccountStatusEmail } from "@/emails/AccountStatusEmail";
+import { buildCarrierApprovedEmail } from "@/emails/customer-templates";
+import { getCarrierOwnerRecipient, notifyCustomer } from "@/lib/notify";
+import { z } from "zod";
 import { StaffInviteEmail } from "@/emails/StaffInviteEmail";
 import { InternalNotification } from "@/emails/InternalNotification";
 import type { FormState } from "@/lib/form-state";
@@ -161,6 +164,81 @@ export async function setAccountStatus(
         reason: parsed.data.reason,
       }),
     });
+  }
+
+  return { status: "success" };
+}
+
+/* ---------------- Carrier activation (M-60) ---------------- */
+
+const carrierActiveSchema = z.object({
+  carrier_id: z.uuid("Invalid carrier."),
+  active: z.enum(["1", "0"], { message: "Invalid action." }),
+});
+
+/**
+ * Flip `carriers.active` — the compliance go/no-go that the onboarding
+ * checklist, insurance cron and loads matching key off. Admin-only (same
+ * bar as account status). Activation (false→true) sends the directive's
+ * "carrier approved" email + portal notification to the owner.
+ */
+export async function setCarrierActive(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const parsed = carrierActiveSchema.safeParse({
+    carrier_id: field(formData, "carrier_id"),
+    active: field(formData, "active"),
+  });
+  if (!parsed.success) {
+    return { status: "error", message: firstIssueMessage(parsed.error) };
+  }
+  const session = await adminSession();
+  if (!session) return { status: "error", message: NOT_ADMIN };
+  const admin = tryCreateAdminClient();
+  if (!admin) return { status: "error", message: NO_ENV };
+
+  const makeActive = parsed.data.active === "1";
+  const { data: carrier, error } = await admin
+    .from("carriers")
+    .update({ active: makeActive })
+    .eq("id", parsed.data.carrier_id)
+    .neq("active", makeActive)
+    .select("id, company_name")
+    .maybeSingle();
+  if (error) {
+    console.error("[staff] carrier activation failed", error.message);
+    return { status: "error", message: "Couldn't update the carrier. Retry." };
+  }
+  if (!carrier) {
+    return { status: "error", message: "Carrier is already in that state." };
+  }
+
+  const { error: auditError } = await admin.from("audit_events").insert({
+    actor_id: session.userId,
+    action: makeActive ? "carrier.activate" : "carrier.deactivate",
+    target_table: "carriers",
+    target_id: carrier.id,
+    detail: { company_name: carrier.company_name },
+  });
+  if (auditError) {
+    console.error("[staff] audit insert failed", auditError.message);
+  }
+
+  if (makeActive) {
+    const recipient = await getCarrierOwnerRecipient(admin, carrier.id);
+    if (recipient) {
+      const email = buildCarrierApprovedEmail(recipient.locale, {
+        companyName: carrier.company_name,
+      });
+      await notifyCustomer({
+        recipient,
+        kind: "carrier_approved",
+        title: email.subject,
+        href: "/portal/carrier",
+        email,
+      });
+    }
   }
 
   return { status: "success" };

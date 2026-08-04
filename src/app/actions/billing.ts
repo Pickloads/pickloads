@@ -5,6 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 import { tryCreateAdminClient } from "@/lib/supabase/admin";
 import { isStaffRole } from "@/lib/auth";
 import { tryCreateStripe } from "@/lib/stripe";
+import { buildInvoiceIssuedEmail } from "@/emails/customer-templates";
+import { resolveEmailLocale } from "@/emails/i18n";
+import { notifyCustomer } from "@/lib/notify";
 
 /**
  * M-31 — "Generate invoice" on a delivered load (staff only).
@@ -181,6 +184,39 @@ export async function generateLoadInvoice(
     });
     if (mirrorError) {
       console.error("[billing] invoice mirror write failed", mirrorError.message);
+    }
+
+    // ---- M-60: branded invoice-issued email + portal notification (the
+    // Stripe hosted-invoice email carries the payment link; ours carries
+    // context + the portal trail). Recipient/billing email were resolved
+    // above; language from the billing profile. ----
+    {
+      const { data: billingProfile } = await admin
+        .from("profiles")
+        .select("preferred_language, full_name")
+        .eq("id", billingProfileId)
+        .maybeSingle();
+      const emailBuilt = buildInvoiceIssuedEmail(
+        resolveEmailLocale(billingProfile?.preferred_language),
+        {
+          lane,
+          amountUsd: load.dispatch_fee,
+          dueDays: 7,
+          hostedUrl,
+        },
+      );
+      await notifyCustomer({
+        recipient: {
+          profileId: billingProfileId,
+          email,
+          locale: resolveEmailLocale(billingProfile?.preferred_language),
+          fullName: billingProfile?.full_name ?? null,
+        },
+        kind: "invoice_issued",
+        title: emailBuilt.subject,
+        href: "/portal/carrier/invoices",
+        email: emailBuilt,
+      });
     }
 
     // ---- delivered → invoiced (cookie-bound: RLS + M-30 state machine) ----

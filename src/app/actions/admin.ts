@@ -2,7 +2,10 @@
 
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { tryCreateAdminClient } from "@/lib/supabase/admin";
 import { isStaffRole } from "@/lib/auth";
+import { buildDocumentReviewedEmail } from "@/emails/customer-templates";
+import { getCarrierOwnerRecipient, notifyCustomer } from "@/lib/notify";
 import type { FormState } from "@/lib/form-state";
 
 /**
@@ -71,17 +74,43 @@ export async function reviewDocument(
   const session = await roleSession();
   if (!session) return { status: "error", message: NOT_STAFF };
 
-  const { error } = await session.supabase
+  const { data: reviewed, error } = await session.supabase
     .from("documents")
     .update({
       status: parsed.data.decision === "approve" ? "approved" : "rejected",
       reviewed_by: session.userId,
       review_note: parsed.data.note,
     })
-    .eq("id", parsed.data.document_id);
+    .eq("id", parsed.data.document_id)
+    .select("carrier_id, type")
+    .maybeSingle();
   if (error) {
     console.error("[admin] document review failed", error.message);
     return { status: "error", message: "Couldn't save the review. Retry." };
+  }
+
+  // M-60: notify the carrier owner (portal feed + localized email).
+  // Best-effort — the review itself is already committed.
+  if (reviewed) {
+    const admin = tryCreateAdminClient();
+    const recipient = admin
+      ? await getCarrierOwnerRecipient(admin, reviewed.carrier_id)
+      : null;
+    if (recipient) {
+      const email = buildDocumentReviewedEmail(recipient.locale, {
+        docType: reviewed.type,
+        decision: parsed.data.decision === "approve" ? "approved" : "rejected",
+        note: parsed.data.note,
+      });
+      await notifyCustomer({
+        recipient,
+        kind: "document_reviewed",
+        title: email.subject,
+        body: parsed.data.note,
+        href: "/portal/carrier/documents",
+        email,
+      });
+    }
   }
   return { status: "success" };
 }

@@ -7,6 +7,7 @@ import {
   assignDispatcher,
   createStaffInvite,
   setAccountStatus,
+  setCarrierActive,
 } from "@/app/actions/staff";
 import { initialFormState } from "@/lib/form-state";
 import type { AccountStatus } from "@/lib/supabase/database.types";
@@ -173,6 +174,45 @@ export function StaffInviteForm() {
       <div className={`form-err${state.status === "error" ? " show" : ""}`} role="alert">
         {state.status === "error" && state.message ? state.message : null}
       </div>
+    </form>
+  );
+}
+
+/** M-60 — flip carriers.active; activation emails the "carrier approved"
+ *  notice + portal notification (see setCarrierActive). */
+export function CarrierActiveToggle({
+  carrierId,
+  active,
+}: {
+  carrierId: string;
+  active: boolean;
+}) {
+  const router = useRouter();
+  const [state, formAction, pending] = useActionState(
+    setCarrierActive,
+    initialFormState,
+  );
+  useEffect(() => {
+    if (state.status === "success") router.refresh();
+  }, [state, router]);
+
+  return (
+    <form action={formAction} style={{ display: "inline" }}>
+      <input type="hidden" name="carrier_id" value={carrierId} />
+      <input type="hidden" name="active" value={active ? "0" : "1"} />
+      <button
+        className={active ? "btn btn-ghost btn-sm" : "btn btn-amber btn-sm"}
+        type="submit"
+        aria-busy={pending}
+        disabled={pending}
+      >
+        {active ? "Deactivate carrier" : "Activate carrier"}
+      </button>
+      {state.status === "error" ? (
+        <span role="alert" className="mono" style={{ display: "block", fontSize: ".66rem", color: "#f2c9c9", marginTop: 4 }}>
+          {state.message}
+        </span>
+      ) : null}
     </form>
   );
 }

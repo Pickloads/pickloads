@@ -12,6 +12,11 @@ import {
 import { firstIssueMessage } from "@/lib/validation/shared";
 import { EMAIL_INTERNAL_TO, sendEmail } from "@/lib/email/send";
 import { InternalNotification } from "@/emails/InternalNotification";
+import {
+  buildSupportConfirmationEmail,
+  buildSupportReplyEmail,
+} from "@/emails/customer-templates";
+import { getRecipientByProfile, notifyCustomer } from "@/lib/notify";
 import type { FormState } from "@/lib/form-state";
 
 /**
@@ -101,6 +106,30 @@ export async function createSupportThread(
       footNote: "Answer it from /portal/admin/support.",
     }),
   });
+
+  // M-60: customer confirmation in their preferred language (email only —
+  // a portal notification for their own message would be noise).
+  {
+    const admin = tryCreateAdminClient();
+    const recipient = admin
+      ? await getRecipientByProfile(admin, user.id)
+      : null;
+    if (recipient?.email) {
+      const portalPath = shipperId !== null && carrierId === null
+        ? "/portal/shipper/support"
+        : "/portal/carrier/support";
+      const email = buildSupportConfirmationEmail(recipient.locale, {
+        threadSubject: parsed.data.subject,
+        portalPath,
+      });
+      await sendEmail({
+        to: recipient.email,
+        subject: email.subject,
+        template: email.template,
+        react: email.react,
+      });
+    }
+  }
 
   return { status: "success" };
 }
@@ -203,6 +232,38 @@ export async function staffReplyToSupportThread(
     .eq("id", parsed.data.thread_id);
   if (statusError) {
     console.error("[support] thread status failed", statusError.message);
+  }
+
+  // M-60: tell the customer their thread has an answer (email + feed).
+  {
+    const admin = tryCreateAdminClient();
+    if (admin) {
+      const { data: thread } = await admin
+        .from("support_threads")
+        .select("profile_id, subject, carrier_id, shipper_id")
+        .eq("id", parsed.data.thread_id)
+        .maybeSingle();
+      if (thread) {
+        const recipient = await getRecipientByProfile(admin, thread.profile_id);
+        if (recipient) {
+          const base = thread.shipper_id !== null && thread.carrier_id === null
+            ? "/portal/shipper/support"
+            : "/portal/carrier/support";
+          const portalPath = `${base}/${parsed.data.thread_id}`;
+          const email = buildSupportReplyEmail(recipient.locale, {
+            threadSubject: thread.subject,
+            portalPath,
+          });
+          await notifyCustomer({
+            recipient,
+            kind: "support_reply",
+            title: email.subject,
+            href: portalPath,
+            email,
+          });
+        }
+      }
+    }
   }
   return { status: "success" };
 }

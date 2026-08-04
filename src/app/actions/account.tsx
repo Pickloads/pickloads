@@ -16,6 +16,11 @@ import { tryCreateAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { EMAIL_INTERNAL_TO, sendEmail } from "@/lib/email/send";
 import { AccountSignupEmail } from "@/emails/AccountSignupEmail";
+import {
+  buildWelcomeCarrierEmail,
+  buildWelcomeShipperEmail,
+} from "@/emails/customer-templates";
+import { resolveEmailLocale } from "@/emails/i18n";
 import type {
   CarrierSignupNext,
   SignupState,
@@ -243,6 +248,21 @@ export async function createCarrierAccount(
     return { status: "error", message: SERVER_ERROR_MESSAGE };
   }
 
+  // M-60: customer welcome (recipient language = signup locale; the
+  // Supabase verify-email arrives separately — see LAUNCH-RUNBOOK §templates).
+  {
+    const welcome = buildWelcomeCarrierEmail(resolveEmailLocale(input.locale), {
+      fullName: input.full_name,
+      companyName: input.company_name,
+    });
+    await sendEmail({
+      to: input.email,
+      subject: welcome.subject,
+      template: welcome.template,
+      react: welcome.react,
+    });
+  }
+
   await sendEmail({
     to: EMAIL_INTERNAL_TO,
     subject: `Carrier account created — ${input.company_name}`,
@@ -388,6 +408,20 @@ export async function createShipperAccount(
     input.shipping_frequency ? `Frequency: ${input.shipping_frequency}` : null,
     input.regions.length > 0 ? `Regions: ${input.regions.join(", ")}` : null,
   ].filter((d): d is string => d !== null);
+
+  // M-60: customer welcome in the signup locale.
+  {
+    const welcome = buildWelcomeShipperEmail(resolveEmailLocale(input.locale), {
+      fullName: input.full_name,
+      companyName: input.company_name,
+    });
+    await sendEmail({
+      to: input.email,
+      subject: welcome.subject,
+      template: welcome.template,
+      react: welcome.react,
+    });
+  }
 
   await sendEmail({
     to: EMAIL_INTERNAL_TO,

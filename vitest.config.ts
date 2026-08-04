@@ -8,6 +8,9 @@ import { defineConfig } from "vitest/config";
  * aliased to an empty stub — tests exercise the same modules the server runs.
  */
 export default defineConfig({
+  // M-60: email template suites import .tsx builders — use the automatic
+  // JSX runtime (same as Next's compiler) so no manual React import needed.
+  esbuild: { jsx: "automatic" },
   resolve: {
     alias: {
       "server-only": fileURLToPath(

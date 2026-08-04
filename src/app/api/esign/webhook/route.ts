@@ -4,6 +4,8 @@ import { z } from "zod";
 import { tryCreateAdminClient } from "@/lib/supabase/admin";
 import { EMAIL_INTERNAL_TO, sendEmail } from "@/lib/email/send";
 import { WebhookFailureEmail } from "@/emails/WebhookFailureEmail";
+import { buildAgreementSignedEmail } from "@/emails/customer-templates";
+import { getCarrierOwnerRecipient, notifyCustomer } from "@/lib/notify";
 
 export const dynamic = "force-dynamic";
 
@@ -147,12 +149,32 @@ export async function POST(request: Request) {
           `signed event without usable metadata.carrier_id (got: ${String(carrierIdRaw)})`,
         );
       }
-      const { error: updateError } = await admin
+      const { data: stamped, error: updateError } = await admin
         .from("carriers")
         .update({ agreement_signed_at: new Date().toISOString() })
         .eq("id", carrierId.data)
-        .is("agreement_signed_at", null);
+        .is("agreement_signed_at", null)
+        .select("id, company_name")
+        .maybeSingle();
       if (updateError) throw new Error(updateError.message);
+
+      // M-60: congratulate the carrier + portal notification. `stamped` is
+      // null on duplicate signed-events (already stamped) — no double email.
+      if (stamped) {
+        const recipient = await getCarrierOwnerRecipient(admin, stamped.id);
+        if (recipient) {
+          const email = buildAgreementSignedEmail(recipient.locale, {
+            companyName: stamped.company_name,
+          });
+          await notifyCustomer({
+            recipient,
+            kind: "agreement_signed",
+            title: email.subject,
+            href: "/portal/carrier/agreements",
+            email,
+          });
+        }
+      }
     }
     // All other event types are acknowledged and archived, not acted on.
 

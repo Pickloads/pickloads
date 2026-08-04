@@ -11,6 +11,8 @@ import { firstIssueMessage } from "@/lib/validation/shared";
 import { tryCreateAdminClient } from "@/lib/supabase/admin";
 import { EMAIL_INTERNAL_TO, sendEmail } from "@/lib/email/send";
 import { QuoteNotificationEmail } from "@/emails/QuoteNotificationEmail";
+import { buildQuoteReceivedEmail } from "@/emails/customer-templates";
+import { resolveEmailLocale } from "@/emails/i18n";
 
 /** Flux 2 — shipper freight quote (reply within 1 business hour). */
 export async function submitFreightQuote(
@@ -67,6 +69,24 @@ export async function submitFreightQuote(
   } catch (err) {
     console.error("[freight-quote] insert failed", err);
     return { status: "error", message: SERVER_ERROR_MESSAGE };
+  }
+
+  // M-60: submitter confirmation in the form locale (recipient known —
+  // the public form collects the email).
+  {
+    const confirmation = buildQuoteReceivedEmail(
+      resolveEmailLocale(quote.locale),
+      {
+        lane: `${quote.pickup_zip ?? "?"} → ${quote.delivery_zip ?? "?"}`,
+      },
+    );
+    await sendEmail({
+      to: quote.email,
+      subject: confirmation.subject,
+      template: confirmation.template,
+      react: confirmation.react,
+      ...(quoteId ? { quoteId } : {}),
+    });
   }
 
   await sendEmail({

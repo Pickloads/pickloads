@@ -133,6 +133,7 @@ export function PortalSidebar({
             {item("/portal/admin", "Dashboard", true)}
             {item("/portal/admin/leads", "Leads CRM")}
             {item("/portal/admin/loads", "Loads")}
+            {item("/portal/admin/quotes", "Freight quotes")}
             {item("/portal/admin/support", "Support inbox")}
             {item("/portal/admin/posts", "Blog posts")}
             {role === "admin" ? item("/portal/admin/users", "Users") : null}
