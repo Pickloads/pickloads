@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
+import { useV4 } from "@/i18n/v4";
 
 /*
  * Reconstructed section (audit F-01, decision Q2): the V4 file lost this
@@ -6,78 +7,78 @@ import Link from "next/link";
  * structure. Preview approved by owner before integration.
  */
 export function Pricing() {
+  const tv = useV4();
   return (
     <section className="light" id="pricing">
       <div className="wrap">
-        <span className="eyebrow">Pricing</span>
-        <h2 className="sec">One flat percentage. Nothing hidden.</h2>
+        <span className="eyebrow">{tv("Pricing")}</span>
+        <h2 className="sec">{tv("One flat percentage. Nothing hidden.")}</h2>
         <p className="sub">
-          No setup fees. No monthly minimums. No charge on loads you don&apos;t
-          take. You only pay when you get paid.
+{tv("No setup fees. No monthly minimums. No charge on loads you don't take. You only pay when you get paid.")}
         </p>
         <div className="pricing-grid">
           <div className="plan">
             <h3>Owner-Operator</h3>
-            <span className="for">1 truck · your authority</span>
+            <span className="for">{tv("1 truck · your authority")}</span>
             <span className="price">
               5<small>%</small>
             </span>
-            <span className="per">of gross per load</span>
+            <span className="per">{tv("of gross per load")}</span>
             <ul>
-              <li>Dedicated dispatcher</li>
-              <li>Load booking &amp; rate negotiation</li>
-              <li>Broker verification on every load</li>
-              <li>Rate cons, BOLs &amp; paperwork</li>
-              <li>Detention &amp; TONU support</li>
-              <li>24/7 driver support</li>
+              <li>{tv("Dedicated dispatcher")}</li>
+              <li>{tv("Load booking & rate negotiation")}</li>
+              <li>{tv("Broker verification on every load")}</li>
+              <li>{tv("Rate cons, BOLs & paperwork")}</li>
+              <li>{tv("Detention & TONU support")}</li>
+              <li>{tv("24/7 driver support")}</li>
             </ul>
             <Link
               className="btn btn-ghost"
               style={{ borderColor: "rgba(18,22,26,.35)", color: "var(--ink)" }}
               href="/#quote"
             >
-              Start setup
+              {tv("Start setup")}
             </Link>
           </div>
           <div className="plan featured">
-            <span className="badge">Most popular</span>
-            <h3>Small Fleet</h3>
-            <span className="for">2–10 trucks</span>
+            <span className="badge">{tv("Most popular")}</span>
+            <h3>{tv("Small Fleet")}</h3>
+            <span className="for">{tv("2–10 trucks")}</span>
             <span className="price">
               4.5<small>%</small>
             </span>
-            <span className="per">of gross per load</span>
+            <span className="per">{tv("of gross per load")}</span>
             <ul>
-              <li>Everything in Owner-Operator</li>
-              <li>One dispatcher for your whole fleet</li>
-              <li>Strategic lane planning per truck</li>
-              <li>Weekly fleet performance recap</li>
-              <li>Factoring coordination</li>
+              <li>{tv("Everything in Owner-Operator")}</li>
+              <li>{tv("One dispatcher for your whole fleet")}</li>
+              <li>{tv("Strategic lane planning per truck")}</li>
+              <li>{tv("Weekly fleet performance recap")}</li>
+              <li>{tv("Factoring coordination")}</li>
             </ul>
             <Link className="btn btn-amber" href="/#quote">
-              Start setup
+              {tv("Start setup")}
             </Link>
           </div>
           <div className="plan">
             <h3>Box Truck &amp; Hot Shot</h3>
-            <span className="for">Non-CDL &amp; expedited</span>
+            <span className="for">{tv("Non-CDL & expedited")}</span>
             <span className="price">
               8<small>%</small>
             </span>
-            <span className="per">of gross per load</span>
+            <span className="per">{tv("of gross per load")}</span>
             <ul>
-              <li>Expedited &amp; partial load sourcing</li>
-              <li>Higher-touch booking (smaller loads)</li>
-              <li>Paperwork &amp; invoicing</li>
-              <li>Detention &amp; TONU support</li>
-              <li>24/7 driver support</li>
+              <li>{tv("Expedited & partial load sourcing")}</li>
+              <li>{tv("Higher-touch booking (smaller loads)")}</li>
+              <li>{tv("Paperwork & invoicing")}</li>
+              <li>{tv("Detention & TONU support")}</li>
+              <li>{tv("24/7 driver support")}</li>
             </ul>
             <Link
               className="btn btn-ghost"
               style={{ borderColor: "rgba(18,22,26,.35)", color: "var(--ink)" }}
               href="/#quote"
             >
-              Start setup
+              {tv("Start setup")}
             </Link>
           </div>
         </div>

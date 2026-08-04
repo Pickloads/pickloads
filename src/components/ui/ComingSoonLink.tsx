@@ -1,5 +1,6 @@
 "use client";
 
+import { useV4 } from "@/i18n/v4";
 import { showToast } from "./PortalToast";
 
 /**
@@ -16,6 +17,7 @@ export function ComingSoonLink({
   className?: string;
   children: React.ReactNode;
 }) {
+  const tv = useV4();
   return (
     <a
       href="#"
@@ -23,8 +25,8 @@ export function ComingSoonLink({
       onClick={(e) => {
         e.preventDefault();
         showToast({
-          title: `${kind} Portal — Coming Soon.`,
-          body: "Live tracking, documents & settlements are on the way. Call (908) 404-5373 in the meantime.",
+          title: `${tv(kind === "Carrier" ? "Carrier" : "Shipper")} Portal — Coming Soon.`,
+          body: tv("Live tracking, documents & settlements are on the way. Call (908) 404-5373 in the meantime."),
         });
       }}
     >

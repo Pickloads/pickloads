@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { setRequestLocale } from "next-intl/server";
+import { routing } from "@/i18n/routing";
 import { PageHero } from "@/components/ui/PageHero";
 
 /*
@@ -17,13 +19,15 @@ const LEGAL_DOCS: Record<string, { title: string; eyebrow: string }> = {
 };
 
 export function generateStaticParams() {
-  return Object.keys(LEGAL_DOCS).map((doc) => ({ doc }));
+  return routing.locales.flatMap((locale) =>
+    Object.keys(LEGAL_DOCS).map((doc) => ({ locale, doc })),
+  );
 }
 
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ doc: string }>;
+  params: Promise<{ locale: string; doc: string }>;
 }): Promise<Metadata> {
   const { doc } = await params;
   const entry = LEGAL_DOCS[doc];
@@ -37,9 +41,10 @@ export async function generateMetadata({
 export default async function LegalPage({
   params,
 }: {
-  params: Promise<{ doc: string }>;
+  params: Promise<{ locale: string; doc: string }>;
 }) {
-  const { doc } = await params;
+  const { locale, doc } = await params;
+  setRequestLocale(locale);
   const entry = LEGAL_DOCS[doc];
   if (!entry) notFound();
 

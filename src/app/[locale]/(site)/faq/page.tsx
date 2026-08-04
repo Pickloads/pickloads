@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { setRequestLocale } from "next-intl/server";
+import { Link } from "@/i18n/navigation";
 import { PageHero } from "@/components/ui/PageHero";
 
 export const metadata: Metadata = {
@@ -27,7 +28,14 @@ const SHIPPER_FAQ = [
 ] as const;
 
 /* M-15 adds FAQPage JSON-LD generated from these arrays (single source). */
-export default function FaqPage() {
+export default async function FaqPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+
   return (
     <main>
       <PageHero eyebrow="FAQ" title="Straight answers. No fine print.">

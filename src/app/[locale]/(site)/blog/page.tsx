@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { setRequestLocale } from "next-intl/server";
 import { PageHero } from "@/components/ui/PageHero";
 import { NewsletterForm } from "@/components/forms/NewsletterForm";
 
@@ -21,7 +22,14 @@ const SAMPLE_POSTS = [
   ["c4", "Fuel Prices", "Diesel Watch: Managing Fuel Costs When Prices Swing", "Fuel surcharges, card programs and route planning tactics that protect your margin.", "SAMPLE ARTICLE · 5 MIN READ"],
 ] as const;
 
-export default function BlogPage() {
+export default async function BlogPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+
   return (
     <main>
       <PageHero eyebrow="Freight Insights" title="The road, the rates, the rules.">

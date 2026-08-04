@@ -1,25 +1,35 @@
 "use client";
 
-/**
- * Language selector. Until next-intl locale routing lands (M-13) this renders
- * the V4 control with EN active; M-13 replaces the handler with router-based
- * locale switching (/es/... URLs, hreflang).
- */
+import { useLocale } from "next-intl";
+import { useParams } from "next/navigation";
+import { usePathname, useRouter } from "@/i18n/navigation";
+import { routing, type AppLocale } from "@/i18n/routing";
+
+/** V4 language selector — switches locale while preserving the current path. */
 export function LangSelect() {
+  const locale = useLocale();
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useParams();
+
   return (
     <select
       className="langsel"
       aria-label="Language"
-      defaultValue="en"
-      onChange={() => {
-        /* M-13: router.replace(pathname, { locale: value }) */
+      value={locale}
+      onChange={(e) => {
+        router.replace(
+          // @ts-expect-error — dynamic params are compatible at runtime (next-intl docs pattern)
+          { pathname, params },
+          { locale: e.target.value as AppLocale },
+        );
       }}
     >
-      <option value="en">EN</option>
-      <option value="es">ES</option>
-      <option value="fr">FR</option>
-      <option value="ru">RU</option>
-      <option value="ht">HT</option>
+      {routing.locales.map((l) => (
+        <option key={l} value={l}>
+          {l.toUpperCase()}
+        </option>
+      ))}
     </select>
   );
 }

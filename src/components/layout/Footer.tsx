@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import { Logo } from "@/components/ui/Logo";
 import { ComingSoonLink } from "@/components/ui/ComingSoonLink";
 

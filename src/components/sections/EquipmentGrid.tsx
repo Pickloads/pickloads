@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 
 /* Slugs match /dispatch/[equipment] (M-16) and content/equipment/*.mdx */
 const EQUIPMENT = [

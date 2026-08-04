@@ -1,9 +1,10 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Link } from "@/i18n/navigation";
+import { usePathname } from "@/i18n/navigation";
 import { useState } from "react";
 import { Logo } from "@/components/ui/Logo";
+import { useV4 } from "@/i18n/v4";
 
 const NAV_LINKS = [
   { href: "/#dispatch", label: "Dispatch", match: null },
@@ -27,6 +28,7 @@ const MOBILE_LINKS = [
 ] as const;
 
 export function SiteNav() {
+  const tv = useV4();
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -41,13 +43,13 @@ export function SiteNav() {
               href={l.href}
               className={l.match && pathname.startsWith(l.match) ? "active" : undefined}
             >
-              {l.label}
+              {tv(l.label)}
             </Link>
           ))}
         </div>
         <div className="nav-cta">
           <Link className="btn btn-amber" href="/#quote">
-            Start Carrier Setup
+            {tv("Start Carrier Setup")}
           </Link>
           <button
             className="menu-btn"
@@ -63,7 +65,7 @@ export function SiteNav() {
       <div className={`mobile-menu${open ? " open" : ""}`} id="mobile-menu">
         {MOBILE_LINKS.map((l) => (
           <Link key={l.label} href={l.href} onClick={() => setOpen(false)}>
-            {l.label}
+            {tv(l.label)}
           </Link>
         ))}
       </div>

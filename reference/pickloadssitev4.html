@@ -1,0 +1,1531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PickLoads Logistics Group — Truck Dispatching & Freight Brokerage</title>
+<meta name="description" content="Nationwide truck dispatching for owner-operators and small fleets. Dry van, reefer, flatbed, power only and more. Carrier setup in 5 minutes. Call (908) 404-5373.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Overpass:wght@600;700;800;900&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --asphalt:#12161A; --asphalt2:#1A2026; --paper:#F4F6F5;
+  --amber:#FFB020; --amber-deep:#E29500;
+  --green:#0E5A3C; --green-bright:#1B7A54;
+  --steel:#97A1A8; --ink:#1B2126;
+  --line:rgba(255,255,255,.12); --line-dark:rgba(18,22,26,.14);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Barlow',sans-serif;background:var(--asphalt);color:var(--paper);line-height:1.6;font-size:16.5px}
+h1,h2,h3{font-family:'Overpass',sans-serif;line-height:1.08;letter-spacing:-.01em}
+.mono{font-family:'IBM Plex Mono',monospace}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+section{padding:88px 0}
+.page{display:none}
+.page.active{display:block}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;color:var(--amber);display:inline-flex;align-items:center;gap:10px;margin-bottom:18px}
+.eyebrow::before{content:"";width:26px;height:2px;background:var(--amber)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;font-family:'Overpass',sans-serif;font-weight:800;font-size:.95rem;letter-spacing:.02em;padding:15px 26px;border-radius:6px;transition:transform .15s ease,box-shadow .15s ease;cursor:pointer;border:none}
+.btn:hover{transform:translateY(-2px)}
+.btn-amber{background:var(--amber);color:var(--ink);box-shadow:0 6px 24px rgba(255,176,32,.28)}
+.btn-ghost{background:transparent;color:var(--paper);border:1.5px solid var(--line)}
+.btn-ghost:hover{border-color:var(--amber);color:var(--amber)}
+.btn-green{background:var(--green-bright);color:#fff}
+h2.sec{font-size:clamp(1.8rem,3.6vw,2.7rem);font-weight:900;max-width:720px}
+p.sub{color:#a9b2b8;max-width:640px;margin-top:14px;font-size:1.03rem}
+.light{background:var(--paper);color:var(--ink)}
+.light .eyebrow{color:var(--amber-deep)}
+.light .eyebrow::before{background:var(--amber-deep)}
+.light p.sub{color:#4a545b}
+
+/* page hero (interior pages) */
+.page-hero{background:radial-gradient(900px 400px at 80% -20%,rgba(255,176,32,.10),transparent 60%),var(--asphalt);padding:76px 0 60px;border-bottom:1px solid var(--line)}
+.page-hero h1{font-size:clamp(2.1rem,4.6vw,3.4rem);font-weight:900;max-width:800px}
+.page-hero p{color:#b8c0c6;max-width:640px;margin-top:16px;font-size:1.08rem}
+
+/* topbar */
+.topbar{background:#0B0E11;border-bottom:1px solid var(--line);font-size:.82rem}
+.topbar .wrap{display:flex;justify-content:space-between;align-items:center;height:38px}
+.topbar a{color:var(--steel)}
+.topbar a:hover{color:var(--amber)}
+.topbar .phone{color:var(--amber);font-family:'IBM Plex Mono',monospace;font-weight:600}
+.topbar .right{display:flex;gap:18px;align-items:center}
+.lang{border:1px solid var(--line);border-radius:4px;padding:1px 8px;font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:var(--steel);cursor:pointer}
+.lang:hover{color:var(--amber);border-color:var(--amber)}
+.langsel{background:#0B0E11;border:1px solid var(--line);border-radius:4px;padding:2px 6px;font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:var(--amber);cursor:pointer}
+.langsel:focus{outline:2px solid var(--amber)}
+
+/* nav */
+nav{position:sticky;top:0;z-index:50;background:rgba(18,22,26,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:72px}
+.logo{display:flex;align-items:center;gap:12px;cursor:pointer}
+.logo b{font-family:'Overpass',sans-serif;font-weight:900;font-size:1.28rem;letter-spacing:.01em}
+.logo b span{color:var(--amber)}
+.logo small{display:block;font-family:'IBM Plex Mono',monospace;font-size:.6rem;letter-spacing:.22em;color:var(--steel);text-transform:uppercase;margin-top:-3px}
+.navlinks{display:flex;gap:24px;font-weight:500;font-size:.92rem}
+.navlinks a{color:#cfd6da;padding:6px 0;border-bottom:2px solid transparent;cursor:pointer}
+.navlinks a:hover,.navlinks a.active{color:var(--amber);border-bottom-color:var(--amber)}
+.nav-cta{display:flex;gap:12px;align-items:center}
+.menu-btn{display:none;background:none;border:1.5px solid var(--line);color:var(--paper);border-radius:6px;padding:8px 12px;font-size:1.05rem;cursor:pointer}
+.mobile-menu{display:none;background:#0B0E11;border-bottom:1px solid var(--line);padding:10px 24px 18px}
+.mobile-menu a{display:block;padding:11px 4px;color:#cfd6da;border-bottom:1px solid var(--line);font-weight:500;cursor:pointer}
+.mobile-menu a:last-child{border-bottom:none}
+.mobile-menu.open{display:block}
+
+/* hero */
+.hero{position:relative;padding:96px 0 0;overflow:hidden;background:
+  radial-gradient(1100px 500px at 78% -10%,rgba(255,176,32,.10),transparent 60%),
+  radial-gradient(800px 420px at 8% 110%,rgba(27,122,84,.14),transparent 60%),var(--asphalt)}
+.hero::after{content:"";position:absolute;left:0;right:0;bottom:96px;height:3px;background:repeating-linear-gradient(90deg,var(--amber) 0 46px,transparent 46px 96px);opacity:.28}
+.hero .wrap{position:relative;z-index:2}
+.hero h1{font-size:clamp(2.4rem,5.6vw,4.2rem);font-weight:900;max-width:820px;margin-bottom:22px}
+.hero h1 em{font-style:normal;color:var(--amber)}
+.hero p.lead{font-size:1.16rem;color:#c4ccd1;max-width:600px;margin-bottom:32px}
+.hero-ctas{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px}
+.hero-note{font-family:'IBM Plex Mono',monospace;font-size:.76rem;color:var(--steel);letter-spacing:.04em;padding-bottom:128px}
+.hero-note b{color:var(--green-bright)}
+
+/* load board ticker */
+.board{background:#0B0E11;border-top:1px solid var(--line);border-bottom:1px solid var(--line);overflow:hidden;position:relative}
+.board-label{position:absolute;left:0;top:0;bottom:0;z-index:3;display:flex;align-items:center;gap:8px;background:var(--green);padding:0 18px;font-family:'IBM Plex Mono',monospace;font-size:.7rem;letter-spacing:.14em;font-weight:600;text-transform:uppercase}
+.board-label i{width:7px;height:7px;border-radius:50%;background:var(--amber);animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+.board-track{display:flex;width:max-content;animation:scroll 46s linear infinite;padding:15px 0 15px 170px}
+.board:hover .board-track{animation-play-state:paused}
+@keyframes scroll{to{transform:translateX(-50%)}}
+.board-row{display:flex;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:.8rem;color:#aeb7bd;padding:0 30px;border-right:1px solid var(--line);white-space:nowrap}
+.board-row .arrow{color:var(--amber)}
+.board-row .eq{color:var(--paper);background:var(--asphalt2);border:1px solid var(--line);border-radius:3px;padding:1px 7px;font-size:.68rem}
+.board-row .rate{color:var(--amber);font-weight:600}
+@media (prefers-reduced-motion:reduce){.board-track{animation:none;flex-wrap:wrap;width:auto;padding-left:170px}}
+
+/* quick quote */
+.quote{background:var(--asphalt2);border-bottom:1px solid var(--line);padding:56px 0}
+.quote-card{border:1px solid var(--line);border-left:4px solid var(--amber);border-radius:10px;background:var(--asphalt);padding:36px 34px}
+.quote-card h2{font-size:1.5rem;font-weight:900;margin-bottom:6px}
+.quote-card>p{color:#a9b2b8;font-size:.95rem;margin-bottom:26px}
+.quote-form{display:grid;grid-template-columns:repeat(5,1fr) auto;gap:14px;align-items:end}
+.field label{display:block;font-family:'IBM Plex Mono',monospace;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--steel);margin-bottom:7px}
+.field select,.field input,.field textarea{width:100%;background:#0B0E11;border:1px solid var(--line);border-radius:6px;color:var(--paper);padding:13px 12px;font-family:'Barlow',sans-serif;font-size:.94rem}
+.field select:focus,.field input:focus,.field textarea:focus{outline:2px solid var(--amber);outline-offset:0;border-color:var(--amber)}
+.light .field select,.light .field input,.light .field textarea{background:#fff;border:1px solid var(--line-dark);color:var(--ink)}
+.light .field label{color:#6a747b}
+.form-ok{display:none;margin-top:18px;font-family:'IBM Plex Mono',monospace;font-size:.82rem;color:#4CC492;border:1px solid rgba(76,196,146,.4);border-radius:6px;padding:12px 16px;background:rgba(27,122,84,.12)}
+.light .form-ok{color:var(--green);background:rgba(14,90,60,.07);border-color:rgba(14,90,60,.3)}
+
+/* services */
+.services-grid{display:grid;grid-template-columns:1fr 1fr;gap:26px;margin-top:44px}
+.svc{border:1px solid var(--line);border-radius:10px;padding:38px 34px;background:var(--asphalt2);position:relative;overflow:hidden}
+.svc::before{content:"";position:absolute;top:0;left:0;right:0;height:4px}
+.svc.dispatch::before{background:var(--amber)}
+.svc.broker::before{background:var(--green-bright)}
+.svc .tag{font-family:'IBM Plex Mono',monospace;font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;padding:4px 10px;border-radius:3px;display:inline-block;margin-bottom:18px}
+.svc.dispatch .tag{background:rgba(255,176,32,.12);color:var(--amber)}
+.svc.broker .tag{background:rgba(27,122,84,.18);color:#4CC492}
+.svc h3{font-size:1.7rem;font-weight:800;margin-bottom:14px}
+.svc p{color:#b8c0c6;margin-bottom:20px}
+.svc ul{list-style:none;margin-bottom:26px}
+.svc li{padding:7px 0 7px 26px;position:relative;color:#cfd6da;font-size:.95rem}
+.svc li::before{content:"›";position:absolute;left:6px;color:var(--amber);font-weight:700}
+.svc.broker li::before{color:#4CC492}
+.svc .link{font-family:'Overpass',sans-serif;font-weight:800;font-size:.92rem;color:var(--amber);cursor:pointer}
+.svc.broker .link{color:#4CC492}
+.svc .soon{font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:var(--steel);display:block;margin-top:8px}
+
+/* flow */
+.flow{margin-top:54px;border:1px solid var(--line);border-radius:10px;background:#0B0E11;padding:30px 26px;overflow-x:auto}
+.flow-title{font-family:'IBM Plex Mono',monospace;font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:var(--steel);margin-bottom:20px;display:block}
+.flow-track{display:flex;align-items:center;gap:10px;width:max-content;min-width:100%}
+.flow-node{font-family:'IBM Plex Mono',monospace;font-size:.76rem;color:var(--paper);background:var(--asphalt2);border:1px solid var(--line);border-radius:5px;padding:9px 14px;white-space:nowrap}
+.flow-node.hot{border-color:var(--amber);color:var(--amber)}
+.flow-arrow{color:var(--amber);font-size:.9rem;flex:none}
+
+/* steps */
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:22px;margin-top:48px}
+.step{border-top:3px solid var(--line-dark);padding-top:22px}
+.step .n{font-family:'IBM Plex Mono',monospace;font-size:.78rem;font-weight:600;color:#fff;background:var(--green);display:inline-block;padding:3px 10px;border-radius:3px;margin-bottom:14px}
+.step h3{font-size:1.14rem;font-weight:800;margin-bottom:8px}
+.step p{font-size:.93rem;color:#4a545b}
+.step .t{font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:var(--amber-deep);margin-top:10px;display:block}
+
+/* comparison */
+.compare{margin-top:48px;border:1px solid var(--line-dark);border-radius:10px;overflow:hidden;background:#fff}
+.compare table{width:100%;border-collapse:collapse;font-size:.95rem}
+.compare th{font-family:'Overpass',sans-serif;font-weight:800;text-align:left;padding:18px 22px;font-size:1rem}
+.compare thead tr{border-bottom:2px solid var(--line-dark)}
+.compare th.them{color:#8a949b}
+.compare th.us{background:var(--green);color:#fff}
+.compare td{padding:15px 22px;border-bottom:1px solid var(--line-dark);vertical-align:top}
+.compare tr:last-child td{border-bottom:none}
+.compare td.them{color:#6a747b}
+.compare td.them::before{content:"✕ ";color:#C0392B;font-weight:700}
+.compare td.us{background:rgba(14,90,60,.06);font-weight:600}
+.compare td.us::before{content:"✓ ";color:var(--green-bright);font-weight:700}
+
+/* equipment / industries */
+.eq-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:44px}
+.eq-card{border:1px solid var(--line);border-radius:8px;padding:26px 22px;background:var(--asphalt2);transition:border-color .15s ease,transform .15s ease;display:block}
+.eq-card:hover{border-color:var(--amber);transform:translateY(-3px)}
+.eq-card .mm{font-family:'IBM Plex Mono',monospace;font-size:.64rem;letter-spacing:.14em;color:var(--steel);text-transform:uppercase;display:block;margin-bottom:10px}
+.eq-card h3{font-size:1.16rem;font-weight:800;margin-bottom:6px}
+.eq-card p{font-size:.86rem;color:#9aa4ab}
+.chips{display:flex;flex-wrap:wrap;gap:12px;margin-top:34px}
+.chip{border:1px solid var(--line);border-radius:100px;padding:10px 22px;font-size:.92rem;color:#cfd6da;font-weight:500}
+.chip:hover{border-color:var(--amber);color:var(--amber)}
+
+/* boards strip */
+.boards-strip{background:#0B0E11;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:34px 0}
+.boards-strip .wrap{display:flex;align-items:center;justify-content:space-between;gap:30px;flex-wrap:wrap}
+.boards-strip p{font-size:.95rem;color:#a9b2b8;max-width:440px}
+.boards-strip p b{color:var(--paper)}
+.board-names{display:flex;gap:14px;flex-wrap:wrap}
+.board-name{font-family:'IBM Plex Mono',monospace;font-size:.8rem;letter-spacing:.08em;color:var(--paper);border:1px solid var(--line);border-radius:5px;padding:9px 18px}
+.boards-strip small{flex-basis:100%;font-family:'IBM Plex Mono',monospace;font-size:.66rem;color:#5c666d}
+
+/* why + stats */
+.why-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:60px;align-items:start}
+.why-list{list-style:none;margin-top:28px}
+.why-list li{padding:16px 0 16px 40px;position:relative;border-bottom:1px solid var(--line)}
+.why-list li strong{display:block;font-family:'Overpass',sans-serif;font-weight:800;font-size:1.06rem}
+.why-list li span{color:#a9b2b8;font-size:.94rem}
+.why-list li::before{content:"✓";position:absolute;left:6px;top:18px;color:var(--amber);font-weight:700;font-size:1.1rem}
+.light .why-list li{border-bottom-color:var(--line-dark)}
+.light .why-list li span{color:#4a545b}
+.light .why-list li::before{color:var(--green-bright)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.stat{border:1px solid var(--line);border-radius:8px;padding:28px 24px;background:var(--asphalt2)}
+.stat b{font-family:'IBM Plex Mono',monospace;font-size:2rem;font-weight:600;color:var(--amber);display:block;line-height:1.1}
+.stat span{font-size:.82rem;color:var(--steel);text-transform:uppercase;letter-spacing:.1em;font-family:'IBM Plex Mono',monospace}
+.stat-note{grid-column:1/-1;font-family:'IBM Plex Mono',monospace;font-size:.66rem;color:#5c666d}
+
+/* pricing */
+.pricing-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:48px}
+.plan{border:1px solid var(--line-dark);border-radius:10px;background:#fff;padding:36px 30px;position:relative;display:flex;flex-direction:column}
+.plan.featured{border:2px solid var(--amber);box-shadow:0 12px 40px rgba(255,176,32,.18)}
+.plan .badge{position:absolute;top:-13px;left:28px;background:var(--amber);color:var(--ink);font-family:'IBM Plex Mono',monospace;font-size:.64rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600;padding:4px 12px;border-radius:100px}
+.plan h3{font-size:1.24rem;font-weight:800}
+.plan .for{font-size:.86rem;color:#6a747b;margin-bottom:20px}
+.plan .price{font-family:'IBM Plex Mono',monospace;font-size:2.6rem;font-weight:600;color:var(--ink);line-height:1}
+.plan .price small{font-size:.85rem;color:#8a949b;font-weight:400}
+.plan .per{font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:var(--amber-deep);letter-spacing:.1em;text-transform:uppercase;margin:6px 0 22px}
+.plan ul{list-style:none;margin-bottom:28px;flex:1}
+.plan li{padding:7px 0 7px 24px;position:relative;font-size:.92rem;color:#333c42}
+.plan li::before{content:"✓";position:absolute;left:2px;color:var(--green-bright);font-weight:700}
+.pricing-note{margin-top:26px;font-size:.86rem;color:#6a747b}
+
+/* compliance */
+.compliance{background:var(--green);color:#fff;padding:60px 0}
+.compliance .wrap{display:grid;grid-template-columns:1.2fr .8fr;gap:50px;align-items:center}
+.compliance h2{font-size:1.9rem;font-weight:800;margin-bottom:12px}
+.compliance p{color:#CDE7DA;font-size:.98rem}
+.creds{display:grid;gap:10px}
+.cred{background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:.82rem}
+.cred b{color:var(--amber);font-weight:600}
+
+/* packet */
+.packet-grid{display:grid;grid-template-columns:1fr 1fr;gap:26px;margin-top:44px}
+.packet-list{border:1px solid var(--line);border-radius:10px;background:var(--asphalt2);padding:10px 0}
+.packet-item{display:flex;justify-content:space-between;align-items:center;padding:17px 26px;border-bottom:1px solid var(--line)}
+.packet-item:last-child{border-bottom:none}
+.packet-item .doc{display:flex;align-items:center;gap:14px}
+.packet-item .doc i{font-style:normal;font-family:'IBM Plex Mono',monospace;font-size:.62rem;letter-spacing:.1em;color:var(--ink);background:var(--amber);border-radius:3px;padding:3px 7px;font-weight:600}
+.packet-item .doc div b{display:block;font-family:'Overpass',sans-serif;font-weight:800;font-size:.98rem}
+.packet-item .doc div span{font-size:.82rem;color:#9aa4ab}
+.packet-item .dl{font-family:'IBM Plex Mono',monospace;font-size:.74rem;color:var(--amber)}
+.upload{border:2px dashed var(--line);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:44px 30px;gap:8px;transition:border-color .15s ease;cursor:pointer}
+.upload:hover{border-color:var(--amber)}
+.upload .big{font-size:2rem}
+.upload b{font-family:'Overpass',sans-serif;font-weight:800}
+.upload span{font-size:.86rem;color:#9aa4ab;max-width:320px}
+.upload .mono{font-size:.68rem;color:#5c666d;margin-top:8px}
+
+/* testimonials */
+.testis{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:44px}
+.testi{border:1px solid var(--line-dark);border-radius:10px;padding:30px 28px;background:#fff}
+.testi p{font-size:.97rem;color:#333c42;margin-bottom:20px}
+.testi p::before{content:"“";color:var(--amber-deep);font-family:'Overpass',sans-serif;font-size:1.6rem;font-weight:900;margin-right:2px}
+.testi .who{font-family:'IBM Plex Mono',monospace;font-size:.76rem;color:#6a747b}
+.testi .who b{color:var(--ink);display:block;font-size:.84rem}
+
+/* CTA */
+.cta-band{background:linear-gradient(100deg,var(--amber),#FFC24E);color:var(--ink);padding:78px 0}
+.cta-band .wrap{display:flex;justify-content:space-between;align-items:center;gap:40px;flex-wrap:wrap}
+.cta-band h2{font-size:clamp(1.7rem,3.4vw,2.6rem);font-weight:900;max-width:560px}
+.cta-band p{font-weight:500;margin-top:10px;max-width:520px}
+.btn-dark{background:var(--asphalt);color:var(--paper)}
+.cta-band .mono-note{font-family:'IBM Plex Mono',monospace;font-size:.74rem;margin-top:14px;color:#5b4a1d}
+
+/* ===== ABOUT ===== */
+.about-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:60px;align-items:start}
+.about-grid .story p{color:#c4ccd1;margin-bottom:18px;font-size:1.02rem}
+.founder{border:1px solid var(--line);border-radius:12px;background:var(--asphalt2);padding:34px 30px;text-align:center}
+.founder .avatar{width:110px;height:110px;border-radius:50%;background:var(--green);border:3px solid var(--amber);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;font-family:'Overpass',sans-serif;font-weight:900;font-size:2rem;color:var(--paper)}
+.founder b{font-family:'Overpass',sans-serif;font-weight:800;font-size:1.15rem;display:block}
+.founder .role{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.12em;color:var(--amber);text-transform:uppercase;margin:4px 0 16px}
+.founder p{font-size:.9rem;color:#a9b2b8}
+.founder .photo-note{font-family:'IBM Plex Mono',monospace;font-size:.62rem;color:#5c666d;margin-top:16px}
+.values{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:44px}
+.value{border:1px solid var(--line-dark);border-radius:10px;background:#fff;padding:28px 24px}
+.value .v-mark{font-family:'IBM Plex Mono',monospace;font-size:.66rem;letter-spacing:.14em;color:var(--amber-deep);text-transform:uppercase;display:block;margin-bottom:12px}
+.value h3{font-size:1.1rem;font-weight:800;margin-bottom:8px}
+.value p{font-size:.9rem;color:#4a545b}
+.mission-band{background:var(--green);color:#fff;padding:56px 0;text-align:center}
+.mission-band .mono{font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:var(--amber);display:block;margin-bottom:14px}
+.mission-band h2{font-size:clamp(1.5rem,3vw,2.1rem);font-weight:800;max-width:820px;margin:0 auto;line-height:1.35}
+
+/* ===== SHIPPERS ===== */
+.ship-why{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:44px}
+.ship-card{border:1px solid var(--line);border-radius:10px;background:var(--asphalt2);padding:28px 24px}
+.ship-card .ic{font-size:1.5rem;display:block;margin-bottom:12px}
+.ship-card h3{font-size:1.08rem;font-weight:800;margin-bottom:8px}
+.ship-card p{font-size:.89rem;color:#9aa4ab}
+.bigform{border:1px solid var(--line-dark);border-radius:12px;background:#fff;padding:40px 36px;margin-top:44px}
+.bigform h2{font-size:1.5rem;font-weight:900;margin-bottom:6px}
+.bigform>p{color:#6a747b;font-size:.94rem;margin-bottom:28px}
+.bigform .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px}
+.bigform .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:16px}
+
+/* ===== FAQ ===== */
+.faq-cols{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:44px}
+.faq-col h3{font-family:'IBM Plex Mono',monospace;font-size:.76rem;letter-spacing:.16em;text-transform:uppercase;color:var(--amber-deep);margin-bottom:18px}
+details{border:1px solid var(--line-dark);border-radius:8px;background:#fff;margin-bottom:12px;overflow:hidden}
+summary{cursor:pointer;padding:18px 22px;font-family:'Overpass',sans-serif;font-weight:800;font-size:.98rem;list-style:none;position:relative;padding-right:48px}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";position:absolute;right:20px;top:14px;font-size:1.4rem;color:var(--amber-deep);font-weight:400}
+details[open] summary::after{content:"–"}
+details .a{padding:0 22px 20px;font-size:.93rem;color:#4a545b}
+
+/* ===== BLOG ===== */
+.blog-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:22px;margin-top:44px}
+.post{border:1px solid var(--line);border-radius:10px;background:var(--asphalt2);overflow:hidden;display:block;transition:border-color .15s ease,transform .15s ease}
+.post:hover{border-color:var(--amber);transform:translateY(-3px)}
+.post .cover{height:120px;display:flex;align-items:flex-end;padding:18px;font-family:'IBM Plex Mono',monospace;font-size:.66rem;letter-spacing:.14em;text-transform:uppercase}
+.post .cover.c1{background:linear-gradient(120deg,#0E5A3C,#1B7A54);color:#CDE7DA}
+.post .cover.c2{background:linear-gradient(120deg,#3d2f07,#7a5c0e);color:#FFE2A1}
+.post .cover.c3{background:linear-gradient(120deg,#1A2026,#2A343C);color:#aeb7bd}
+.post .cover.c4{background:linear-gradient(120deg,#4a1616,#7a2a2a);color:#f2c9c9}
+.post .body{padding:24px}
+.post h3{font-size:1.14rem;font-weight:800;margin-bottom:8px}
+.post p{font-size:.89rem;color:#9aa4ab;margin-bottom:14px}
+.post .meta{font-family:'IBM Plex Mono',monospace;font-size:.68rem;color:#5c666d}
+.newsletter{margin-top:50px;border:1px solid var(--line);border-left:4px solid var(--amber);border-radius:10px;background:var(--asphalt2);padding:32px;display:flex;gap:20px;align-items:end;flex-wrap:wrap}
+.newsletter .field{flex:1;min-width:240px}
+.newsletter h3{flex-basis:100%;font-size:1.2rem;font-weight:800}
+
+/* ===== CONTACT ===== */
+.contact-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:40px;margin-top:44px;align-items:start}
+.contact-cards{display:grid;gap:14px}
+.c-card{border:1px solid var(--line);border-radius:10px;background:var(--asphalt2);padding:22px 24px;display:flex;gap:16px;align-items:flex-start}
+.c-card .ic{font-size:1.3rem}
+.c-card b{font-family:'Overpass',sans-serif;font-weight:800;display:block;font-size:.98rem}
+.c-card a,.c-card span{color:#a9b2b8;font-size:.92rem}
+.c-card a:hover{color:var(--amber)}
+.c-card .mono{font-size:.86rem;color:var(--amber)}
+.map-ph{border:1px solid var(--line);border-radius:10px;background:
+  repeating-linear-gradient(0deg,rgba(255,255,255,.03) 0 1px,transparent 1px 42px),
+  repeating-linear-gradient(90deg,rgba(255,255,255,.03) 0 1px,transparent 1px 42px),#0B0E11;
+  min-height:420px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:30px}
+.map-ph .pin{width:46px;height:46px;border-radius:50% 50% 50% 0;background:var(--amber);transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;margin-bottom:10px}
+.map-ph .pin i{width:16px;height:16px;border-radius:50%;background:var(--asphalt);transform:rotate(45deg)}
+.map-ph b{font-family:'Overpass',sans-serif;font-weight:800}
+.map-ph span{font-size:.88rem;color:#9aa4ab}
+.map-ph .mono{font-size:.66rem;color:#5c666d;margin-top:8px}
+.socials{display:flex;gap:12px;margin-top:6px}
+.socials a{border:1px solid var(--line);border-radius:6px;padding:8px 16px;font-family:'IBM Plex Mono',monospace;font-size:.74rem;color:#a9b2b8}
+.socials a:hover{border-color:var(--amber);color:var(--amber)}
+
+/* footer */
+footer{background:#0B0E11;border-top:1px solid var(--line);padding:70px 0 40px;font-size:.9rem}
+.foot-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr 1fr 1fr;gap:30px;margin-bottom:44px}
+.foot-grid h4{font-family:'IBM Plex Mono',monospace;font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--amber);margin-bottom:16px}
+.foot-grid a{display:block;color:#9aa4ab;padding:4px 0;font-size:.86rem;cursor:pointer}
+.foot-grid a:hover{color:var(--paper)}
+.foot-brand p{color:var(--steel);font-size:.84rem;margin-top:14px;max-width:250px}
+.foot-bottom{border-top:1px solid var(--line);padding-top:26px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:14px;color:#6a747b;font-size:.78rem;font-family:'IBM Plex Mono',monospace}
+
+/* toast + fab */
+.portal-toast{display:none;position:fixed;bottom:100px;left:50%;transform:translateX(-50%);z-index:80;background:var(--asphalt2);border:1px solid var(--amber);border-radius:8px;padding:16px 24px;font-family:'IBM Plex Mono',monospace;font-size:.8rem;color:var(--paper);box-shadow:0 10px 40px rgba(0,0,0,.5);text-align:center;max-width:90vw}
+.portal-toast b{color:var(--amber)}
+.call-fab{display:none;position:fixed;bottom:18px;left:16px;right:16px;z-index:60;background:var(--amber);color:var(--ink);text-align:center;padding:16px;border-radius:8px;font-family:'Overpass',sans-serif;font-weight:900;font-size:1rem;box-shadow:0 8px 30px rgba(0,0,0,.45)}
+
+@media(max-width:960px){
+  .navlinks{display:none}
+  .menu-btn{display:block}
+  .services-grid,.why-grid,.compliance .wrap,.packet-grid,.about-grid,.faq-cols,.contact-grid,.blog-grid{grid-template-columns:1fr}
+  .steps,.ship-why{grid-template-columns:1fr 1fr}
+  .eq-grid{grid-template-columns:1fr 1fr}
+  .testis,.pricing-grid,.values{grid-template-columns:1fr}
+  .foot-grid{grid-template-columns:1fr 1fr}
+  .call-fab{display:block}
+  body{padding-bottom:76px}
+  .nav-cta .btn{display:none}
+  section{padding:64px 0}
+  .quote-form,.bigform .grid3{grid-template-columns:1fr 1fr}
+  .quote-form .btn{grid-column:1/-1}
+  .compare{overflow-x:auto}
+  .compare table{min-width:520px}
+}
+@media(max-width:520px){
+  .steps,.eq-grid,.quote-form,.ship-why,.bigform .grid3,.bigform .grid2{grid-template-columns:1fr}
+  .stats{grid-template-columns:1fr 1fr}
+}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+</style>
+</head>
+<body>
+
+<!-- topbar -->
+<div class="topbar">
+  <div class="wrap">
+    <a class="phone" href="tel:+19084045373">☎ (908) 404-5373 · 24/7 Dispatch</a>
+    <div class="right">
+      <a href="mailto:support@pickloads.com">support@pickloads.com</a>
+      <a href="#" onclick="portalSoon(event,'Carrier')">Carrier Login</a>
+      <a href="#" onclick="portalSoon(event,'Shipper')">Shipper Login</a>
+      <select class="langsel" aria-label="Language" onchange="setLang(this.value)">
+        <option value="en">EN</option>
+        <option value="es">ES</option>
+        <option value="fr">FR</option>
+        <option value="ru">RU</option>
+        <option value="ht">HT</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<!-- nav -->
+<nav>
+  <div class="wrap">
+    <span class="logo" onclick="go('home')">
+      <svg width="38" height="42" viewBox="0 0 38 42" fill="none" aria-hidden="true">
+        <path d="M19 1 L36 8 V24 C36 33 28 39.5 19 41 C10 39.5 2 33 2 24 V8 Z" fill="#0E5A3C" stroke="#FFB020" stroke-width="2"/>
+        <text x="19" y="27" text-anchor="middle" font-family="Overpass,sans-serif" font-weight="900" font-size="15" fill="#F4F6F5">PL</text>
+      </svg>
+      <div>
+        <b>PICK<span>LOADS</span></b>
+        <small>Logistics Group LLC</small>
+      </div>
+    </span>
+    <div class="navlinks">
+      <a data-nav="home" onclick="goHome('dispatch')">Dispatch</a>
+      <a data-nav="shippers" onclick="go('shippers')">Shippers</a>
+      <a data-nav="home2" onclick="goHome('pricing')">Pricing</a>
+      <a data-nav="faq" onclick="go('faq')">FAQ</a>
+      <a data-nav="blog" onclick="go('blog')">Blog</a>
+      <a data-nav="about" onclick="go('about')">About</a>
+      <a data-nav="contact" onclick="go('contact')">Contact</a>
+    </div>
+    <div class="nav-cta">
+      <a class="btn btn-amber" onclick="goHome('quote')">Start Carrier Setup</a>
+      <button class="menu-btn" aria-label="Menu" onclick="toggleMenu()">☰</button>
+    </div>
+  </div>
+  <div class="mobile-menu" id="mobile-menu">
+    <a onclick="goHome('dispatch');toggleMenu()">Dispatch Services</a>
+    <a onclick="go('shippers');toggleMenu()">Shippers & Freight Quote</a>
+    <a onclick="goHome('pricing');toggleMenu()">Pricing</a>
+    <a onclick="goHome('packet');toggleMenu()">Carrier Packet</a>
+    <a onclick="go('faq');toggleMenu()">FAQ</a>
+    <a onclick="go('blog');toggleMenu()">Freight Insights</a>
+    <a onclick="go('about');toggleMenu()">About Us</a>
+    <a onclick="go('contact');toggleMenu()">Contact</a>
+  </div>
+</nav>
+
+<!-- ================= HOME ================= -->
+<main class="page active" id="page-home">
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <span class="eyebrow">Truck Dispatching · Freight Brokerage · Nationwide</span>
+    <h1 data-i18n="hero.title">Your truck stays <em>loaded</em>.<br>We handle everything else.</h1>
+    <p class="lead">Dedicated dispatch for owner-operators and small fleets — load booking, rate negotiation, paperwork and 24/7 support. You drive. We keep the freight coming.</p>
+    <div class="hero-ctas">
+      <a class="btn btn-amber" onclick="goHome('quote')">Get Started in 60 Seconds</a>
+      <a class="btn btn-ghost" href="tel:+19084045373">Call (908) 404-5373</a>
+    </div>
+    <p class="hero-note" data-i18n="hero.note"><b>■ DISPATCH ACTIVE NOW</b> &nbsp;·&nbsp; Brokerage division launches with FMCSA MC authority & BMC-84 bond — in process.</p>
+  </div>
+</header>
+
+<div class="board" aria-label="Sample lanes">
+  <div class="board-label"><i></i> Load Board</div>
+  <div class="board-track">
+    <div class="board-row">NEWARK, NJ <span class="arrow">→</span> ATLANTA, GA <span class="eq">DRY VAN</span> <span class="rate">$2.85/mi</span></div>
+    <div class="board-row">MIAMI, FL <span class="arrow">→</span> CHARLOTTE, NC <span class="eq">REEFER</span> <span class="rate">$3.10/mi</span></div>
+    <div class="board-row">HOUSTON, TX <span class="arrow">→</span> MEMPHIS, TN <span class="eq">FLATBED</span> <span class="rate">$3.02/mi</span></div>
+    <div class="board-row">CHICAGO, IL <span class="arrow">→</span> DALLAS, TX <span class="eq">POWER ONLY</span> <span class="rate">$2.64/mi</span></div>
+    <div class="board-row">ELIZABETH, NJ <span class="arrow">→</span> COLUMBUS, OH <span class="eq">BOX TRUCK</span> <span class="rate">$2.40/mi</span></div>
+    <div class="board-row">SAVANNAH, GA <span class="arrow">→</span> NASHVILLE, TN <span class="eq">DRY VAN</span> <span class="rate">$2.92/mi</span></div>
+    <div class="board-row">NEWARK, NJ <span class="arrow">→</span> ATLANTA, GA <span class="eq">DRY VAN</span> <span class="rate">$2.85/mi</span></div>
+    <div class="board-row">MIAMI, FL <span class="arrow">→</span> CHARLOTTE, NC <span class="eq">REEFER</span> <span class="rate">$3.10/mi</span></div>
+    <div class="board-row">HOUSTON, TX <span class="arrow">→</span> MEMPHIS, TN <span class="eq">FLATBED</span> <span class="rate">$3.02/mi</span></div>
+    <div class="board-row">CHICAGO, IL <span class="arrow">→</span> DALLAS, TX <span class="eq">POWER ONLY</span> <span class="rate">$2.64/mi</span></div>
+    <div class="board-row">ELIZABETH, NJ <span class="arrow">→</span> COLUMBUS, OH <span class="eq">BOX TRUCK</span> <span class="rate">$2.40/mi</span></div>
+    <div class="board-row">SAVANNAH, GA <span class="arrow">→</span> NASHVILLE, TN <span class="eq">DRY VAN</span> <span class="rate">$2.92/mi</span></div>
+  </div>
+</div>
+
+<div class="quote" id="quote">
+  <div class="wrap">
+    <div class="quote-card">
+      <h2>Need a dispatcher?</h2>
+      <p>Tell us about your operation — a dispatcher calls you back within 15 minutes during business hours.</p>
+      <div class="quote-form">
+        <div class="field"><label for="q-truck">Truck Type</label>
+          <select id="q-truck"><option>Semi / Tractor</option><option>Box Truck 26'</option><option>Hot Shot</option><option>Sprinter Van</option></select></div>
+        <div class="field"><label for="q-trailer">Trailer Type</label>
+          <select id="q-trailer"><option>Dry Van</option><option>Reefer</option><option>Flatbed</option><option>Step Deck</option><option>Power Only</option><option>N/A</option></select></div>
+        <div class="field"><label for="q-state">Home State</label>
+          <select id="q-state"><option>NJ</option><option>NY</option><option>PA</option><option>FL</option><option>GA</option><option>TX</option><option>IL</option><option>CA</option><option>Other</option></select></div>
+        <div class="field"><label for="q-trucks"># of Trucks</label>
+          <select id="q-trucks"><option>1</option><option>2–5</option><option>6–15</option><option>16+</option></select></div>
+        <div class="field"><label for="q-phone">Your Phone</label>
+          <input id="q-phone" type="tel" placeholder="(___) ___-____" inputmode="tel"></div>
+        <button class="btn btn-amber" onclick="formOk('quote-ok')">Get Started →</button>
+      </div>
+      <div class="form-ok" id="quote-ok">✓ RECEIVED — A dispatcher will call you within 15 minutes (Mon–Sat, 7am–9pm ET). Or call us now: (908) 404-5373</div>
+    </div>
+  </div>
+</div>
+
+<section id="dispatch">
+  <div class="wrap">
+    <span class="eyebrow">Two divisions · One standard</span>
+    <h2 class="sec">Dispatch for carriers. Brokerage for shippers. Kept separate — by design.</h2>
+    <p class="sub">Clear roles, clear paperwork, full FMCSA compliance. No double brokering. Ever.</p>
+    <div class="services-grid">
+      <div class="svc dispatch">
+        <span class="tag">For Carriers · Active Now</span>
+        <h3>Truck Dispatching</h3>
+        <p data-i18n="svc.d.p">We act as your back office: finding freight, negotiating rates and handling the paperwork under <b>your</b> operating authority.</p>
+        <ul>
+          <li>Load booking & rate negotiation on top boards</li>
+          <li>Broker verification before every booking</li>
+          <li>Detention, lumper & TONU support</li>
+          <li>Invoicing & factoring coordination</li>
+          <li>No forced dispatch — you approve every load</li>
+        </ul>
+        <span class="link" onclick="goHome('pricing')">See dispatch plans →</span>
+      </div>
+      <div class="svc broker" id="brokerage">
+        <span class="tag">For Shippers · Launching Soon</span>
+        <h3>Freight Brokerage</h3>
+        <p>Full truckload and partial solutions with vetted carriers, real tracking and one point of contact from pickup to POD.</p>
+        <ul>
+          <li>FTL & partial — dry, temp-controlled, open deck</li>
+          <li>Vetted carrier network (insurance & safety checked)</li>
+          <li>Live shipment tracking & proactive updates</li>
+          <li>Claims support & document management</li>
+        </ul>
+        <span class="link" onclick="go('shippers')">Request a freight quote →</span>
+        <span class="soon">// Opens upon activation of MC authority + BMC-84 $75K surety bond</span>
+      </div>
+    </div>
+
+    <div class="flow">
+      <span class="flow-title">Our dispatch process — every load, same discipline</span>
+      <div class="flow-track">
+        <span class="flow-node">CARRIER</span><span class="flow-arrow">→</span>
+        <span class="flow-node hot">DEDICATED DISPATCHER</span><span class="flow-arrow">→</span>
+        <span class="flow-node">LOAD SEARCH</span><span class="flow-arrow">→</span>
+        <span class="flow-node">BROKER CHECK</span><span class="flow-arrow">→</span>
+        <span class="flow-node">RATE NEGOTIATION</span><span class="flow-arrow">→</span>
+        <span class="flow-node hot">CARRIER APPROVAL</span><span class="flow-arrow">→</span>
+        <span class="flow-node">BOOK LOAD</span><span class="flow-arrow">→</span>
+        <span class="flow-node">PAPERWORK</span><span class="flow-arrow">→</span>
+        <span class="flow-node">DRIVER SUPPORT 24/7</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="light" id="how">
+  <div class="wrap">
+    <span class="eyebrow">Carrier onboarding</span>
+    <h2 class="sec">On the road with us in 24 hours.</h2>
+    <div class="steps">
+      <div class="step"><span class="n">STEP 1</span><h3>Send your docs</h3><p>MC/DOT, W-9, certificate of insurance and a voided check — uploaded in one secure form.</p><span class="t">≈ 5 minutes</span></div>
+      <div class="step"><span class="n">STEP 2</span><h3>Sign electronically</h3><p>Review the dispatch agreement and sign from your phone. No printer, no fax.</p><span class="t">≈ 10 minutes</span></div>
+      <div class="step"><span class="n">STEP 3</span><h3>We book your first load</h3><p>Your dispatcher learns your lanes, your rate floor and your home-time needs — then gets to work.</p><span class="t">Same day</span></div>
+      <div class="step"><span class="n">STEP 4</span><h3>You drive. You get paid.</h3><p>We handle rate cons, BOLs and invoicing. You focus on miles.</p><span class="t">Every week</span></div>
+    </div>
+
+    <div style="margin-top:80px">
+      <span class="eyebrow">Why carriers switch</span>
+      <h2 class="sec">The difference is in the details.</h2>
+      <div class="compare">
+        <table>
+          <thead><tr><th class="them">Typical dispatch companies</th><th class="us">PickLoads</th></tr></thead>
+          <tbody>
+            <tr><td class="them">A different dispatcher every call</td><td class="us">One dedicated dispatcher who knows your truck</td></tr>
+            <tr><td class="them">Loads booked without checking the broker</td><td class="us">Broker credit & authority verified before booking</td></tr>
+            <tr><td class="them">Voicemail after 5pm</td><td class="us">24/7 live support, weekends included</td></tr>
+            <tr><td class="them">Hidden fees buried in the agreement</td><td class="us">One flat percentage — you see every rate con</td></tr>
+            <tr><td class="them">Load-to-load thinking</td><td class="us">Strategic lane planning toward home time</td></tr>
+            <tr><td class="them">Long contracts that trap you</td><td class="us">Month to month — leave anytime</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="equipment">
+  <div class="wrap">
+    <span class="eyebrow">Equipment we dispatch</span>
+    <h2 class="sec">Every trailer. Every lane.</h2>
+    <p class="sub">Each equipment type has its own dedicated dispatch page — lanes, rates and requirements. Built for drivers searching Google.</p>
+    <div class="eq-grid">
+      <a class="eq-card"><span class="mm">EQ-01</span><h3>Dry Van Dispatch</h3><p>53' general freight, the backbone of the network.</p></a>
+      <a class="eq-card"><span class="mm">EQ-02</span><h3>Reefer Dispatch</h3><p>Temp-controlled produce, food & pharma loads.</p></a>
+      <a class="eq-card"><span class="mm">EQ-03</span><h3>Flatbed Dispatch</h3><p>Steel, lumber, machinery — tarps & securement.</p></a>
+      <a class="eq-card"><span class="mm">EQ-04</span><h3>Step Deck Dispatch</h3><p>Over-height freight and heavy equipment.</p></a>
+      <a class="eq-card"><span class="mm">EQ-05</span><h3>Power Only Dispatch</h3><p>Drop & hook trailer pools nationwide.</p></a>
+      <a class="eq-card"><span class="mm">EQ-06</span><h3>Hot Shot Dispatch</h3><p>Expedited partial loads, 40' gooseneck.</p></a>
+      <a class="eq-card"><span class="mm">EQ-07</span><h3>Box Truck Dispatch</h3><p>26' straight truck & final-mile freight.</p></a>
+      <a class="eq-card"><span class="mm">EQ-08</span><h3>Sprinter Van Dispatch</h3><p>Expedited small freight & medical runs.</p></a>
+    </div>
+  </div>
+</section>
+
+<section id="industries" style="padding-top:0">
+  <div class="wrap">
+    <span class="eyebrow">Industries served</span>
+    <h2 class="sec">Freight expertise where it counts.</h2>
+    <div class="chips">
+      <a class="chip">Food & Beverage</a><a class="chip">Retail & E-commerce</a><a class="chip">Construction</a><a class="chip">Medical & Pharma</a><a class="chip">Automotive</a><a class="chip">Manufacturing</a><a class="chip">Agriculture</a><a class="chip">Energy</a>
+    </div>
+  </div>
+</section>
+
+<div class="boards-strip">
+  <div class="wrap">
+    <p data-i18n="boards.p"><b>Your dispatcher works every major load source</b> — plus direct broker relationships built lane by lane.</p>
+    <div class="board-names">
+      <span class="board-name">DAT ONE</span><span class="board-name">TRUCKSTOP</span><span class="board-name">123LOADBOARD</span><span class="board-name">DIRECT BROKER NETWORK</span>
+    </div>
+    <small>// Platform names are the property of their respective owners. PickLoads is an independent dispatch service and is not affiliated with or endorsed by these platforms.</small>
+  </div>
+</div>
+
+<section id="why">
+  <div class="wrap why-grid">
+    <div>
+      <span class="eyebrow">Why PickLoads</span>
+      <h2 class="sec">Built by people who answer the phone.</h2>
+      <ul class="why-list">
+        <li><strong>Flat percentage. No hidden fees.</strong><span>You see every rate con. What the broker pays is what you see.</span></li>
+        <li><strong>No forced dispatch. No contracts that trap you.</strong><span>Month to month. You approve every load before we book it.</span></li>
+        <li><strong>A dedicated dispatcher — not a call center.</strong><span>One person who knows your truck, your lanes and your family schedule.</span></li>
+        <li><strong>24/7 support, including weekends.</strong><span>Breakdowns and detention don't wait for business hours. Neither do we.</span></li>
+      </ul>
+    </div>
+    <div class="stats">
+      <div class="stat"><b>5%</b><span>Flat dispatch fee</span></div>
+      <div class="stat"><b>$2.90</b><span>Avg rate/mile booked*</span></div>
+      <div class="stat"><b>24/7</b><span>Live dispatch support</span></div>
+      <div class="stat"><b>48</b><span>States covered</span></div>
+      <span class="stat-note">* Placeholder figures — replace with verifiable numbers before production launch.</span>
+    </div>
+  </div>
+</section>
+
+<!-- why shippers teaser -->
+<section class="light" style="padding-top:70px;padding-bottom:70px">
+  <div class="wrap" style="display:flex;justify-content:space-between;align-items:center;gap:30px;flex-wrap:wrap">
+    <div>
+      <span class="eyebrow">For shippers</span>
+      <h2 class="sec" style="max-width:560px">Freight that moves on time, with one point of contact.</h2>
+      <p class="sub">Vetted carriers, live tracking and claims support — see why shippers choose PickLoads.</p>
+    </div>
+    <a class="btn btn-green" onclick="go('shippers')">Why Shippers Choose PickLoads →</a>
+  </div>
+</section>
+
+<!-- new authority program -->
+<section id="new-authority" style="border-top:1px solid var(--line)">
+  <div class="wrap">
+    <span class="eyebrow">Start your trucking company</span>
+    <h2 class="sec">No MC yet? We'll launch you — then dispatch you.</h2>
+    <p class="sub">Our New Authority Program handles the filings, then rolls you straight into dispatch. One partner from paperwork to first load.</p>
+    <div class="services-grid">
+      <div class="svc dispatch">
+        <span class="tag">New Authority Program</span>
+        <h3>Everything filed. Then dispatched.</h3>
+        <ul>
+          <li>LLC formation & EIN registration</li>
+          <li>MC & USDOT filing (FMCSA)</li>
+          <li>BOC-3 process agent designation</li>
+          <li>UCR registration</li>
+          <li>Insurance guidance ($1M liability / $100K cargo)</li>
+          <li>Straight into dispatch onboarding</li>
+        </ul>
+        <span class="link" onclick="goHome('quote')">Start My Trucking Company →</span>
+        <span class="soon">// Document filing assistance only — we are not a law firm and do not provide legal advice.</span>
+      </div>
+      <div class="svc broker">
+        <span class="tag">Why launch with us</span>
+        <h3>Why launch with a dispatch company?</h3>
+        <p>Formation services file your paperwork and disappear. We file it — and then keep your truck loaded.</p>
+        <ul>
+          <li>We know which brokers accept new authorities</li>
+          <li>Lane planning built for your first 90 days</li>
+          <li>Insurance guidance before you overpay</li>
+          <li>One team from LLC to first load</li>
+        </ul>
+        <span class="link" onclick="goHome('quote')">Talk to us first — it's free →</span>
+      </div>
+    </div>
+    <div class="flow">
+      <span class="flow-title">New authority path — from zero to first load</span>
+      <div class="flow-track">
+        <span class="flow-node">LLC + EIN</span><span class="flow-arrow">→</span>
+        <span class="flow-node">MC / USDOT</span><span class="flow-arrow">→</span>
+        <span class="flow-node">BOC-3 + UCR</span><span class="flow-arrow">→</span>
+        <span class="flow-node">INSURANCE</span><span class="flow-arrow">→</span>
+        <span class="flow-node hot">DISPATCH ONBOARDING</span><span class="flow-arrow">→</span>
+        <span class="flow-node hot">FIRST LOAD</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="compliance" id="compliance">
+  <div class="wrap">
+    <div>
+      <h2>Verify us before you sign. We insist.</h2>
+      <p>Every serious carrier checks FMCSA SAFER before working with anyone — and they should. Our registration numbers, bond and insurance certificates will be published here the day they're active, with direct links to verify them yourself.</p>
+    </div>
+    <div class="creds">
+      <div class="cred"><span>MC NUMBER</span><b>PENDING — FMCSA FILING</b></div>
+      <div class="cred"><span>USDOT NUMBER</span><b>PENDING — FMCSA FILING</b></div>
+      <div class="cred"><span>BMC-84 SURETY BOND ($75K)</span><b>IN PROCESS</b></div>
+      <div class="cred"><span>CERTIFICATE OF INSURANCE</span><b>ON REQUEST</b></div>
+    </div>
+  </div>
+</section>
+
+<section id="packet">
+  <div class="wrap">
+    <span class="eyebrow">Carrier packet</span>
+    <h2 class="sec">Everything you need to sign on — in one place.</h2>
+    <p class="sub">Download the documents, or upload yours and let us build the packet for you.</p>
+    <div class="packet-grid">
+      <div class="packet-list">
+        <div class="packet-item"><div class="doc"><i>PDF</i><div><b>Dispatch Agreement</b><span>Month-to-month service terms — plain English</span></div></div><a class="dl">DOWNLOAD ↓</a></div>
+        <div class="packet-item"><div class="doc"><i>PDF</i><div><b>W-9 Form</b><span>Current IRS revision, ready to fill</span></div></div><a class="dl">DOWNLOAD ↓</a></div>
+        <div class="packet-item"><div class="doc"><i>PDF</i><div><b>Insurance Requirements</b><span>$1M auto liability · $100K cargo minimums</span></div></div><a class="dl">DOWNLOAD ↓</a></div>
+        <div class="packet-item"><div class="doc"><i>PDF</i><div><b>Factoring Guide</b><span>How factoring works with our invoicing</span></div></div><a class="dl">DOWNLOAD ↓</a></div>
+      </div>
+      <div class="upload" onclick="uploadSoon()" role="button" tabindex="0">
+        <span class="big">⇪</span>
+        <b>Upload your documents</b>
+        <span>MC/DOT letter, certificate of insurance, W-9, voided check — drag & drop or tap to browse.</span>
+        <span class="mono">// Secure upload + e-signature go live with the production build</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="light">
+  <div class="wrap">
+    <span class="eyebrow">What carriers say</span>
+    <h2 class="sec">Word of mouth is our load board.</h2>
+    <div class="testis">
+      <div class="testi"><p>My dispatcher texts me the night before with the plan. I haven't touched a load board in three months.</p><div class="who"><b>J. Baptiste</b>Owner-Operator · Dry Van · NJ</div></div>
+      <div class="testi"><p>They fought a detention claim for me and got it paid. That's when I knew this wasn't a churn-and-burn dispatch.</p><div class="who"><b>M. Rodriguez</b>2-Truck Fleet · Reefer · FL</div></div>
+      <div class="testi"><p>Setup took one evening on my phone. First load booked the next morning at $3.05 a mile.</p><div class="who"><b>D. Charles</b>Owner-Operator · Flatbed · GA</div></div>
+    </div>
+    <p style="margin-top:24px;font-size:.8rem;color:#8a949b" class="mono">* Sample content for prototype. Replace with verified reviews (Google Business Profile / Trustpilot) before launch.</p>
+  </div>
+</section>
+
+<section class="cta-band" id="setup">
+  <div class="wrap">
+    <div>
+      <h2>Ready to stop hunting loads?</h2>
+      <p>Carrier setup takes 5 minutes: docs, e-signature, done. Your dispatcher starts working your lanes today.</p>
+      <p class="mono-note">// Refer a carrier who signs up → earn a referral bonus.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <a class="btn btn-dark" onclick="goHome('quote')">Start Carrier Setup</a>
+      <a class="btn btn-ghost" style="border-color:rgba(18,22,26,.35);color:var(--ink)" href="tel:+19084045373">Or call (908) 404-5373</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ================= ABOUT ================= -->
+<main class="page" id="page-about">
+<div class="page-hero">
+  <div class="wrap">
+    <span class="eyebrow">About PickLoads</span>
+    <h1>A logistics company built the way carriers wish they all were.</h1>
+    <p>PickLoads Logistics Group LLC — truck dispatching and freight brokerage, headquartered in Irvington, New Jersey.</p>
+  </div>
+</div>
+
+<section>
+  <div class="wrap about-grid">
+    <div class="story">
+      <span class="eyebrow">Our story</span>
+      <h2 class="sec" style="margin-bottom:24px">Why PickLoads exists.</h2>
+      <p>PickLoads was founded in 2026 in New Jersey after watching too many owner-operators lose money to the same problems: dispatch services that book cheap freight and disappear after 5pm, brokers that can't be reached when a driver is sitting at a dock, and fee structures nobody can explain.</p>
+      <p data-i18n="ab.p2">We started with a simple standard: <b style="color:var(--paper)">treat every truck like it's our own.</b> That means verifying the broker before booking, negotiating like the margin is ours, planning lanes around a driver's home time — and answering the phone at 2am when something goes wrong.</p>
+      <p>Dispatch is where we start. Freight brokerage is where we're headed — with full FMCSA authority, a bonded operation and a vetted carrier network. And the same discipline on both sides of the load.</p>
+    </div>
+    <div class="founder">
+      <div class="avatar">EL</div>
+      <b>Emmanuel Larocque</b>
+      <span class="role">Founder & CEO</span>
+      <p>Entrepreneur and founder of a multi-division business group based in New Jersey. Emmanuel leads PickLoads with one obsession: building the dispatch company he'd want behind his own truck.</p>
+      <span class="photo-note">// Replace with a real photo before launch — it matters for trust</span>
+    </div>
+  </div>
+</section>
+
+<div class="mission-band">
+  <div class="wrap">
+    <span class="mono">Our mission</span>
+    <h2>"Keep every carrier loaded, paid and respected — and give every shipper a partner they never have to chase."</h2>
+  </div>
+</div>
+
+<section class="light">
+  <div class="wrap">
+    <span class="eyebrow">Our values</span>
+    <h2 class="sec">What we don't compromise on.</h2>
+    <div class="values">
+      <div class="value"><span class="v-mark">V-01</span><h3>Transparency</h3><p>Every rate con visible. Every fee explained. No surprises on settlement day.</p></div>
+      <div class="value"><span class="v-mark">V-02</span><h3>Compliance first</h3><p>FMCSA rules aren't red tape — they're what protects carriers, shippers and us.</p></div>
+      <div class="value"><span class="v-mark">V-03</span><h3>Availability</h3><p>Freight doesn't sleep. When a driver calls at 2am, a human answers.</p></div>
+      <div class="value"><span class="v-mark">V-04</span><h3>Long game</h3><p>We'd rather lose a load than book a bad one. Relationships outlast rate spikes.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="cta-band">
+  <div class="wrap">
+    <div><h2>Want to work with us?</h2><p>Carrier or shipper — start the conversation today.</p></div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <a class="btn btn-dark" onclick="goHome('quote')">Start Carrier Setup</a>
+      <a class="btn btn-ghost" style="border-color:rgba(18,22,26,.35);color:var(--ink)" onclick="go('shippers')">Request a Freight Quote</a>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- ================= SHIPPERS ================= -->
+<main class="page" id="page-shippers">
+<div class="page-hero">
+  <div class="wrap">
+    <span class="eyebrow">For shippers</span>
+    <h1>Freight that moves on time. A partner you never have to chase.</h1>
+    <p>Full truckload and partial solutions with vetted carriers, live tracking and one point of contact from pickup to proof of delivery.</p>
+  </div>
+</div>
+
+<section>
+  <div class="wrap">
+    <span class="eyebrow">Why shippers choose PickLoads</span>
+    <h2 class="sec">Fewer surprises. Fewer phone calls. Freight covered.</h2>
+    <div class="ship-why">
+      <div class="ship-card"><span class="ic">🛡</span><h3>Vetted carriers only</h3><p>Authority, insurance and safety scores verified before a carrier touches your freight.</p></div>
+      <div class="ship-card"><span class="ic">📍</span><h3>Live tracking</h3><p>Check calls and location updates from pickup to delivery — proactively, not on request.</p></div>
+      <div class="ship-card"><span class="ic">☎</span><h3>One point of contact</h3><p>One rep owns your shipment. No transfers, no ticket numbers, no runaround.</p></div>
+      <div class="ship-card"><span class="ic">📄</span><h3>Claims & paperwork handled</h3><p>BOLs, PODs and claims support managed for you, with documents delivered same day.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="light" style="padding-top:0;margin-top:-20px">
+  <div class="wrap">
+    <div class="bigform">
+      <h2>Request a freight quote</h2>
+      <p>Tell us about your shipment — we respond within one business hour (Mon–Sat). Brokerage operations open with our MC activation; early requests get priority onboarding.</p>
+      <div class="grid3">
+        <div class="field"><label>Pickup ZIP</label><input type="text" placeholder="07111" inputmode="numeric"></div>
+        <div class="field"><label>Delivery ZIP</label><input type="text" placeholder="30303" inputmode="numeric"></div>
+        <div class="field"><label>Pickup Date</label><input type="date"></div>
+      </div>
+      <div class="grid3">
+        <div class="field"><label>Commodity</label><input type="text" placeholder="e.g. Palletized beverages"></div>
+        <div class="field"><label>Weight (lbs)</label><input type="text" placeholder="42,000" inputmode="numeric"></div>
+        <div class="field"><label>Pallets / Pieces</label><input type="text" placeholder="26 pallets"></div>
+      </div>
+      <div class="grid3">
+        <div class="field"><label>Equipment</label>
+          <select><option>Dry Van 53'</option><option>Reefer</option><option>Flatbed</option><option>Step Deck</option><option>Box Truck</option><option>Sprinter Van</option><option>Not sure — advise me</option></select></div>
+        <div class="field"><label>Frequency</label>
+          <select><option>One-time shipment</option><option>Weekly</option><option>Monthly</option><option>Dedicated lane</option></select></div>
+        <div class="field"><label>Company Name</label><input type="text" placeholder="Your company"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Contact Email</label><input type="email" placeholder="you@company.com"></div>
+        <div class="field"><label>Contact Phone</label><input type="tel" placeholder="(___) ___-____" inputmode="tel"></div>
+      </div>
+      <button class="btn btn-amber" onclick="formOk('ship-ok')">Request Freight Quote →</button>
+      <div class="form-ok" id="ship-ok">✓ RECEIVED — Our team will reply within one business hour at the email provided. Questions now? Call (908) 404-5373 or email support@pickloads.com</div>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="flow">
+      <span class="flow-title">Shipper process — from quote to POD</span>
+      <div class="flow-track">
+        <span class="flow-node">QUOTE REQUEST</span><span class="flow-arrow">→</span>
+        <span class="flow-node hot">RATE IN 1 HOUR</span><span class="flow-arrow">→</span>
+        <span class="flow-node">CARRIER VETTING</span><span class="flow-arrow">→</span>
+        <span class="flow-node">PICKUP SCHEDULED</span><span class="flow-arrow">→</span>
+        <span class="flow-node hot">LIVE TRACKING</span><span class="flow-arrow">→</span>
+        <span class="flow-node">DELIVERY + POD</span><span class="flow-arrow">→</span>
+        <span class="flow-node">SAME-DAY DOCS</span>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- ================= FAQ ================= -->
+<main class="page" id="page-faq">
+<div class="page-hero">
+  <div class="wrap">
+    <span class="eyebrow">FAQ</span>
+    <h1>Straight answers. No fine print.</h1>
+    <p>The questions carriers and shippers actually ask us — answered the way we'd want them answered.</p>
+  </div>
+</div>
+
+<section class="light">
+  <div class="wrap">
+    <div class="faq-cols">
+      <div class="faq-col">
+        <h3>▸ For Carriers</h3>
+        <details><summary>How much does dispatch cost?</summary><div class="a">A flat percentage of gross per load — 5% for owner-operators, 4.5% for small fleets, 8% for box trucks and hot shots. No setup fees, no monthly minimums, no charge on loads you decline. You see every rate confirmation.</div></details>
+        <details><summary>Is this forced dispatch?</summary><div class="a">No. You approve every load before we book it. You set your rate floor, your lanes and your home time — we work inside them. Month to month, cancel anytime.</div></details>
+        <details><summary>What do I need to get started?</summary><div class="a">Your MC/DOT authority, a W-9, a certificate of insurance ($1M auto liability / $100K cargo) and a voided check or factoring notice. Setup takes about 5 minutes; most carriers get their first load within 24 hours.</div></details>
+        <details><summary>Do you work with new authorities?</summary><div class="a">Yes. New MCs face broker restrictions in the first months — we know which brokers work with new authorities and plan lanes accordingly to keep you moving while your authority ages.</div></details>
+        <details><summary>How do I get paid?</summary><div class="a">You're paid directly by the broker or through your factoring company — money never passes through us. We prepare and submit the invoices and paperwork so nothing delays your settlement.</div></details>
+        <details><summary>I don't have my MC yet — can you help me start my trucking company?</summary><div class="a">Yes. Our New Authority Program handles LLC formation, EIN, MC/USDOT filing, BOC-3 and UCR, plus insurance guidance — then rolls you straight into dispatch onboarding so you're loaded as soon as your authority activates. Document filing assistance only; we are not a law firm.</div></details>
+        <details><summary>Do you verify brokers?</summary><div class="a">Every broker is checked for active authority, bond status and credit before we book. If a broker looks shaky, we skip the load — no exceptions.</div></details>
+      </div>
+      <div class="faq-col">
+        <h3>▸ For Shippers</h3>
+        <details><summary>Are you a licensed freight broker?</summary><div class="a">Our brokerage division launches with our FMCSA MC authority and BMC-84 $75,000 surety bond, currently in process. Our registration numbers will be published on this site the day they're active, with direct FMCSA verification links. Early quote requests get priority onboarding.</div></details>
+        <details><summary>How fast can you quote a shipment?</summary><div class="a">Within one business hour for standard FTL lanes (Mon–Sat). Complex or specialized freight may take a little longer — we'll tell you upfront.</div></details>
+        <details><summary>How do you vet carriers?</summary><div class="a">Active authority, insurance certificates, FMCSA safety data and inspection history — verified before assignment, not after. We don't re-broker freight.</div></details>
+        <details><summary>Can I track my shipment?</summary><div class="a">Yes — check calls and location updates through delivery, with proactive alerts if anything changes. A live shipper portal is on the roadmap.</div></details>
+        <details><summary>What happens if there's a claim?</summary><div class="a">We manage the claims process end to end: documentation, carrier insurance filing and follow-up until resolution. One contact, start to finish.</div></details>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cta-band">
+  <div class="wrap">
+    <div><h2>Didn't find your answer?</h2><p>Call us — a human picks up. (908) 404-5373, or email support@pickloads.com.</p></div>
+    <a class="btn btn-dark" onclick="go('contact')">Contact Us</a>
+  </div>
+</section>
+</main>
+
+<!-- ================= BLOG ================= -->
+<main class="page" id="page-blog">
+<div class="page-hero">
+  <div class="wrap">
+    <span class="eyebrow">Freight Insights</span>
+    <h1>The road, the rates, the rules.</h1>
+    <p>Market updates, dispatch strategy and FMCSA news — written for the people actually running trucks.</p>
+  </div>
+</div>
+
+<section>
+  <div class="wrap">
+    <div class="blog-grid">
+      <a class="post">
+        <div class="cover c1">Freight Market</div>
+        <div class="body"><h3>Freight Market Update: What Q3 Rates Are Telling Us</h3><p>Spot rates, contract spreads and what it means for owner-operators planning the next 90 days.</p><span class="meta">SAMPLE ARTICLE · 6 MIN READ</span></div>
+      </a>
+      <a class="post">
+        <div class="cover c2">Dispatch Tips</div>
+        <div class="body"><h3>5 Signs Your Dispatcher Is Costing You Money</h3><p>From unchecked brokers to deadhead-heavy planning — how to audit the service behind your truck.</p><span class="meta">SAMPLE ARTICLE · 5 MIN READ</span></div>
+      </a>
+      <a class="post">
+        <div class="cover c3">FMCSA News</div>
+        <div class="body"><h3>FMCSA Updates Every Carrier Should Know This Quarter</h3><p>Registration changes, broker transparency rules and what's coming for new authorities.</p><span class="meta">SAMPLE ARTICLE · 7 MIN READ</span></div>
+      </a>
+      <a class="post">
+        <div class="cover c4">Fuel Prices</div>
+        <div class="body"><h3>Diesel Watch: Managing Fuel Costs When Prices Swing</h3><p>Fuel surcharges, card programs and route planning tactics that protect your margin.</p><span class="meta">SAMPLE ARTICLE · 5 MIN READ</span></div>
+      </a>
+    </div>
+    <p style="margin-top:22px;font-size:.78rem;color:#5c666d" class="mono">// Sample articles for prototype. Target: 2 published articles per month at launch.</p>
+
+    <div class="newsletter">
+      <h3>Get Freight Insights in your inbox</h3>
+      <div class="field"><label>Email address</label><input type="email" placeholder="you@yourcompany.com"></div>
+      <button class="btn btn-amber" onclick="formOk('news-ok')">Subscribe</button>
+      <div class="form-ok" id="news-ok" style="flex-basis:100%">✓ SUBSCRIBED — Market updates and dispatch tips, twice a month. No spam.</div>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- ================= CONTACT ================= -->
+<main class="page" id="page-contact">
+<div class="page-hero">
+  <div class="wrap">
+    <span class="eyebrow">Contact</span>
+    <h1>Talk to a human. Today.</h1>
+    <p>Dispatch questions, freight quotes, partnerships — we answer fast.</p>
+  </div>
+</div>
+
+<section>
+  <div class="wrap contact-grid">
+    <div class="contact-cards">
+      <div class="c-card"><span class="ic">☎</span><div><b>Phone — 24/7 Dispatch Line</b><a href="tel:+19084045373" class="mono">(908) 404-5373</a></div></div>
+      <div class="c-card"><span class="ic">✉</span><div><b>Email</b><a href="mailto:support@pickloads.com" class="mono">support@pickloads.com</a></div></div>
+      <div class="c-card"><span class="ic">📍</span><div><b>Office</b><span>50 Union Ave, Suite 805-A<br>Irvington, NJ 07111</span></div></div>
+      <div class="c-card"><span class="ic">🕐</span><div><b>Office Hours</b><span data-i18n="ct.hours">Mon–Fri 8am–6pm ET · Sat 9am–2pm ET<br>Dispatch support: 24/7, including holidays</span></div></div>
+      <div class="c-card"><span class="ic">＠</span><div><b>Follow PickLoads</b>
+        <div class="socials"><a>FACEBOOK</a><a>INSTAGRAM</a><a>LINKEDIN</a><a>TIKTOK</a></div>
+      </div></div>
+    </div>
+    <div class="map-ph">
+      <div class="pin"><i></i></div>
+      <b>50 Union Ave, Irvington, NJ</b>
+      <span>Minutes from Newark and Ports Newark–Elizabeth — the heart of the Northeast freight corridor.</span>
+      <span class="mono">// Embed Google Maps here in the production build (live key required)</span>
+    </div>
+  </div>
+</section>
+
+<section class="cta-band">
+  <div class="wrap">
+    <div><h2>Prefer to just get started?</h2><p>Carrier setup takes 5 minutes. Shipper quotes answered within the hour.</p></div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <a class="btn btn-dark" onclick="goHome('quote')">Start Carrier Setup</a>
+      <a class="btn btn-ghost" style="border-color:rgba(18,22,26,.35);color:var(--ink)" onclick="go('shippers')">Request a Freight Quote</a>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- footer -->
+<footer id="contact-foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <span class="logo" onclick="go('home')">
+          <svg width="34" height="38" viewBox="0 0 38 42" fill="none" aria-hidden="true">
+            <path d="M19 1 L36 8 V24 C36 33 28 39.5 19 41 C10 39.5 2 33 2 24 V8 Z" fill="#0E5A3C" stroke="#FFB020" stroke-width="2"/>
+            <text x="19" y="27" text-anchor="middle" font-family="Overpass,sans-serif" font-weight="900" font-size="15" fill="#F4F6F5">PL</text>
+          </svg>
+          <div><b>PICK<span>LOADS</span></b><small>Logistics Group LLC</small></div>
+        </span>
+        <p>Truck dispatching & freight brokerage.<br>50 Union Ave, Suite 805-A, Irvington, NJ 07111</p>
+        <p class="mono" style="font-size:.72rem;margin-top:10px">☎ (908) 404-5373<br>support@pickloads.com<br>MC # pending · USDOT # pending</p>
+      </div>
+      <div>
+        <h4>Services</h4>
+        <a onclick="goHome('dispatch')">Truck Dispatching</a>
+        <a onclick="go('shippers')">Freight Brokerage</a>
+        <a onclick="goHome('pricing')">Pricing</a>
+        <a onclick="goHome('packet')">Carrier Packet</a>
+        <a onclick="goHome('compliance')">Compliance</a>
+      </div>
+      <div>
+        <h4>Dispatch by Equipment</h4>
+        <a onclick="goHome('equipment')">Dry Van Dispatch</a>
+        <a onclick="goHome('equipment')">Reefer Dispatch</a>
+        <a onclick="goHome('equipment')">Flatbed Dispatch</a>
+        <a onclick="goHome('equipment')">Power Only Dispatch</a>
+        <a onclick="goHome('equipment')">Hot Shot Dispatch</a>
+        <a onclick="goHome('equipment')">Box Truck Dispatch</a>
+        <a onclick="goHome('equipment')">Sprinter Van Dispatch</a>
+      </div>
+      <div>
+        <h4>Dispatch by State</h4>
+        <a>New Jersey Truck Dispatch</a>
+        <a>New York Truck Dispatch</a>
+        <a>Florida Truck Dispatch</a>
+        <a>Georgia Truck Dispatch</a>
+        <a>Texas Truck Dispatch</a>
+        <a>Illinois Truck Dispatch</a>
+        <a>All 48 States →</a>
+      </div>
+      <div>
+        <h4>Carriers</h4>
+        <a onclick="goHome('quote')">Become a Carrier</a>
+        <a onclick="goHome('new-authority')">Start Your Trucking Company</a>
+        <a onclick="goHome('packet')">Carrier Packet</a>
+        <a onclick="goHome('packet')">Insurance Requirements</a>
+        <a onclick="goHome('packet')">Factoring</a>
+        <a onclick="go('faq')">Carrier FAQ</a>
+        <a href="#" onclick="portalSoon(event,'Carrier')">Carrier Login</a>
+      </div>
+      <div>
+        <h4>Company</h4>
+        <a onclick="go('about')">About Us</a>
+        <a onclick="go('shippers')">For Shippers</a>
+        <a onclick="go('blog')">Freight Insights</a>
+        <a onclick="go('faq')">FAQ</a>
+        <a onclick="go('contact')">Contact</a>
+        <a href="#" onclick="portalSoon(event,'Shipper')">Shipper Login</a>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 PickLoads Logistics Group LLC · pickloads.com · All rights reserved.</span>
+      <span><a>Privacy</a> · <a>Terms</a> · <a>Cookies</a> · <a>Carrier Agreement</a> · <a>Dispatch Agreement</a></span>
+    </div>
+  </div>
+</footer>
+
+<div class="portal-toast" id="portal-toast"></div>
+<a class="call-fab" href="tel:+19084045373">☎ Call Dispatch Now — (908) 404-5373</a>
+
+<script>
+function go(page){
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
+  document.getElementById('page-'+page).classList.add('active');
+  document.querySelectorAll('.navlinks a').forEach(function(a){a.classList.toggle('active', a.dataset.nav===page);});
+  window.scrollTo({top:0});
+}
+function goHome(anchor){
+  go('home');
+  var el = document.getElementById(anchor);
+  if(el){ setTimeout(function(){ el.scrollIntoView({behavior:'smooth'}); }, 60); }
+}
+function toggleMenu(){
+  document.getElementById('mobile-menu').classList.toggle('open');
+}
+function formOk(id){
+  var ok = document.getElementById(id);
+  ok.style.display = 'block';
+  ok.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+var toastTimer;
+function portalSoon(e, kind){
+  e.preventDefault();
+  showToast('<b>' + kind + ' Portal — Coming Soon.</b><br>Live tracking, documents & settlements are on the way. Call (908) 404-5373 in the meantime.');
+}
+function uploadSoon(){
+  showToast('<b>Secure upload — Coming Soon.</b><br>Document upload + e-signature launch with the production build. Email your docs to support@pickloads.com for now.');
+}
+function showToast(html){
+  var t = document.getElementById('portal-toast');
+  t.innerHTML = html;
+  t.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.style.display = 'none'; }, 5000);
+}
+</script>
+
+<script>
+/* ===== PickLoads i18n — EN base, ES / FR / RU / HT ===== */
+var T = {
+"☎ (908) 404-5373 · 24/7 Dispatch":{es:"☎ (908) 404-5373 · Despacho 24/7",fr:"☎ (908) 404-5373 · Dispatch 24/7",ru:"☎ (908) 404-5373 · Диспетчер 24/7",ht:"☎ (908) 404-5373 · Dispatch 24/7"},
+"Carrier Login":{es:"Acceso Carrier",fr:"Espace Carrier",ru:"Вход для перевозчиков",ht:"Kont Carrier"},
+"Shipper Login":{es:"Acceso Shipper",fr:"Espace Shipper",ru:"Вход для грузоотправителей",ht:"Kont Shipper"},
+"Dispatch":{es:"Despacho",fr:"Dispatch",ru:"Диспетчеризация",ht:"Dispatch"},
+"Shippers":{es:"Shippers",fr:"Expéditeurs",ru:"Грузоотправители",ht:"Shippers"},
+"Pricing":{es:"Precios",fr:"Tarifs",ru:"Цены",ht:"Pri"},
+"Blog":{es:"Blog",fr:"Blog",ru:"Блог",ht:"Blog"},
+"About":{es:"Nosotros",fr:"À propos",ru:"О нас",ht:"Sou nou"},
+"Contact":{es:"Contacto",fr:"Contact",ru:"Контакты",ht:"Kontak"},
+"Start Carrier Setup":{es:"Regístrate como Carrier",fr:"Inscription Carrier",ru:"Регистрация перевозчика",ht:"Kòmanse Enskripsyon Carrier"},
+"Dispatch Services":{es:"Servicios de Despacho",fr:"Services de Dispatch",ru:"Диспетчерские услуги",ht:"Sèvis Dispatch"},
+"Shippers & Freight Quote":{es:"Shippers y Cotización",fr:"Expéditeurs & Devis",ru:"Грузоотправители и расчёт",ht:"Shippers ak Quote"},
+"Carrier Packet":{es:"Paquete del Carrier",fr:"Dossier Carrier",ru:"Пакет перевозчика",ht:"Dosye Carrier"},
+"Freight Insights":{es:"Freight Insights",fr:"Freight Insights",ru:"Freight Insights",ht:"Freight Insights"},
+"About Us":{es:"Sobre Nosotros",fr:"À Propos",ru:"О компании",ht:"Sou Nou"},
+"Truck Dispatching · Freight Brokerage · Nationwide":{es:"Despacho de Camiones · Corretaje de Carga · Todo EE.UU.",fr:"Dispatch de Camions · Courtage de Fret · Tout le Pays",ru:"Диспетчеризация грузовиков · Фрахтовое брокерство · По всей стране",ht:"Dispatch Kamyon · Brokerage Machandiz · Tout Peyi a"},
+"Dedicated dispatch for owner-operators and small fleets — load booking, rate negotiation, paperwork and 24/7 support. You drive. We keep the freight coming.":{es:"Despacho dedicado para owner-operators y flotas pequeñas — reserva de cargas, negociación de tarifas, papeleo y soporte 24/7. Tú manejas. Nosotros mantenemos la carga llegando.",fr:"Un dispatch dédié pour les owner-operators et petites flottes — réservation de chargements, négociation des tarifs, paperasse et support 24/7. Vous roulez. On garde le fret qui arrive.",ru:"Персональный диспетчер для владельцев-операторов и малых автопарков — поиск грузов, переговоры по ставкам, документы и поддержка 24/7. Вы за рулём. Мы обеспечиваем грузы.",ht:"Dispatch devwe pou owner-operators ak ti flòt — rezèvasyon chajman, negosyasyon pri, papye ak sipò 24/7. Ou kondwi. Nou fè machandiz la kontinye vini."},
+"Get Started in 60 Seconds":{es:"Empieza en 60 Segundos",fr:"Démarrez en 60 Secondes",ru:"Начните за 60 секунд",ht:"Kòmanse nan 60 Segonn"},
+"Call (908) 404-5373":{es:"Llama al (908) 404-5373",fr:"Appelez le (908) 404-5373",ru:"Звоните: (908) 404-5373",ht:"Rele (908) 404-5373"},
+"Need a dispatcher?":{es:"¿Necesitas un dispatcher?",fr:"Besoin d'un dispatcher ?",ru:"Нужен диспетчер?",ht:"Ou bezwen yon dispatcher?"},
+"Tell us about your operation — a dispatcher calls you back within 15 minutes during business hours.":{es:"Cuéntanos de tu operación — un dispatcher te llama en 15 minutos en horario laboral.",fr:"Parlez-nous de votre opération — un dispatcher vous rappelle en 15 minutes pendant les heures ouvrables.",ru:"Расскажите о вашей работе — диспетчер перезвонит в течение 15 минут в рабочее время.",ht:"Pale nou de operasyon w — yon dispatcher ap rele w nan 15 minit pandan lè travay."},
+"Truck Type":{es:"Tipo de Camión",fr:"Type de Camion",ru:"Тип грузовика",ht:"Kalite Kamyon"},
+"Trailer Type":{es:"Tipo de Tráiler",fr:"Type de Remorque",ru:"Тип прицепа",ht:"Kalite Trelè"},
+"Home State":{es:"Estado Base",fr:"État de Base",ru:"Домашний штат",ht:"Eta Lakay"},
+"# of Trucks":{es:"# de Camiones",fr:"Nb de Camions",ru:"Кол-во грузовиков",ht:"Kantite Kamyon"},
+"Your Phone":{es:"Tu Teléfono",fr:"Votre Téléphone",ru:"Ваш телефон",ht:"Telefòn Ou"},
+"Get Started →":{es:"Empezar →",fr:"Démarrer →",ru:"Начать →",ht:"Kòmanse →"},
+"✓ RECEIVED — A dispatcher will call you within 15 minutes (Mon–Sat, 7am–9pm ET). Or call us now: (908) 404-5373":{es:"✓ RECIBIDO — Un dispatcher te llamará en 15 minutos (lun–sáb, 7am–9pm ET). O llámanos ya: (908) 404-5373",fr:"✓ REÇU — Un dispatcher vous appelle sous 15 minutes (lun–sam, 7h–21h ET). Ou appelez-nous : (908) 404-5373",ru:"✓ ПОЛУЧЕНО — Диспетчер позвонит вам в течение 15 минут (пн–сб, 7:00–21:00 ET). Или звоните сейчас: (908) 404-5373",ht:"✓ NOU RESEVWA L — Yon dispatcher ap rele w nan 15 minit (len–sam, 7am–9pm ET). Oswa rele nou kounye a: (908) 404-5373"},
+"Two divisions · One standard":{es:"Dos divisiones · Un mismo estándar",fr:"Deux divisions · Un seul standard",ru:"Два направления · Один стандарт",ht:"De divizyon · Yon sèl estanda"},
+"Dispatch for carriers. Brokerage for shippers. Kept separate — by design.":{es:"Despacho para carriers. Corretaje para shippers. Separados — por diseño.",fr:"Dispatch pour les carriers. Courtage pour les expéditeurs. Séparés — par principe.",ru:"Диспетчеризация для перевозчиков. Брокерство для грузоотправителей. Раздельно — намеренно.",ht:"Dispatch pou carriers. Brokerage pou shippers. Separe — espre."},
+"Clear roles, clear paperwork, full FMCSA compliance. No double brokering. Ever.":{es:"Roles claros, papeleo claro, cumplimiento total de FMCSA. Sin doble corretaje. Nunca.",fr:"Rôles clairs, documents clairs, conformité FMCSA totale. Jamais de double courtage.",ru:"Чёткие роли, чёткие документы, полное соответствие FMCSA. Никакого двойного брокерства.",ht:"Wòl klè, papye klè, konfòmite FMCSA konplè. Pa gen double brokering. Janmen."},
+"For Carriers · Active Now":{es:"Para Carriers · Activo",fr:"Pour les Carriers · Actif",ru:"Для перевозчиков · Уже работает",ht:"Pou Carriers · Aktif Kounye a"},
+"Truck Dispatching":{es:"Despacho de Camiones",fr:"Dispatch de Camions",ru:"Диспетчеризация грузовиков",ht:"Dispatch Kamyon"},
+"Load booking & rate negotiation on top boards":{es:"Reserva de cargas y negociación en los mejores boards",fr:"Réservation et négociation sur les meilleurs load boards",ru:"Бронирование грузов и переговоры на топ-биржах",ht:"Rezèvasyon chajman ak negosyasyon sou pi bon boards yo"},
+"Broker verification before every booking":{es:"Verificación del broker antes de cada reserva",fr:"Vérification du broker avant chaque réservation",ru:"Проверка брокера перед каждым бронированием",ht:"Verifikasyon broker anvan chak rezèvasyon"},
+"Detention, lumper & TONU support":{es:"Apoyo con detention, lumper y TONU",fr:"Support detention, lumper & TONU",ru:"Поддержка по detention, lumper и TONU",ht:"Sipò pou detention, lumper ak TONU"},
+"Invoicing & factoring coordination":{es:"Facturación y coordinación de factoring",fr:"Facturation & coordination du factoring",ru:"Выставление счетов и работа с факторингом",ht:"Faktirasyon ak kowòdinasyon factoring"},
+"No forced dispatch — you approve every load":{es:"Sin dispatch forzado — tú apruebas cada carga",fr:"Pas de dispatch forcé — vous approuvez chaque chargement",ru:"Никакой принудительной диспетчеризации — вы одобряете каждый груз",ht:"Pa gen dispatch fòse — ou apwouve chak chajman"},
+"See dispatch plans →":{es:"Ver planes de despacho →",fr:"Voir les formules →",ru:"Смотреть тарифы →",ht:"Gade plan dispatch yo →"},
+"For Shippers · Launching Soon":{es:"Para Shippers · Muy Pronto",fr:"Pour Expéditeurs · Bientôt",ru:"Для грузоотправителей · Скоро",ht:"Pou Shippers · Byento"},
+"Freight Brokerage":{es:"Corretaje de Carga",fr:"Courtage de Fret",ru:"Фрахтовое брокерство",ht:"Brokerage Machandiz"},
+"Full truckload and partial solutions with vetted carriers, real tracking and one point of contact from pickup to POD.":{es:"Soluciones FTL y parciales con carriers verificados, rastreo real y un solo punto de contacto del recogido al POD.",fr:"Solutions FTL et partielles avec des transporteurs vérifiés, un vrai suivi et un seul point de contact du chargement au POD.",ru:"Полные (FTL) и частичные перевозки с проверенными перевозчиками, реальным отслеживанием и одним контактным лицом от загрузки до POD.",ht:"Solisyon FTL ak pasyèl ak carriers verifye, swivi reyèl ak yon sèl moun kontak depi pickup jiska POD."},
+"FTL & partial — dry, temp-controlled, open deck":{es:"FTL y parcial — seco, refrigerado, plataforma",fr:"FTL & partiel — sec, frigo, plateau",ru:"FTL и частичные — сухие, реф, открытые платформы",ht:"FTL ak pasyèl — sèk, refrijere, platfòm"},
+"Vetted carrier network (insurance & safety checked)":{es:"Red de carriers verificados (seguro y seguridad)",fr:"Réseau de transporteurs vérifiés (assurance & sécurité)",ru:"Сеть проверенных перевозчиков (страховка и безопасность)",ht:"Rezo carriers verifye (asirans ak sekirite tcheke)"},
+"Live shipment tracking & proactive updates":{es:"Rastreo en vivo y actualizaciones proactivas",fr:"Suivi en direct & mises à jour proactives",ru:"Отслеживание в реальном времени и проактивные обновления",ht:"Swivi an dirèk ak mizajou pwoaktif"},
+"Claims support & document management":{es:"Apoyo en reclamos y gestión de documentos",fr:"Gestion des réclamations & des documents",ru:"Поддержка по претензиям и управление документами",ht:"Sipò pou reklamasyon ak jesyon dokiman"},
+"Request a freight quote →":{es:"Solicitar cotización →",fr:"Demander un devis →",ru:"Запросить расчёт →",ht:"Mande yon quote →"},
+"// Opens upon activation of MC authority + BMC-84 $75K surety bond":{es:"// Abre al activarse la autoridad MC + fianza BMC-84 de $75K",fr:"// Ouvre à l'activation de l'autorité MC + caution BMC-84 de 75 000 $",ru:"// Откроется после активации MC-авторизации + бонда BMC-84 на $75 тыс.",ht:"// Ap ouvri lè otorite MC + bond BMC-84 $75K la aktive"},
+"Our dispatch process — every load, same discipline":{es:"Nuestro proceso — cada carga, la misma disciplina",fr:"Notre processus — chaque chargement, la même discipline",ru:"Наш процесс — каждый груз, та же дисциплина",ht:"Pwosesis nou — chak chajman, menm disiplin nan"},
+"CARRIER":{es:"CARRIER",fr:"CARRIER",ru:"ПЕРЕВОЗЧИК",ht:"CARRIER"},
+"DEDICATED DISPATCHER":{es:"DISPATCHER DEDICADO",fr:"DISPATCHER DÉDIÉ",ru:"ЛИЧНЫЙ ДИСПЕТЧЕР",ht:"DISPATCHER DEVWE"},
+"LOAD SEARCH":{es:"BÚSQUEDA DE CARGA",fr:"RECHERCHE DE FRET",ru:"ПОИСК ГРУЗА",ht:"CHÈCHE CHAJMAN"},
+"BROKER CHECK":{es:"VERIFICACIÓN DEL BROKER",fr:"VÉRIF. DU BROKER",ru:"ПРОВЕРКА БРОКЕРА",ht:"TCHEKE BROKER"},
+"RATE NEGOTIATION":{es:"NEGOCIACIÓN",fr:"NÉGOCIATION",ru:"ПЕРЕГОВОРЫ ПО СТАВКЕ",ht:"NEGOSYASYON PRI"},
+"CARRIER APPROVAL":{es:"APROBACIÓN DEL CARRIER",fr:"APPROBATION CARRIER",ru:"ОДОБРЕНИЕ ПЕРЕВОЗЧИКА",ht:"APWOBASYON CARRIER"},
+"BOOK LOAD":{es:"RESERVA",fr:"RÉSERVATION",ru:"БРОНИРОВАНИЕ",ht:"REZÈVE CHAJMAN"},
+"PAPERWORK":{es:"PAPELEO",fr:"PAPERASSE",ru:"ДОКУМЕНТЫ",ht:"PAPYE"},
+"DRIVER SUPPORT 24/7":{es:"SOPORTE 24/7",fr:"SUPPORT 24/7",ru:"ПОДДЕРЖКА 24/7",ht:"SIPÒ CHOFÈ 24/7"},
+"Carrier onboarding":{es:"Registro de carriers",fr:"Intégration des carriers",ru:"Подключение перевозчиков",ht:"Enskripsyon carriers"},
+"On the road with us in 24 hours.":{es:"En la carretera con nosotros en 24 horas.",fr:"Sur la route avec nous en 24 heures.",ru:"В рейсе с нами через 24 часа.",ht:"Sou wout ak nou nan 24 èdtan."},
+"Send your docs":{es:"Envía tus documentos",fr:"Envoyez vos documents",ru:"Отправьте документы",ht:"Voye dokiman w yo"},
+"MC/DOT, W-9, certificate of insurance and a voided check — uploaded in one secure form.":{es:"MC/DOT, W-9, certificado de seguro y cheque anulado — en un solo formulario seguro.",fr:"MC/DOT, W-9, certificat d'assurance et chèque annulé — via un seul formulaire sécurisé.",ru:"MC/DOT, W-9, страховой сертификат и аннулированный чек — в одной защищённой форме.",ht:"MC/DOT, W-9, sètifika asirans ak yon chèk anile — nan yon sèl fòm sekirize."},
+"≈ 5 minutes":{es:"≈ 5 minutos",fr:"≈ 5 minutes",ru:"≈ 5 минут",ht:"≈ 5 minit"},
+"Sign electronically":{es:"Firma electrónica",fr:"Signature électronique",ru:"Электронная подпись",ht:"Siyen elektwonikman"},
+"Review the dispatch agreement and sign from your phone. No printer, no fax.":{es:"Revisa el acuerdo de despacho y firma desde tu teléfono. Sin impresora, sin fax.",fr:"Relisez l'accord de dispatch et signez depuis votre téléphone. Sans imprimante, sans fax.",ru:"Просмотрите договор и подпишите с телефона. Без принтера и факса.",ht:"Li akò dispatch la epi siyen sou telefòn ou. San enprimant, san faks."},
+"≈ 10 minutes":{es:"≈ 10 minutos",fr:"≈ 10 minutes",ru:"≈ 10 минут",ht:"≈ 10 minit"},
+"We book your first load":{es:"Reservamos tu primera carga",fr:"On réserve votre premier chargement",ru:"Бронируем ваш первый груз",ht:"Nou rezève premye chajman w"},
+"Your dispatcher learns your lanes, your rate floor and your home-time needs — then gets to work.":{es:"Tu dispatcher aprende tus rutas, tu tarifa mínima y tu tiempo en casa — y se pone a trabajar.",fr:"Votre dispatcher apprend vos itinéraires, votre tarif plancher et vos besoins de temps à la maison — puis se met au travail.",ru:"Ваш диспетчер изучает ваши маршруты, минимальную ставку и график дома — и приступает к работе.",ht:"Dispatcher w la aprann wout ou, pri minimòm ou ak bezwen tan lakay ou — epi li mete men nan travay."},
+"Same day":{es:"El mismo día",fr:"Le jour même",ru:"В тот же день",ht:"Menm jou a"},
+"You drive. You get paid.":{es:"Tú manejas. Tú cobras.",fr:"Vous roulez. Vous êtes payé.",ru:"Вы ездите. Вы получаете деньги.",ht:"Ou kondwi. Ou touche."},
+"We handle rate cons, BOLs and invoicing. You focus on miles.":{es:"Nosotros manejamos rate cons, BOLs y facturas. Tú, las millas.",fr:"On gère les rate cons, BOL et factures. Vous, les miles.",ru:"Мы занимаемся rate con, BOL и счетами. Вы — милями.",ht:"Nou okipe rate cons, BOL ak fakti. Ou konsantre sou mil yo."},
+"Every week":{es:"Cada semana",fr:"Chaque semaine",ru:"Каждую неделю",ht:"Chak semèn"},
+"Why carriers switch":{es:"Por qué se cambian a nosotros",fr:"Pourquoi les carriers changent",ru:"Почему перевозчики переходят к нам",ht:"Poukisa carriers chanje"},
+"The difference is in the details.":{es:"La diferencia está en los detalles.",fr:"La différence est dans les détails.",ru:"Разница — в деталях.",ht:"Diferans lan nan detay yo."},
+"Typical dispatch companies":{es:"Dispatch típico",fr:"Dispatch classique",ru:"Обычные диспетчерские",ht:"Konpayi dispatch òdinè"},
+"A different dispatcher every call":{es:"Un dispatcher distinto en cada llamada",fr:"Un dispatcher différent à chaque appel",ru:"Каждый раз новый диспетчер",ht:"Yon lòt dispatcher chak fwa ou rele"},
+"One dedicated dispatcher who knows your truck":{es:"Un dispatcher dedicado que conoce tu camión",fr:"Un dispatcher dédié qui connaît votre camion",ru:"Личный диспетчер, знающий ваш грузовик",ht:"Yon dispatcher devwe ki konnen kamyon w"},
+"Loads booked without checking the broker":{es:"Cargas sin verificar al broker",fr:"Chargements réservés sans vérifier le broker",ru:"Грузы без проверки брокера",ht:"Chajman rezève san tcheke broker a"},
+"Broker credit & authority verified before booking":{es:"Crédito y autoridad del broker verificados antes",fr:"Crédit et autorité du broker vérifiés avant",ru:"Кредит и авторизация брокера проверяются заранее",ht:"Kredi ak otorite broker verifye anvan rezèvasyon"},
+"Voicemail after 5pm":{es:"Buzón de voz después de las 5pm",fr:"Répondeur après 17h",ru:"После 17:00 — автоответчик",ht:"Mesaj vokal apre 5pm"},
+"24/7 live support, weekends included":{es:"Soporte en vivo 24/7, fines de semana incluidos",fr:"Support en direct 24/7, week-ends compris",ru:"Живая поддержка 24/7, включая выходные",ht:"Sipò an dirèk 24/7, wikenn ladan"},
+"Hidden fees buried in the agreement":{es:"Cargos ocultos en el contrato",fr:"Frais cachés dans le contrat",ru:"Скрытые платежи в договоре",ht:"Frè kache nan kontra a"},
+"One flat percentage — you see every rate con":{es:"Un porcentaje fijo — ves cada rate con",fr:"Un pourcentage fixe — vous voyez chaque rate con",ru:"Один фиксированный процент — вы видите каждый rate con",ht:"Yon sèl pousantaj fiks — ou wè chak rate con"},
+"Load-to-load thinking":{es:"Pensar carga por carga",fr:"Une logique au chargement par chargement",ru:"Мышление «от груза к грузу»",ht:"Panse chajman pa chajman"},
+"Strategic lane planning toward home time":{es:"Planificación estratégica de rutas hacia tu casa",fr:"Planification stratégique des itinéraires vers la maison",ru:"Стратегическое планирование маршрутов к дому",ht:"Planifikasyon estratejik wout pou tan lakay"},
+"Long contracts that trap you":{es:"Contratos largos que te atrapan",fr:"Contrats longs qui vous piègent",ru:"Долгие контракты-ловушки",ht:"Kontra long ki bloke w"},
+"Month to month — leave anytime":{es:"Mes a mes — sal cuando quieras",fr:"Au mois — partez quand vous voulez",ru:"Помесячно — уходите когда угодно",ht:"Mwa pa mwa — ale lè ou vle"},
+"Equipment we dispatch":{es:"Equipos que despachamos",fr:"Équipements dispatchés",ru:"Оборудование, с которым мы работаем",ht:"Ekipman nou dispatche"},
+"Every trailer. Every lane.":{es:"Cada tráiler. Cada ruta.",fr:"Chaque remorque. Chaque itinéraire.",ru:"Любой прицеп. Любой маршрут.",ht:"Chak trelè. Chak wout."},
+"Each equipment type has its own dedicated dispatch page — lanes, rates and requirements. Built for drivers searching Google.":{es:"Cada tipo de equipo tiene su propia página — rutas, tarifas y requisitos. Hecha para los que buscan en Google.",fr:"Chaque type d'équipement a sa propre page — itinéraires, tarifs et exigences. Conçue pour les chauffeurs qui cherchent sur Google.",ru:"У каждого типа оборудования — своя страница: маршруты, ставки, требования.",ht:"Chak kalite ekipman gen pwòp paj li — wout, pri ak kondisyon."},
+"53' general freight, the backbone of the network.":{es:"Carga general 53' — la columna vertebral de la red.",fr:"Fret général 53' — la colonne vertébrale du réseau.",ru:"Генеральные грузы 53' — основа сети.",ht:"Machandiz jeneral 53' — poto mitan rezo a."},
+"Temp-controlled produce, food & pharma loads.":{es:"Cargas refrigeradas: productos, alimentos y farma.",fr:"Frigo : produits frais, alimentaire & pharma.",ru:"Рефгрузы: продукты, еда и фарма.",ht:"Chajman refrijere: pwodwi, manje ak famasi."},
+"Steel, lumber, machinery — tarps & securement.":{es:"Acero, madera, maquinaria — lonas y amarre.",fr:"Acier, bois, machines — bâches & arrimage.",ru:"Сталь, лес, техника — тенты и крепление.",ht:"Asye, bwa, machin — prela ak mare."},
+"Over-height freight and heavy equipment.":{es:"Carga sobredimensionada y equipo pesado.",fr:"Fret hors gabarit et équipement lourd.",ru:"Негабарит и тяжёлая техника.",ht:"Machandiz depase wotè ak ekipman lou."},
+"Drop & hook trailer pools nationwide.":{es:"Drop & hook con pools de tráilers en todo el país.",fr:"Drop & hook, pools de remorques dans tout le pays.",ru:"Drop & hook, пулы прицепов по всей стране.",ht:"Drop & hook ak pool trelè toupatou."},
+"Expedited partial loads, 40' gooseneck.":{es:"Cargas parciales expeditas, gooseneck 40'.",fr:"Chargements partiels express, gooseneck 40'.",ru:"Срочные частичные грузы, gooseneck 40'.",ht:"Chajman pasyèl rapid, gooseneck 40'."},
+"26' straight truck & final-mile freight.":{es:"Camión 26' y entregas de última milla.",fr:"Camion 26' & livraison du dernier kilomètre.",ru:"Грузовик 26' и «последняя миля».",ht:"Kamyon 26' ak livrezon dènye mil."},
+"Expedited small freight & medical runs.":{es:"Carga pequeña expedita y rutas médicas.",fr:"Petit fret express & courses médicales.",ru:"Срочные малые грузы и мед-рейсы.",ht:"Ti machandiz rapid ak wout medikal."},
+"Industries served":{es:"Industrias",fr:"Secteurs servis",ru:"Отрасли",ht:"Endistri nou sèvi"},
+"Freight expertise where it counts.":{es:"Experiencia donde cuenta.",fr:"L'expertise fret là où ça compte.",ru:"Экспертиза там, где она нужна.",ht:"Ekspètiz machandiz kote sa konte."},
+"Food & Beverage":{es:"Alimentos y Bebidas",fr:"Alimentation & Boissons",ru:"Продукты и напитки",ht:"Manje ak Bwason"},
+"Retail & E-commerce":{es:"Retail y E-commerce",fr:"Retail & E-commerce",ru:"Ритейл и e-commerce",ht:"Retail ak E-commerce"},
+"Construction":{es:"Construcción",fr:"Construction",ru:"Строительство",ht:"Konstriksyon"},
+"Medical & Pharma":{es:"Médico y Farma",fr:"Médical & Pharma",ru:"Медицина и фарма",ht:"Medikal ak Famasi"},
+"Automotive":{es:"Automotriz",fr:"Automobile",ru:"Автопром",ht:"Otomobil"},
+"Manufacturing":{es:"Manufactura",fr:"Industrie",ru:"Производство",ht:"Manifakti"},
+"Agriculture":{es:"Agricultura",fr:"Agriculture",ru:"Сельское хозяйство",ht:"Agrikilti"},
+"Energy":{es:"Energía",fr:"Énergie",ru:"Энергетика",ht:"Enèji"},
+"Why PickLoads":{es:"Por qué PickLoads",fr:"Pourquoi PickLoads",ru:"Почему PickLoads",ht:"Poukisa PickLoads"},
+"Built by people who answer the phone.":{es:"Hecho por gente que contesta el teléfono.",fr:"Construit par des gens qui répondent au téléphone.",ru:"Создано людьми, которые берут трубку.",ht:"Bati pa moun ki reponn telefòn nan."},
+"Flat percentage. No hidden fees.":{es:"Porcentaje fijo. Sin cargos ocultos.",fr:"Pourcentage fixe. Aucun frais caché.",ru:"Фиксированный процент. Без скрытых платежей.",ht:"Pousantaj fiks. Pa gen frè kache."},
+"You see every rate con. What the broker pays is what you see.":{es:"Ves cada rate con. Lo que paga el broker es lo que ves.",fr:"Vous voyez chaque rate con. Ce que le broker paie, c'est ce que vous voyez.",ru:"Вы видите каждый rate con. Что платит брокер — то вы и видите.",ht:"Ou wè chak rate con. Sa broker a peye a, se sa ou wè."},
+"No forced dispatch. No contracts that trap you.":{es:"Sin dispatch forzado. Sin contratos trampa.",fr:"Pas de dispatch forcé. Pas de contrat piège.",ru:"Без принудительной диспетчеризации. Без контрактов-ловушек.",ht:"Pa gen dispatch fòse. Pa gen kontra pyèj."},
+"Month to month. You approve every load before we book it.":{es:"Mes a mes. Tú apruebas cada carga antes de reservarla.",fr:"Au mois. Vous approuvez chaque chargement avant réservation.",ru:"Помесячно. Вы одобряете каждый груз до бронирования.",ht:"Mwa pa mwa. Ou apwouve chak chajman anvan nou rezève l."},
+"A dedicated dispatcher — not a call center.":{es:"Un dispatcher dedicado — no un call center.",fr:"Un dispatcher dédié — pas un centre d'appels.",ru:"Личный диспетчер — не колл-центр.",ht:"Yon dispatcher devwe — pa yon call center."},
+"One person who knows your truck, your lanes and your family schedule.":{es:"Una persona que conoce tu camión, tus rutas y tu familia.",fr:"Une personne qui connaît votre camion, vos itinéraires et votre famille.",ru:"Один человек, знающий ваш грузовик, маршруты и семейный график.",ht:"Yon sèl moun ki konnen kamyon w, wout ou ak orè fanmi w."},
+"24/7 support, including weekends.":{es:"Soporte 24/7, fines de semana incluidos.",fr:"Support 24/7, week-ends compris.",ru:"Поддержка 24/7, включая выходные.",ht:"Sipò 24/7, wikenn ladan."},
+"Breakdowns and detention don't wait for business hours. Neither do we.":{es:"Las averías y el detention no esperan horario de oficina. Nosotros tampoco.",fr:"Les pannes et le detention n'attendent pas les heures de bureau. Nous non plus.",ru:"Поломки и простои не ждут рабочих часов. Мы тоже.",ht:"Pàn ak detention pa tann lè biwo. Nou menm tou."},
+"Flat dispatch fee":{es:"Tarifa fija de despacho",fr:"Frais de dispatch fixes",ru:"Фиксированная комиссия",ht:"Frè dispatch fiks"},
+"Avg rate/mile booked*":{es:"Prom. tarifa/milla*",fr:"Tarif moyen/mile*",ru:"Средняя ставка/миля*",ht:"Mwayèn pri/mil*"},
+"Live dispatch support":{es:"Soporte en vivo",fr:"Support en direct",ru:"Живая поддержка",ht:"Sipò an dirèk"},
+"States covered":{es:"Estados cubiertos",fr:"États couverts",ru:"Штатов покрыто",ht:"Eta nou kouvri"},
+"For shippers":{es:"Para shippers",fr:"Pour les expéditeurs",ru:"Для грузоотправителей",ht:"Pou shippers"},
+"Freight that moves on time, with one point of contact.":{es:"Carga que llega a tiempo, con un solo contacto.",fr:"Du fret qui arrive à l'heure, avec un seul contact.",ru:"Груз вовремя — с одним контактным лицом.",ht:"Machandiz ki rive alè, ak yon sèl moun kontak."},
+"Vetted carriers, live tracking and claims support — see why shippers choose PickLoads.":{es:"Carriers verificados, rastreo en vivo y apoyo en reclamos — mira por qué los shippers eligen PickLoads.",fr:"Transporteurs vérifiés, suivi en direct et gestion des réclamations — voyez pourquoi les expéditeurs choisissent PickLoads.",ru:"Проверенные перевозчики, живое отслеживание и поддержка по претензиям.",ht:"Carriers verifye, swivi an dirèk ak sipò reklamasyon — gade poukisa shippers chwazi PickLoads."},
+"Why Shippers Choose PickLoads →":{es:"Por Qué los Shippers Eligen PickLoads →",fr:"Pourquoi les Expéditeurs Choisissent PickLoads →",ru:"Почему грузоотправители выбирают PickLoads →",ht:"Poukisa Shippers Chwazi PickLoads →"},
+"Verify us before you sign. We insist.":{es:"Verifícanos antes de firmar. Insistimos.",fr:"Vérifiez-nous avant de signer. On y tient.",ru:"Проверьте нас перед подписанием. Мы настаиваем.",ht:"Verifye nou anvan ou siyen. Nou ensiste."},
+"Every serious carrier checks FMCSA SAFER before working with anyone — and they should. Our registration numbers, bond and insurance certificates will be published here the day they're active, with direct links to verify them yourself.":{es:"Todo carrier serio revisa FMCSA SAFER antes de trabajar con alguien — y debe hacerlo. Nuestros números, fianza y certificados se publicarán aquí el día que estén activos, con enlaces directos para verificarlos.",fr:"Tout carrier sérieux vérifie FMCSA SAFER avant de travailler avec qui que ce soit — et c'est normal. Nos numéros, notre caution et nos certificats seront publiés ici dès leur activation, avec des liens directs pour les vérifier.",ru:"Каждый серьёзный перевозчик проверяет FMCSA SAFER — и правильно делает. Наши номера, бонд и сертификаты появятся здесь в день активации, с прямыми ссылками для проверки.",ht:"Chak carrier serye tcheke FMCSA SAFER anvan li travay ak nenpòt moun — e se nòmal. Nimewo nou, bond nou ak sètifika nou ap pibliye la a jou yo aktive, ak lyen dirèk pou verifye yo."},
+"Everything you need to sign on — in one place.":{es:"Todo lo que necesitas para firmar — en un solo lugar.",fr:"Tout ce qu'il faut pour signer — au même endroit.",ru:"Всё для подключения — в одном месте.",ht:"Tout sa ou bezwen pou siyen — yon sèl kote."},
+"Download the documents, or upload yours and let us build the packet for you.":{es:"Descarga los documentos, o sube los tuyos y armamos el paquete por ti.",fr:"Téléchargez les documents, ou envoyez les vôtres et on monte le dossier pour vous.",ru:"Скачайте документы или загрузите свои — мы соберём пакет за вас.",ht:"Telechaje dokiman yo, oswa voye pa w yo epi n ap monte dosye a pou ou."},
+"Dispatch Agreement":{es:"Acuerdo de Despacho",fr:"Accord de Dispatch",ru:"Договор диспетчеризации",ht:"Akò Dispatch"},
+"Month-to-month service terms — plain English":{es:"Términos mes a mes — en lenguaje claro",fr:"Conditions au mois — en langage clair",ru:"Помесячные условия — простым языком",ht:"Kondisyon mwa pa mwa — nan langaj klè"},
+"W-9 Form":{es:"Formulario W-9",fr:"Formulaire W-9",ru:"Форма W-9",ht:"Fòm W-9"},
+"Current IRS revision, ready to fill":{es:"Versión vigente del IRS, lista para llenar",fr:"Version IRS en vigueur, prête à remplir",ru:"Актуальная версия IRS, готова к заполнению",ht:"Vèsyon IRS aktyèl, pare pou ranpli"},
+"Insurance Requirements":{es:"Requisitos de Seguro",fr:"Exigences d'Assurance",ru:"Требования к страховке",ht:"Kondisyon Asirans"},
+"$1M auto liability · $100K cargo minimums":{es:"Mínimos: $1M responsabilidad · $100K carga",fr:"Minimums : 1 M$ responsabilité · 100 K$ cargo",ru:"Минимум: $1 млн ответственность · $100 тыс. груз",ht:"Minimòm: $1M responsablite · $100K kago"},
+"Factoring Guide":{es:"Guía de Factoring",fr:"Guide du Factoring",ru:"Гид по факторингу",ht:"Gid Factoring"},
+"How factoring works with our invoicing":{es:"Cómo funciona el factoring con nuestra facturación",fr:"Comment le factoring fonctionne avec notre facturation",ru:"Как факторинг работает с нашими счетами",ht:"Kijan factoring mache ak faktirasyon nou"},
+"DOWNLOAD ↓":{es:"DESCARGAR ↓",fr:"TÉLÉCHARGER ↓",ru:"СКАЧАТЬ ↓",ht:"TELECHAJE ↓"},
+"Upload your documents":{es:"Sube tus documentos",fr:"Envoyez vos documents",ru:"Загрузите документы",ht:"Voye dokiman w yo"},
+"MC/DOT letter, certificate of insurance, W-9, voided check — drag & drop or tap to browse.":{es:"Carta MC/DOT, certificado de seguro, W-9, cheque anulado — arrastra o toca para buscar.",fr:"Lettre MC/DOT, certificat d'assurance, W-9, chèque annulé — glissez-déposez ou touchez pour parcourir.",ru:"Письмо MC/DOT, страховой сертификат, W-9, чек — перетащите или нажмите для выбора.",ht:"Lèt MC/DOT, sètifika asirans, W-9, chèk anile — trennen oswa peze pou chwazi."},
+"What carriers say":{es:"Lo que dicen los carriers",fr:"Ce que disent les carriers",ru:"Что говорят перевозчики",ht:"Sa carriers yo di"},
+"Word of mouth is our load board.":{es:"El boca a boca es nuestro load board.",fr:"Le bouche-à-oreille, c'est notre load board.",ru:"Сарафанное радио — наша биржа грузов.",ht:"Bouch an bouch se load board nou."},
+"My dispatcher texts me the night before with the plan. I haven't touched a load board in three months.":{es:"Mi dispatcher me escribe la noche anterior con el plan. No toco un load board hace tres meses.",fr:"Mon dispatcher m'envoie le plan la veille au soir. Je n'ai pas touché un load board depuis trois mois.",ru:"Мой диспетчер пишет план накануне вечером. Я три месяца не открывал биржу грузов.",ht:"Dispatcher mwen voye plan an lavèy nan aswè. Mwen pa manyen yon load board depi twa mwa."},
+"They fought a detention claim for me and got it paid. That's when I knew this wasn't a churn-and-burn dispatch.":{es:"Pelearon un reclamo de detention por mí y lo cobraron. Ahí supe que no era un dispatch cualquiera.",fr:"Ils se sont battus pour un detention et l'ont fait payer. C'est là que j'ai su que ce n'était pas un dispatch comme les autres.",ru:"Они выбили оплату за простой. Тогда я понял — это не «конвейерный» диспетч.",ht:"Yo goumen pou yon reklamasyon detention pou mwen epi yo fè yo peye l. Se lè sa a mwen te konnen sa a pa t yon dispatch nenpòt jan."},
+"Setup took one evening on my phone. First load booked the next morning at $3.05 a mile.":{es:"El registro tomó una tarde desde mi teléfono. Primera carga al día siguiente a $3.05 la milla.",fr:"L'inscription a pris une soirée sur mon téléphone. Premier chargement le lendemain matin à 3,05 $ le mile.",ru:"Регистрация заняла один вечер с телефона. Первый груз — на следующее утро по $3,05 за милю.",ht:"Enskripsyon an te pran yon sèl aswè sou telefòn mwen. Premye chajman nan demen maten a $3.05 pa mil."},
+"Ready to stop hunting loads?":{es:"¿Listo para dejar de cazar cargas?",fr:"Prêt à arrêter de chasser les chargements ?",ru:"Готовы перестать охотиться за грузами?",ht:"Ou pare pou sispann chase chajman?"},
+"Carrier setup takes 5 minutes: docs, e-signature, done. Your dispatcher starts working your lanes today.":{es:"El registro toma 5 minutos: documentos, firma electrónica, listo. Tu dispatcher empieza hoy.",fr:"L'inscription prend 5 minutes : documents, signature électronique, terminé. Votre dispatcher commence aujourd'hui.",ru:"Регистрация — 5 минут: документы, подпись, готово. Ваш диспетчер начинает работать сегодня.",ht:"Enskripsyon an pran 5 minit: dokiman, siyati elektwonik, fini. Dispatcher w la kòmanse jodi a."},
+"// Refer a carrier who signs up → earn a referral bonus.":{es:"// Refiere a un carrier que se registre → gana un bono.",fr:"// Parrainez un carrier qui s'inscrit → gagnez un bonus.",ru:"// Приведите перевозчика → получите бонус.",ht:"// Refere yon carrier ki enskri → touche yon bonis."},
+"Or call (908) 404-5373":{es:"O llama al (908) 404-5373",fr:"Ou appelez le (908) 404-5373",ru:"Или звоните: (908) 404-5373",ht:"Oswa rele (908) 404-5373"},
+"One flat percentage. Nothing hidden.":{es:"Un porcentaje fijo. Nada oculto.",fr:"Un pourcentage fixe. Rien de caché.",ru:"Один фиксированный процент. Ничего скрытого.",ht:"Yon sèl pousantaj fiks. Anyen kache."},
+"No setup fees. No monthly minimums. No charge on loads you don't take. You only pay when you get paid.":{es:"Sin cargos de inicio. Sin mínimos mensuales. Sin cobro en cargas que no tomas. Solo pagas cuando cobras.",fr:"Pas de frais d'inscription. Pas de minimum mensuel. Rien sur les chargements refusés. Vous payez seulement quand vous êtes payé.",ru:"Без стартовых платежей и месячных минимумов. Нет оплаты за грузы, которые вы не взяли. Платите, только когда получаете деньги.",ht:"Pa gen frè enskripsyon. Pa gen minimòm chak mwa. Pa gen chaj sou chajman ou pa pran. Ou peye sèlman lè ou touche."},
+"1 truck · your authority":{es:"1 camión · tu autoridad",fr:"1 camion · votre autorité",ru:"1 грузовик · ваша авторизация",ht:"1 kamyon · otorite pa w"},
+"Small Fleet":{es:"Flota Pequeña",fr:"Petite Flotte",ru:"Малый автопарк",ht:"Ti Flòt"},
+"2–10 trucks":{es:"2–10 camiones",fr:"2–10 camions",ru:"2–10 грузовиков",ht:"2–10 kamyon"},
+"Non-CDL & expedited":{es:"No-CDL y expedito",fr:"Non-CDL & express",ru:"Non-CDL и срочные",ht:"San CDL ak rapid"},
+"of gross per load":{es:"del bruto por carga",fr:"du brut par chargement",ru:"от брутто за груз",ht:"sou brit chak chajman"},
+"Most popular":{es:"Más popular",fr:"Le plus choisi",ru:"Самый популярный",ht:"Pi popilè"},
+"Start setup":{es:"Empezar",fr:"S'inscrire",ru:"Начать",ht:"Kòmanse"},
+"Dedicated dispatcher":{es:"Dispatcher dedicado",fr:"Dispatcher dédié",ru:"Личный диспетчер",ht:"Dispatcher devwe"},
+"Load booking & rate negotiation":{es:"Reserva y negociación de cargas",fr:"Réservation & négociation",ru:"Бронирование и переговоры",ht:"Rezèvasyon ak negosyasyon"},
+"Broker verification on every load":{es:"Verificación del broker en cada carga",fr:"Vérification du broker à chaque chargement",ru:"Проверка брокера на каждом грузе",ht:"Verifikasyon broker sou chak chajman"},
+"Rate cons, BOLs & paperwork":{es:"Rate cons, BOLs y papeleo",fr:"Rate cons, BOL & paperasse",ru:"Rate con, BOL и документы",ht:"Rate cons, BOL ak papye"},
+"Detention & TONU support":{es:"Apoyo con detention y TONU",fr:"Support detention & TONU",ru:"Поддержка detention и TONU",ht:"Sipò detention ak TONU"},
+"Everything in Owner-Operator":{es:"Todo lo del plan Owner-Operator",fr:"Tout le plan Owner-Operator",ru:"Всё из тарифа Owner-Operator",ht:"Tout sa ki nan plan Owner-Operator a"},
+"One dispatcher for your whole fleet":{es:"Un dispatcher para toda tu flota",fr:"Un dispatcher pour toute votre flotte",ru:"Один диспетчер на весь автопарк",ht:"Yon dispatcher pou tout flòt ou"},
+"Strategic lane planning per truck":{es:"Planificación estratégica por camión",fr:"Planification stratégique par camion",ru:"Стратегическое планирование по каждому грузовику",ht:"Planifikasyon estratejik pou chak kamyon"},
+"Weekly fleet performance recap":{es:"Resumen semanal de la flota",fr:"Bilan hebdo de la flotte",ru:"Еженедельный отчёт по автопарку",ht:"Rezime pèfòmans flòt chak semèn"},
+"Factoring coordination":{es:"Coordinación de factoring",fr:"Coordination du factoring",ru:"Работа с факторингом",ht:"Kowòdinasyon factoring"},
+"Expedited & partial load sourcing":{es:"Cargas expeditas y parciales",fr:"Recherche de chargements express & partiels",ru:"Поиск срочных и частичных грузов",ht:"Chèche chajman rapid ak pasyèl"},
+"Higher-touch booking (smaller loads)":{es:"Reserva de alto contacto (cargas pequeñas)",fr:"Réservation renforcée (petits chargements)",ru:"Усиленное сопровождение (малые грузы)",ht:"Rezèvasyon pi swiv (ti chajman)"},
+"Paperwork & invoicing":{es:"Papeleo y facturación",fr:"Paperasse & facturation",ru:"Документы и счета",ht:"Papye ak faktirasyon"},
+"24/7 driver support":{es:"Soporte 24/7",fr:"Support chauffeur 24/7",ru:"Поддержка водителя 24/7",ht:"Sipò chofè 24/7"}
+};
+/* ---- interior pages ---- */
+Object.assign(T, {
+"About PickLoads":{es:"Sobre PickLoads",fr:"À propos de PickLoads",ru:"О PickLoads",ht:"Sou PickLoads"},
+"A logistics company built the way carriers wish they all were.":{es:"Una empresa de logística hecha como los carriers quisieran que fueran todas.",fr:"Une entreprise logistique construite comme les carriers voudraient qu'elles le soient toutes.",ru:"Логистическая компания, построенная так, как хотели бы все перевозчики.",ht:"Yon konpayi lojistik ki bati jan carriers ta renmen yo tout ye."},
+"PickLoads Logistics Group LLC — truck dispatching and freight brokerage, headquartered in Irvington, New Jersey.":{es:"PickLoads Logistics Group LLC — despacho de camiones y corretaje de carga, con sede en Irvington, New Jersey.",fr:"PickLoads Logistics Group LLC — dispatch de camions et courtage de fret, basée à Irvington, New Jersey.",ru:"PickLoads Logistics Group LLC — диспетчеризация и фрахтовое брокерство, штаб-квартира в Ирвингтоне, Нью-Джерси.",ht:"PickLoads Logistics Group LLC — dispatch kamyon ak brokerage machandiz, ki chita Irvington, New Jersey."},
+"Our story":{es:"Nuestra historia",fr:"Notre histoire",ru:"Наша история",ht:"Istwa nou"},
+"Why PickLoads exists.":{es:"Por qué existe PickLoads.",fr:"Pourquoi PickLoads existe.",ru:"Почему существует PickLoads.",ht:"Poukisa PickLoads egziste."},
+"PickLoads was founded in 2026 in New Jersey after watching too many owner-operators lose money to the same problems: dispatch services that book cheap freight and disappear after 5pm, brokers that can't be reached when a driver is sitting at a dock, and fee structures nobody can explain.":{es:"PickLoads nació en 2026 en New Jersey tras ver a demasiados owner-operators perder dinero por los mismos problemas: servicios de dispatch que reservan carga barata y desaparecen después de las 5pm, brokers ilocalizables cuando el chofer está en el muelle, y tarifas que nadie puede explicar.",fr:"PickLoads a été fondée en 2026 au New Jersey après avoir vu trop d'owner-operators perdre de l'argent pour les mêmes raisons : des services de dispatch qui réservent du fret bon marché et disparaissent après 17h, des brokers injoignables quand le chauffeur attend au quai, et des frais que personne ne sait expliquer.",ru:"PickLoads основана в 2026 году в Нью-Джерси — после того, как слишком много владельцев-операторов теряли деньги из-за одних и тех же проблем: диспетчеры бронируют дешёвый груз и исчезают после 17:00, брокеры недоступны, когда водитель стоит у дока, а структуру комиссий никто не может объяснить.",ht:"PickLoads te fonde an 2026 nan New Jersey apre nou te wè twòp owner-operators pèdi lajan pou menm pwoblèm yo: sèvis dispatch ki rezève machandiz bon mache epi disparèt apre 5pm, brokers ou pa ka jwenn lè chofè a chita nan yon dock, ak frè pèsonn pa ka eksplike."},
+"Dispatch is where we start. Freight brokerage is where we're headed — with full FMCSA authority, a bonded operation and a vetted carrier network. And the same discipline on both sides of the load.":{es:"El despacho es donde empezamos. El corretaje es hacia donde vamos — con plena autoridad FMCSA, operación con fianza y una red de carriers verificados. Y la misma disciplina en ambos lados de la carga.",fr:"Le dispatch, c'est notre point de départ. Le courtage, c'est notre cap — avec une autorité FMCSA complète, une opération cautionnée et un réseau de transporteurs vérifiés. Et la même discipline des deux côtés du chargement.",ru:"Диспетчеризация — это старт. Брокерство — наша цель: с полной авторизацией FMCSA, бондом и сетью проверенных перевозчиков. И той же дисциплиной с обеих сторон груза.",ht:"Dispatch se kote nou kòmanse. Brokerage se kote nou prale — ak otorite FMCSA konplè, yon operasyon ak bond ak yon rezo carriers verifye. Ak menm disiplin nan sou de bò chajman an."},
+"Founder & CEO":{es:"Fundador y CEO",fr:"Fondateur & PDG",ru:"Основатель и CEO",ht:"Fondatè & CEO"},
+"Entrepreneur and founder of a multi-division business group based in New Jersey. Emmanuel leads PickLoads with one obsession: building the dispatch company he'd want behind his own truck.":{es:"Emprendedor y fundador de un grupo empresarial multidivisión con sede en New Jersey. Emmanuel dirige PickLoads con una obsesión: construir la empresa de dispatch que querría detrás de su propio camión.",fr:"Entrepreneur et fondateur d'un groupe multi-divisions basé au New Jersey. Emmanuel dirige PickLoads avec une obsession : bâtir l'entreprise de dispatch qu'il voudrait derrière son propre camion.",ru:"Предприниматель, основатель многопрофильной группы компаний в Нью-Джерси. Эммануэль ведёт PickLoads с одной целью: построить диспетчерскую компанию, которую хотел бы видеть за своим собственным грузовиком.",ht:"Antreprenè ak fondatè yon gwoup biznis milti-divizyon ki baze New Jersey. Emmanuel dirije PickLoads ak yon sèl obsesyon: bati konpayi dispatch li ta vle dèyè pwòp kamyon pa l."},
+"Our mission":{es:"Nuestra misión",fr:"Notre mission",ru:"Наша миссия",ht:"Misyon nou"},
+"\"Keep every carrier loaded, paid and respected — and give every shipper a partner they never have to chase.\"":{es:"«Mantener a cada carrier cargado, pagado y respetado — y darle a cada shipper un socio al que nunca tenga que perseguir.»",fr:"« Garder chaque carrier chargé, payé et respecté — et donner à chaque expéditeur un partenaire qu'il n'a jamais à relancer. »",ru:"«Каждый перевозчик — с грузом, с оплатой и с уважением. Каждый грузоотправитель — с партнёром, за которым не надо бегать.»",ht:"« Kenbe chak carrier chaje, peye e respekte — epi bay chak shipper yon patnè li pa janm bezwen kouri dèyè. »"},
+"Our values":{es:"Nuestros valores",fr:"Nos valeurs",ru:"Наши ценности",ht:"Valè nou yo"},
+"What we don't compromise on.":{es:"En lo que no cedemos.",fr:"Ce sur quoi on ne transige pas.",ru:"В чём мы не идём на компромисс.",ht:"Sou kisa nou pa fè konpwomi."},
+"Transparency":{es:"Transparencia",fr:"Transparence",ru:"Прозрачность",ht:"Transparans"},
+"Every rate con visible. Every fee explained. No surprises on settlement day.":{es:"Cada rate con visible. Cada cargo explicado. Sin sorpresas el día de pago.",fr:"Chaque rate con visible. Chaque frais expliqué. Aucune surprise au règlement.",ru:"Каждый rate con виден. Каждый платёж объяснён. Никаких сюрпризов при расчёте.",ht:"Chak rate con vizib. Chak frè eksplike. Pa gen sipriz jou règleman an."},
+"Compliance first":{es:"Cumplimiento primero",fr:"Conformité d'abord",ru:"Соответствие прежде всего",ht:"Konfòmite an premye"},
+"FMCSA rules aren't red tape — they're what protects carriers, shippers and us.":{es:"Las reglas de FMCSA no son burocracia — protegen a carriers, shippers y a nosotros.",fr:"Les règles FMCSA ne sont pas de la paperasserie — elles protègent les carriers, les expéditeurs et nous.",ru:"Правила FMCSA — не бюрократия, а защита перевозчиков, грузоотправителей и нас.",ht:"Règ FMCSA yo pa biwokrasi — se yo ki pwoteje carriers, shippers ak nou menm."},
+"Availability":{es:"Disponibilidad",fr:"Disponibilité",ru:"Доступность",ht:"Disponibilite"},
+"Freight doesn't sleep. When a driver calls at 2am, a human answers.":{es:"La carga no duerme. Cuando un chofer llama a las 2am, contesta un humano.",fr:"Le fret ne dort pas. Quand un chauffeur appelle à 2h du matin, un humain répond.",ru:"Груз не спит. Когда водитель звонит в 2 часа ночи — отвечает человек.",ht:"Machandiz pa dòmi. Lè yon chofè rele a 2è nan maten, yon moun reponn."},
+"Long game":{es:"Visión a largo plazo",fr:"Vision long terme",ru:"Долгая игра",ht:"Vizyon alontèm"},
+"We'd rather lose a load than book a bad one. Relationships outlast rate spikes.":{es:"Preferimos perder una carga que reservar una mala. Las relaciones duran más que los picos de tarifas.",fr:"On préfère perdre un chargement qu'en réserver un mauvais. Les relations durent plus que les pics de tarifs.",ru:"Лучше потерять груз, чем взять плохой. Отношения переживают скачки ставок.",ht:"Nou pito pèdi yon chajman pase rezève yon move. Relasyon dire pi lontan pase monte-desann pri."},
+"Want to work with us?":{es:"¿Quieres trabajar con nosotros?",fr:"Envie de travailler avec nous ?",ru:"Хотите работать с нами?",ht:"Ou vle travay ak nou?"},
+"Carrier or shipper — start the conversation today.":{es:"Carrier o shipper — empieza la conversación hoy.",fr:"Carrier ou expéditeur — lancez la conversation aujourd'hui.",ru:"Перевозчик или грузоотправитель — начните разговор сегодня.",ht:"Carrier oswa shipper — kòmanse konvèsasyon an jodi a."},
+"Request a Freight Quote":{es:"Solicitar Cotización de Carga",fr:"Demander un Devis Fret",ru:"Запросить расчёт перевозки",ht:"Mande yon Quote Machandiz"},
+"Freight that moves on time. A partner you never have to chase.":{es:"Carga que llega a tiempo. Un socio al que nunca tienes que perseguir.",fr:"Du fret qui arrive à l'heure. Un partenaire que vous n'avez jamais à relancer.",ru:"Груз вовремя. Партнёр, за которым не нужно бегать.",ht:"Machandiz ki rive alè. Yon patnè ou pa janm bezwen kouri dèyè."},
+"Full truckload and partial solutions with vetted carriers, live tracking and one point of contact from pickup to proof of delivery.":{es:"Soluciones FTL y parciales con carriers verificados, rastreo en vivo y un solo contacto del recogido al comprobante de entrega.",fr:"Solutions FTL et partielles avec des transporteurs vérifiés, un suivi en direct et un seul contact du chargement à la preuve de livraison.",ru:"FTL и частичные перевозки с проверенными перевозчиками, живым отслеживанием и одним контактом от загрузки до подтверждения доставки.",ht:"Solisyon FTL ak pasyèl ak carriers verifye, swivi an dirèk ak yon sèl kontak depi pickup jiska prèv livrezon."},
+"Why shippers choose PickLoads":{es:"Por qué los shippers eligen PickLoads",fr:"Pourquoi les expéditeurs choisissent PickLoads",ru:"Почему грузоотправители выбирают PickLoads",ht:"Poukisa shippers chwazi PickLoads"},
+"Fewer surprises. Fewer phone calls. Freight covered.":{es:"Menos sorpresas. Menos llamadas. Carga cubierta.",fr:"Moins de surprises. Moins d'appels. Fret couvert.",ru:"Меньше сюрпризов. Меньше звонков. Груз под контролем.",ht:"Mwens sipriz. Mwens apèl. Machandiz kouvri."},
+"Vetted carriers only":{es:"Solo carriers verificados",fr:"Transporteurs vérifiés uniquement",ru:"Только проверенные перевозчики",ht:"Sèlman carriers verifye"},
+"Authority, insurance and safety scores verified before a carrier touches your freight.":{es:"Autoridad, seguro y récord de seguridad verificados antes de que un carrier toque tu carga.",fr:"Autorité, assurance et scores de sécurité vérifiés avant qu'un transporteur touche votre fret.",ru:"Авторизация, страховка и рейтинги безопасности проверяются до того, как перевозчик коснётся вашего груза.",ht:"Otorite, asirans ak nòt sekirite verifye anvan yon carrier manyen machandiz ou."},
+"Live tracking":{es:"Rastreo en vivo",fr:"Suivi en direct",ru:"Живое отслеживание",ht:"Swivi an dirèk"},
+"Check calls and location updates from pickup to delivery — proactively, not on request.":{es:"Llamadas de control y ubicación del recogido a la entrega — proactivamente, no a pedido.",fr:"Points réguliers et localisation du chargement à la livraison — proactivement, pas sur demande.",ru:"Контрольные звонки и локация от загрузки до доставки — проактивно, а не по запросу.",ht:"Apèl kontwòl ak mizajou lokasyon depi pickup jiska livrezon — pwoaktivman, pa sou demann."},
+"One point of contact":{es:"Un solo contacto",fr:"Un seul point de contact",ru:"Одно контактное лицо",ht:"Yon sèl moun kontak"},
+"One rep owns your shipment. No transfers, no ticket numbers, no runaround.":{es:"Un representante es dueño de tu envío. Sin transferencias, sin tickets, sin vueltas.",fr:"Un seul interlocuteur gère votre expédition. Pas de transferts, pas de tickets, pas de tourner en rond.",ru:"Один менеджер ведёт вашу отправку. Без переключений, тикетов и хождений по кругу.",ht:"Yon sèl reprezantan responsab chajman w. Pa gen transfè, pa gen tikè, pa gen vire tounen."},
+"Claims & paperwork handled":{es:"Reclamos y papeleo resueltos",fr:"Réclamations & documents gérés",ru:"Претензии и документы — на нас",ht:"Reklamasyon ak papye okipe"},
+"BOLs, PODs and claims support managed for you, with documents delivered same day.":{es:"BOLs, PODs y reclamos gestionados por ti, con documentos el mismo día.",fr:"BOL, POD et réclamations gérés pour vous, documents livrés le jour même.",ru:"BOL, POD и претензии ведём за вас, документы — в тот же день.",ht:"BOL, POD ak reklamasyon jere pou ou, ak dokiman livre menm jou a."},
+"Request a freight quote":{es:"Solicita una cotización de carga",fr:"Demandez un devis fret",ru:"Запросите расчёт перевозки",ht:"Mande yon quote machandiz"},
+"Tell us about your shipment — we respond within one business hour (Mon–Sat). Brokerage operations open with our MC activation; early requests get priority onboarding.":{es:"Cuéntanos de tu envío — respondemos en una hora hábil (lun–sáb). El corretaje abre con la activación de nuestro MC; las solicitudes tempranas tienen prioridad.",fr:"Parlez-nous de votre expédition — réponse sous une heure ouvrable (lun–sam). Le courtage ouvre à l'activation de notre MC ; les demandes anticipées sont prioritaires.",ru:"Расскажите о вашей отправке — ответим в течение рабочего часа (пн–сб). Брокерство откроется с активацией нашего MC; ранние запросы получат приоритет.",ht:"Pale nou de chajman w — nou reponn nan yon èdtan travay (len–sam). Brokerage la ouvri lè MC nou aktive; demann bonè yo gen priyorite."},
+"Pickup ZIP":{es:"ZIP de Recogida",fr:"ZIP d'Enlèvement",ru:"ZIP погрузки",ht:"ZIP Pickup"},
+"Delivery ZIP":{es:"ZIP de Entrega",fr:"ZIP de Livraison",ru:"ZIP доставки",ht:"ZIP Livrezon"},
+"Pickup Date":{es:"Fecha de Recogida",fr:"Date d'Enlèvement",ru:"Дата погрузки",ht:"Dat Pickup"},
+"Commodity":{es:"Mercancía",fr:"Marchandise",ru:"Груз",ht:"Machandiz"},
+"Weight (lbs)":{es:"Peso (lbs)",fr:"Poids (lbs)",ru:"Вес (фунты)",ht:"Pwa (lbs)"},
+"Pallets / Pieces":{es:"Paletas / Piezas",fr:"Palettes / Pièces",ru:"Паллеты / штуки",ht:"Palèt / Moso"},
+"Equipment":{es:"Equipo",fr:"Équipement",ru:"Оборудование",ht:"Ekipman"},
+"Frequency":{es:"Frecuencia",fr:"Fréquence",ru:"Частота",ht:"Frekans"},
+"Company Name":{es:"Empresa",fr:"Entreprise",ru:"Компания",ht:"Konpayi"},
+"Contact Email":{es:"Email de Contacto",fr:"Email de Contact",ru:"Email",ht:"Imèl Kontak"},
+"Contact Phone":{es:"Teléfono de Contacto",fr:"Téléphone de Contact",ru:"Телефон",ht:"Telefòn Kontak"},
+"Not sure — advise me":{es:"No estoy seguro — asesórenme",fr:"Pas sûr — conseillez-moi",ru:"Не уверен — подскажите",ht:"Mwen pa fin sèten — konseye m"},
+"One-time shipment":{es:"Envío único",fr:"Expédition ponctuelle",ru:"Разовая отправка",ht:"Yon sèl chajman"},
+"Weekly":{es:"Semanal",fr:"Hebdomadaire",ru:"Еженедельно",ht:"Chak semèn"},
+"Monthly":{es:"Mensual",fr:"Mensuelle",ru:"Ежемесячно",ht:"Chak mwa"},
+"Dedicated lane":{es:"Ruta dedicada",fr:"Itinéraire dédié",ru:"Выделенный маршрут",ht:"Wout devwe"},
+"Request Freight Quote →":{es:"Solicitar Cotización →",fr:"Demander un Devis →",ru:"Запросить расчёт →",ht:"Mande Quote →"},
+"✓ RECEIVED — Our team will reply within one business hour at the email provided. Questions now? Call (908) 404-5373 or email support@pickloads.com":{es:"✓ RECIBIDO — Respondemos en una hora hábil al email indicado. ¿Dudas? Llama al (908) 404-5373 o escribe a support@pickloads.com",fr:"✓ REÇU — Réponse sous une heure ouvrable à l'email indiqué. Des questions ? Appelez le (908) 404-5373 ou écrivez à support@pickloads.com",ru:"✓ ПОЛУЧЕНО — Ответим в течение рабочего часа на указанный email. Вопросы? Звоните (908) 404-5373 или пишите на support@pickloads.com",ht:"✓ NOU RESEVWA L — N ap reponn nan yon èdtan travay sou imèl ou bay la. Kesyon? Rele (908) 404-5373 oswa ekri support@pickloads.com"},
+"Shipper process — from quote to POD":{es:"Proceso del shipper — de la cotización al POD",fr:"Processus expéditeur — du devis au POD",ru:"Процесс для грузоотправителя — от расчёта до POD",ht:"Pwosesis shipper — depi quote jiska POD"},
+"QUOTE REQUEST":{es:"COTIZACIÓN",fr:"DEMANDE DE DEVIS",ru:"ЗАПРОС РАСЧЁТА",ht:"DEMANN QUOTE"},
+"RATE IN 1 HOUR":{es:"TARIFA EN 1 HORA",fr:"TARIF EN 1 HEURE",ru:"СТАВКА ЗА 1 ЧАС",ht:"PRI NAN 1 ÈDTAN"},
+"CARRIER VETTING":{es:"VERIFICACIÓN DEL CARRIER",fr:"VÉRIF. DU TRANSPORTEUR",ru:"ПРОВЕРКА ПЕРЕВОЗЧИКА",ht:"VERIFIKASYON CARRIER"},
+"PICKUP SCHEDULED":{es:"RECOGIDA PROGRAMADA",fr:"ENLÈVEMENT PLANIFIÉ",ru:"ПОГРУЗКА НАЗНАЧЕНА",ht:"PICKUP PWOGRAME"},
+"LIVE TRACKING":{es:"RASTREO EN VIVO",fr:"SUIVI EN DIRECT",ru:"ЖИВОЕ ОТСЛЕЖИВАНИЕ",ht:"SWIVI AN DIRÈK"},
+"DELIVERY + POD":{es:"ENTREGA + POD",fr:"LIVRAISON + POD",ru:"ДОСТАВКА + POD",ht:"LIVREZON + POD"},
+"SAME-DAY DOCS":{es:"DOCS EL MISMO DÍA",fr:"DOCS LE JOUR MÊME",ru:"ДОКУМЕНТЫ В ТОТ ЖЕ ДЕНЬ",ht:"DOKIMAN MENM JOU"}
+});
+/* ---- FAQ / Blog / Contact / footer ---- */
+Object.assign(T, {
+"Straight answers. No fine print.":{es:"Respuestas directas. Sin letra pequeña.",fr:"Des réponses directes. Sans petits caractères.",ru:"Прямые ответы. Без мелкого шрифта.",ht:"Repons dirèk. San ti lèt kache."},
+"The questions carriers and shippers actually ask us — answered the way we'd want them answered.":{es:"Las preguntas que carriers y shippers realmente nos hacen — respondidas como nos gustaría que nos las respondieran.",fr:"Les questions que les carriers et expéditeurs nous posent vraiment — avec les réponses qu'on aimerait recevoir.",ru:"Вопросы, которые нам реально задают перевозчики и грузоотправители, — с ответами, которые мы сами хотели бы получить.",ht:"Kesyon carriers ak shippers reyèlman poze nou — reponn jan nou ta renmen yo reponn nou."},
+"▸ For Carriers":{es:"▸ Para Carriers",fr:"▸ Pour les Carriers",ru:"▸ Для перевозчиков",ht:"▸ Pou Carriers"},
+"▸ For Shippers":{es:"▸ Para Shippers",fr:"▸ Pour les Expéditeurs",ru:"▸ Для грузоотправителей",ht:"▸ Pou Shippers"},
+"How much does dispatch cost?":{es:"¿Cuánto cuesta el despacho?",fr:"Combien coûte le dispatch ?",ru:"Сколько стоит диспетчеризация?",ht:"Konbyen dispatch la koute?"},
+"A flat percentage of gross per load — 5% for owner-operators, 4.5% for small fleets, 8% for box trucks and hot shots. No setup fees, no monthly minimums, no charge on loads you decline. You see every rate confirmation.":{es:"Un porcentaje fijo del bruto por carga — 5% owner-operators, 4.5% flotas pequeñas, 8% box trucks y hot shots. Sin cargos de inicio, sin mínimos mensuales, sin cobro en cargas rechazadas. Ves cada rate confirmation.",fr:"Un pourcentage fixe du brut par chargement — 5% owner-operators, 4,5% petites flottes, 8% box trucks et hot shots. Pas de frais d'inscription, pas de minimum mensuel, rien sur les chargements refusés. Vous voyez chaque rate confirmation.",ru:"Фиксированный процент от брутто за груз — 5% для владельцев-операторов, 4,5% для малых автопарков, 8% для box truck и hot shot. Без стартовых платежей и минимумов. Вы видите каждый rate confirmation.",ht:"Yon pousantaj fiks sou brit chak chajman — 5% pou owner-operators, 4.5% pou ti flòt, 8% pou box trucks ak hot shots. Pa gen frè enskripsyon, pa gen minimòm, pa gen chaj sou chajman ou refize. Ou wè chak rate confirmation."},
+"Is this forced dispatch?":{es:"¿Es dispatch forzado?",fr:"Est-ce du dispatch forcé ?",ru:"Это принудительная диспетчеризация?",ht:"Èske se dispatch fòse?"},
+"No. You approve every load before we book it. You set your rate floor, your lanes and your home time — we work inside them. Month to month, cancel anytime.":{es:"No. Tú apruebas cada carga antes de reservarla. Tú fijas tu tarifa mínima, tus rutas y tu tiempo en casa — trabajamos dentro de eso. Mes a mes, cancela cuando quieras.",fr:"Non. Vous approuvez chaque chargement avant réservation. Vous fixez votre tarif plancher, vos itinéraires et votre temps à la maison — on travaille dans ce cadre. Au mois, résiliable à tout moment.",ru:"Нет. Вы одобряете каждый груз до бронирования. Вы задаёте минимальную ставку, маршруты и график дома — мы работаем в этих рамках. Помесячно, отмена в любой момент.",ht:"Non. Ou apwouve chak chajman anvan nou rezève l. Ou fikse pri minimòm ou, wout ou ak tan lakay ou — nou travay ladan yo. Mwa pa mwa, anile lè ou vle."},
+"What do I need to get started?":{es:"¿Qué necesito para empezar?",fr:"De quoi ai-je besoin pour commencer ?",ru:"Что нужно, чтобы начать?",ht:"Kisa m bezwen pou m kòmanse?"},
+"Your MC/DOT authority, a W-9, a certificate of insurance ($1M auto liability / $100K cargo) and a voided check or factoring notice. Setup takes about 5 minutes; most carriers get their first load within 24 hours.":{es:"Tu autoridad MC/DOT, un W-9, certificado de seguro ($1M responsabilidad / $100K carga) y un cheque anulado o aviso de factoring. El registro toma 5 minutos; la mayoría recibe su primera carga en 24 horas.",fr:"Votre autorité MC/DOT, un W-9, un certificat d'assurance (1 M$ responsabilité / 100 K$ cargo) et un chèque annulé ou avis de factoring. L'inscription prend 5 minutes ; la plupart reçoivent leur premier chargement sous 24 heures.",ru:"Ваша авторизация MC/DOT, W-9, страховой сертификат ($1 млн ответственность / $100 тыс. груз) и аннулированный чек или уведомление о факторинге. Регистрация — 5 минут; первый груз обычно в течение 24 часов.",ht:"Otorite MC/DOT ou, yon W-9, sètifika asirans ($1M responsablite / $100K kago) ak yon chèk anile oswa avi factoring. Enskripsyon an pran anviwon 5 minit; pifò carriers jwenn premye chajman yo nan 24 èdtan."},
+"Do you work with new authorities?":{es:"¿Trabajan con autoridades nuevas?",fr:"Travaillez-vous avec les nouvelles autorités ?",ru:"Работаете ли вы с новыми авторизациями?",ht:"Èske nou travay ak nouvo otorite?"},
+"Yes. New MCs face broker restrictions in the first months — we know which brokers work with new authorities and plan lanes accordingly to keep you moving while your authority ages.":{es:"Sí. Los MC nuevos enfrentan restricciones los primeros meses — sabemos qué brokers trabajan con autoridades nuevas y planificamos rutas para mantenerte rodando mientras tu autoridad madura.",fr:"Oui. Les nouveaux MC subissent des restrictions les premiers mois — on sait quels brokers acceptent les nouvelles autorités et on planifie les itinéraires pour vous garder en mouvement pendant que votre autorité mûrit.",ru:"Да. Новые MC сталкиваются с ограничениями брокеров в первые месяцы — мы знаем, какие брокеры работают с новыми авторизациями, и планируем маршруты так, чтобы вы продолжали ездить.",ht:"Wi. Nouvo MC yo jwenn restriksyon nan premye mwa yo — nou konnen ki brokers ki travay ak nouvo otorite epi nou planifye wout pou kenbe w ap woule pandan otorite w ap pran laj."},
+"How do I get paid?":{es:"¿Cómo me pagan?",fr:"Comment suis-je payé ?",ru:"Как я получаю оплату?",ht:"Kijan m touche?"},
+"You're paid directly by the broker or through your factoring company — money never passes through us. We prepare and submit the invoices and paperwork so nothing delays your settlement.":{es:"Te paga directamente el broker o tu compañía de factoring — el dinero nunca pasa por nosotros. Nosotros preparamos y enviamos facturas y papeleo para que nada retrase tu pago.",fr:"Vous êtes payé directement par le broker ou via votre société de factoring — l'argent ne passe jamais par nous. On prépare et soumet les factures et documents pour que rien ne retarde votre règlement.",ru:"Вам платит напрямую брокер или ваша факторинговая компания — деньги никогда не проходят через нас. Мы готовим и подаём счета и документы, чтобы ничто не задерживало расчёт.",ht:"Broker a oswa konpayi factoring ou peye w dirèkteman — lajan pa janm pase nan men nou. Nou prepare epi soumèt fakti ak papye yo pou anyen pa fè règleman w pran reta."},
+"Do you verify brokers?":{es:"¿Verifican a los brokers?",fr:"Vérifiez-vous les brokers ?",ru:"Проверяете ли вы брокеров?",ht:"Èske nou verifye brokers yo?"},
+"Every broker is checked for active authority, bond status and credit before we book. If a broker looks shaky, we skip the load — no exceptions.":{es:"Cada broker se revisa: autoridad activa, estado de fianza y crédito antes de reservar. Si un broker se ve dudoso, saltamos la carga — sin excepciones.",fr:"Chaque broker est vérifié : autorité active, statut de caution et crédit avant réservation. Si un broker semble douteux, on passe le chargement — sans exception.",ru:"Каждый брокер проверяется: активная авторизация, статус бонда и кредит. Если брокер выглядит сомнительно — мы пропускаем груз, без исключений.",ht:"Chak broker tcheke: otorite aktif, estati bond ak kredi anvan nou rezève. Si yon broker sanble dout, nou sote chajman an — san eksepsyon."},
+"Are you a licensed freight broker?":{es:"¿Son un broker de carga con licencia?",fr:"Êtes-vous un courtier de fret licencié ?",ru:"Вы лицензированный фрахтовый брокер?",ht:"Èske nou se yon broker machandiz ki gen lisans?"},
+"Our brokerage division launches with our FMCSA MC authority and BMC-84 $75,000 surety bond, currently in process. Our registration numbers will be published on this site the day they're active, with direct FMCSA verification links. Early quote requests get priority onboarding.":{es:"Nuestra división de corretaje abre con nuestra autoridad MC de FMCSA y la fianza BMC-84 de $75,000, actualmente en trámite. Nuestros números se publicarán aquí el día que estén activos, con enlaces de verificación FMCSA. Las solicitudes tempranas tienen prioridad.",fr:"Notre division courtage ouvre avec notre autorité MC FMCSA et notre caution BMC-84 de 75 000 $, actuellement en cours. Nos numéros seront publiés ici dès leur activation, avec des liens de vérification FMCSA. Les demandes anticipées sont prioritaires.",ru:"Наше брокерское подразделение запускается с авторизацией MC FMCSA и бондом BMC-84 на $75 000 (в процессе оформления). Номера появятся на сайте в день активации, со ссылками на проверку в FMCSA.",ht:"Divizyon brokerage nou ouvri ak otorite MC FMCSA nou ak bond BMC-84 $75,000 lan, ki nan pwosesis kounye a. Nimewo nou yo ap pibliye sou sit sa a jou yo aktive, ak lyen verifikasyon FMCSA."},
+"How fast can you quote a shipment?":{es:"¿Qué tan rápido cotizan un envío?",fr:"En combien de temps pouvez-vous chiffrer une expédition ?",ru:"Как быстро вы даёте расчёт?",ht:"Ki vitès nou ka bay yon quote?"},
+"Within one business hour for standard FTL lanes (Mon–Sat). Complex or specialized freight may take a little longer — we'll tell you upfront.":{es:"En una hora hábil para rutas FTL estándar (lun–sáb). La carga compleja o especializada puede tardar un poco más — te lo diremos por adelantado.",fr:"Sous une heure ouvrable pour les itinéraires FTL standards (lun–sam). Le fret complexe ou spécialisé peut prendre un peu plus — on vous le dit d'avance.",ru:"В течение рабочего часа для стандартных FTL-маршрутов (пн–сб). Сложные грузы могут занять больше времени — мы предупредим заранее.",ht:"Nan yon èdtan travay pou wout FTL estanda (len–sam). Machandiz konplèks ka pran yon ti kras plis tan — n ap di w sa davans."},
+"How do you vet carriers?":{es:"¿Cómo verifican a los carriers?",fr:"Comment vérifiez-vous les transporteurs ?",ru:"Как вы проверяете перевозчиков?",ht:"Kijan nou verifye carriers yo?"},
+"Active authority, insurance certificates, FMCSA safety data and inspection history — verified before assignment, not after. We don't re-broker freight.":{es:"Autoridad activa, certificados de seguro, datos de seguridad FMCSA e historial de inspecciones — verificados antes de asignar, no después. No re-corretajeamos carga.",fr:"Autorité active, certificats d'assurance, données de sécurité FMCSA et historique d'inspections — vérifiés avant l'affectation, pas après. On ne re-courtage jamais le fret.",ru:"Активная авторизация, страховые сертификаты, данные безопасности FMCSA и история инспекций — проверяются до назначения, а не после. Мы не передаём грузы повторно.",ht:"Otorite aktif, sètifika asirans, done sekirite FMCSA ak istwa enspeksyon — verifye anvan asiyasyon, pa apre. Nou pa re-broker machandiz."},
+"Can I track my shipment?":{es:"¿Puedo rastrear mi envío?",fr:"Puis-je suivre mon expédition ?",ru:"Могу ли я отслеживать отправку?",ht:"Èske m ka swiv chajman m?"},
+"Yes — check calls and location updates through delivery, with proactive alerts if anything changes. A live shipper portal is on the roadmap.":{es:"Sí — llamadas de control y ubicación hasta la entrega, con alertas proactivas si algo cambia. Un portal para shippers está en la hoja de ruta.",fr:"Oui — points réguliers et localisation jusqu'à la livraison, avec alertes proactives si quelque chose change. Un portail expéditeur en direct est prévu.",ru:"Да — контрольные звонки и локация до доставки, с проактивными уведомлениями. Живой портал для грузоотправителей — в планах.",ht:"Wi — apèl kontwòl ak lokasyon jiska livrezon, ak alèt pwoaktif si yon bagay chanje. Yon pòtay shipper an dirèk nan plan yo."},
+"What happens if there's a claim?":{es:"¿Qué pasa si hay un reclamo?",fr:"Que se passe-t-il en cas de réclamation ?",ru:"Что происходит при претензии?",ht:"Kisa k pase si gen yon reklamasyon?"},
+"We manage the claims process end to end: documentation, carrier insurance filing and follow-up until resolution. One contact, start to finish.":{es:"Gestionamos el reclamo de principio a fin: documentación, presentación al seguro del carrier y seguimiento hasta resolverlo. Un contacto, de inicio a fin.",fr:"On gère la réclamation de bout en bout : documentation, dépôt auprès de l'assurance du transporteur et suivi jusqu'à résolution. Un seul contact, du début à la fin.",ru:"Мы ведём претензию от начала до конца: документы, подача в страховую перевозчика и контроль до решения. Один контакт на всём пути.",ht:"Nou jere pwosesis reklamasyon an depi kòmansman rive nan fen: dokiman, depo nan asirans carrier a ak swivi jiskaske sa rezoud. Yon sèl kontak, depi kòmansman jiska fen."},
+"Didn't find your answer?":{es:"¿No encontraste tu respuesta?",fr:"Vous n'avez pas trouvé votre réponse ?",ru:"Не нашли ответ?",ht:"Ou pa jwenn repons ou?"},
+"Call us — a human picks up. (908) 404-5373, or email support@pickloads.com.":{es:"Llámanos — contesta un humano. (908) 404-5373, o escribe a support@pickloads.com.",fr:"Appelez-nous — un humain décroche. (908) 404-5373, ou écrivez à support@pickloads.com.",ru:"Позвоните нам — трубку берёт человек. (908) 404-5373, или пишите на support@pickloads.com.",ht:"Rele nou — yon moun reponn. (908) 404-5373, oswa ekri support@pickloads.com."},
+"Contact Us":{es:"Contáctanos",fr:"Contactez-nous",ru:"Связаться с нами",ht:"Kontakte nou"},
+"The road, the rates, the rules.":{es:"La carretera, las tarifas, las reglas.",fr:"La route, les tarifs, les règles.",ru:"Дорога, ставки, правила.",ht:"Wout la, pri yo, règ yo."},
+"Market updates, dispatch strategy and FMCSA news — written for the people actually running trucks.":{es:"Análisis del mercado, estrategia de despacho y noticias FMCSA — escrito para quienes realmente manejan camiones.",fr:"Analyses du marché, stratégie de dispatch et actualités FMCSA — écrites pour ceux qui font vraiment rouler des camions.",ru:"Обзоры рынка, стратегия диспетчеризации и новости FMCSA — для тех, кто реально работает с грузовиками.",ht:"Mizajou mache, estrateji dispatch ak nouvèl FMCSA — ekri pou moun k ap fè kamyon woule toutbon."},
+"Freight Market Update: What Q3 Rates Are Telling Us":{es:"Mercado de Carga: Lo que Dicen las Tarifas del Q3",fr:"Marché du Fret : Ce que Disent les Tarifs du T3",ru:"Обзор рынка: о чём говорят ставки третьего квартала",ht:"Mache Machandiz: Sa Pri Q3 yo Ap Di Nou"},
+"Spot rates, contract spreads and what it means for owner-operators planning the next 90 days.":{es:"Tarifas spot, spreads de contrato y qué significa para owner-operators en los próximos 90 días.",fr:"Tarifs spot, écarts contractuels et ce que ça implique pour les 90 prochains jours.",ru:"Спотовые ставки, контрактные спреды и что это значит на ближайшие 90 дней.",ht:"Pri spot, diferans kontra ak sa sa vle di pou owner-operators nan pwochen 90 jou yo."},
+"5 Signs Your Dispatcher Is Costing You Money":{es:"5 Señales de que tu Dispatcher te Cuesta Dinero",fr:"5 Signes que Votre Dispatcher Vous Coûte de l'Argent",ru:"5 признаков того, что диспетчер стоит вам денег",ht:"5 Siy ki Montre Dispatcher w Ap Koute w Lajan"},
+"From unchecked brokers to deadhead-heavy planning — how to audit the service behind your truck.":{es:"De brokers sin verificar a rutas llenas de deadhead — cómo auditar el servicio detrás de tu camión.",fr:"Des brokers non vérifiés aux plans pleins de deadhead — comment auditer le service derrière votre camion.",ru:"От непроверенных брокеров до маршрутов с пустыми пробегами — как проверить сервис за вашим грузовиком.",ht:"Depi brokers ki pa verifye rive nan plan chaje ak deadhead — kijan pou tcheke sèvis ki dèyè kamyon w."},
+"FMCSA Updates Every Carrier Should Know This Quarter":{es:"Novedades FMCSA que Todo Carrier Debe Conocer",fr:"Actualités FMCSA que Chaque Carrier Doit Connaître",ru:"Новости FMCSA, которые должен знать каждый перевозчик",ht:"Mizajou FMCSA Chak Carrier Dwe Konnen"},
+"Registration changes, broker transparency rules and what's coming for new authorities.":{es:"Cambios de registro, reglas de transparencia de brokers y lo que viene para autoridades nuevas.",fr:"Changements d'enregistrement, règles de transparence des brokers et ce qui attend les nouvelles autorités.",ru:"Изменения регистрации, правила прозрачности брокеров и что ждёт новые авторизации.",ht:"Chanjman enskripsyon, règ transparans brokers ak sa k ap vini pou nouvo otorite yo."},
+"Diesel Watch: Managing Fuel Costs When Prices Swing":{es:"Diésel: Cómo Manejar el Combustible Cuando los Precios Oscilan",fr:"Diesel : Gérer le Carburant Quand les Prix Fluctuent",ru:"Дизель: как управлять расходами на топливо при скачках цен",ht:"Dyezèl: Jere Depans Gaz lè Pri yo Ap Monte-Desann"},
+"Fuel surcharges, card programs and route planning tactics that protect your margin.":{es:"Recargos de combustible, tarjetas y tácticas de ruta que protegen tu margen.",fr:"Surcharges carburant, cartes et tactiques d'itinéraire qui protègent votre marge.",ru:"Топливные надбавки, карты и тактика маршрутов, защищающие вашу маржу.",ht:"Surcharge gaz, pwogram kat ak taktik wout ki pwoteje maj ou."},
+"Get Freight Insights in your inbox":{es:"Recibe Freight Insights en tu correo",fr:"Recevez Freight Insights par email",ru:"Получайте Freight Insights на почту",ht:"Resevwa Freight Insights nan imèl ou"},
+"Email address":{es:"Correo electrónico",fr:"Adresse email",ru:"Email",ht:"Adrès imèl"},
+"Subscribe":{es:"Suscribirme",fr:"S'abonner",ru:"Подписаться",ht:"Abòne m"},
+"✓ SUBSCRIBED — Market updates and dispatch tips, twice a month. No spam.":{es:"✓ SUSCRITO — Análisis y consejos, dos veces al mes. Sin spam.",fr:"✓ ABONNÉ — Analyses et conseils, deux fois par mois. Sans spam.",ru:"✓ ПОДПИСКА ОФОРМЛЕНА — Обзоры и советы дважды в месяц. Без спама.",ht:"✓ ABÒNE — Analiz ak konsèy, de fwa pa mwa. San spam."},
+"Talk to a human. Today.":{es:"Habla con un humano. Hoy.",fr:"Parlez à un humain. Aujourd'hui.",ru:"Поговорите с человеком. Сегодня.",ht:"Pale ak yon moun. Jodi a."},
+"Dispatch questions, freight quotes, partnerships — we answer fast.":{es:"Preguntas de despacho, cotizaciones, alianzas — respondemos rápido.",fr:"Questions dispatch, devis fret, partenariats — on répond vite.",ru:"Вопросы по диспетчеризации, расчёты, партнёрства — отвечаем быстро.",ht:"Kesyon dispatch, quote machandiz, patenarya — nou reponn vit."},
+"Phone — 24/7 Dispatch Line":{es:"Teléfono — Línea de Despacho 24/7",fr:"Téléphone — Ligne Dispatch 24/7",ru:"Телефон — Диспетчерская линия 24/7",ht:"Telefòn — Liy Dispatch 24/7"},
+"Email":{es:"Email",fr:"Email",ru:"Эл. почта",ht:"Imèl"},
+"Office":{es:"Oficina",fr:"Bureau",ru:"Офис",ht:"Biwo"},
+"Office Hours":{es:"Horario",fr:"Horaires",ru:"Часы работы",ht:"Orè Biwo"},
+"Follow PickLoads":{es:"Síguenos",fr:"Suivez PickLoads",ru:"Мы в соцсетях",ht:"Swiv PickLoads"},
+"Minutes from Newark and Ports Newark–Elizabeth — the heart of the Northeast freight corridor.":{es:"A minutos de Newark y de los puertos Newark–Elizabeth — el corazón del corredor de carga del noreste.",fr:"À quelques minutes de Newark et des ports Newark–Elizabeth — le cœur du corridor fret du Nord-Est.",ru:"В минутах от Ньюарка и портов Newark–Elizabeth — сердца грузового коридора северо-востока.",ht:"A kèk minit de Newark ak pò Newark–Elizabeth — kè koridò machandiz Nòdès la."},
+"Prefer to just get started?":{es:"¿Prefieres empezar ya?",fr:"Vous préférez démarrer tout de suite ?",ru:"Хотите просто начать?",ht:"Ou prefere kòmanse tousuit?"},
+"Carrier setup takes 5 minutes. Shipper quotes answered within the hour.":{es:"Registro de carrier en 5 minutos. Cotizaciones respondidas en una hora.",fr:"Inscription carrier en 5 minutes. Devis expéditeur sous une heure.",ru:"Регистрация перевозчика — 5 минут. Расчёты для грузоотправителей — в течение часа.",ht:"Enskripsyon carrier pran 5 minit. Quote shipper reponn nan yon èdtan."},
+"Services":{es:"Servicios",fr:"Services",ru:"Услуги",ht:"Sèvis"},
+"Dispatch by Equipment":{es:"Despacho por Equipo",fr:"Dispatch par Équipement",ru:"Диспетчеризация по оборудованию",ht:"Dispatch pa Ekipman"},
+"Dispatch by State":{es:"Despacho por Estado",fr:"Dispatch par État",ru:"Диспетчеризация по штатам",ht:"Dispatch pa Eta"},
+"Carriers":{es:"Carriers",fr:"Carriers",ru:"Перевозчики",ht:"Carriers"},
+"Company":{es:"Empresa",fr:"Entreprise",ru:"Компания",ht:"Konpayi"},
+"Become a Carrier":{es:"Hazte Carrier",fr:"Devenir Carrier",ru:"Стать перевозчиком",ht:"Vin yon Carrier"},
+"Carrier FAQ":{es:"FAQ Carriers",fr:"FAQ Carriers",ru:"FAQ перевозчиков",ht:"FAQ Carriers"},
+"Compliance":{es:"Cumplimiento",fr:"Conformité",ru:"Соответствие",ht:"Konfòmite"},
+"Factoring":{es:"Factoring",fr:"Factoring",ru:"Факторинг",ht:"Factoring"},
+"For Shippers":{es:"Para Shippers",fr:"Pour Expéditeurs",ru:"Для грузоотправителей",ht:"Pou Shippers"}
+});
+/* ---- rich HTML translations ---- */
+var RICH = {
+"hero.title":{
+ es:"Tu camión siempre <em>cargado</em>.<br>Nosotros nos encargamos del resto.",
+ fr:"Votre camion reste <em>chargé</em>.<br>On s'occupe de tout le reste.",
+ ru:"Ваш грузовик всегда <em>с грузом</em>.<br>Остальное — на нас.",
+ ht:"Kamyon w toujou <em>chaje</em>.<br>Nou okipe tout rès la."},
+"hero.note":{
+ es:"<b>■ DESPACHO ACTIVO</b> &nbsp;·&nbsp; La división de corretaje abre con la autoridad MC de FMCSA y la fianza BMC-84 — en trámite.",
+ fr:"<b>■ DISPATCH ACTIF</b> &nbsp;·&nbsp; La division courtage ouvre avec l'autorité MC FMCSA et la caution BMC-84 — en cours.",
+ ru:"<b>■ ДИСПЕТЧЕРИЗАЦИЯ РАБОТАЕТ</b> &nbsp;·&nbsp; Брокерское подразделение запустится с MC-авторизацией FMCSA и бондом BMC-84 — в процессе.",
+ ht:"<b>■ DISPATCH AKTIF KOUNYE A</b> &nbsp;·&nbsp; Divizyon brokerage la ap louvri ak otorite MC FMCSA ak bond BMC-84 — nan pwosesis."},
+"boards.p":{
+ es:"<b>Tu dispatcher trabaja todas las fuentes de carga principales</b> — más relaciones directas con brokers, ruta por ruta.",
+ fr:"<b>Votre dispatcher travaille toutes les grandes sources de fret</b> — plus des relations directes avec les brokers, itinéraire par itinéraire.",
+ ru:"<b>Ваш диспетчер работает со всеми крупными источниками грузов</b> — плюс прямые отношения с брокерами, маршрут за маршрутом.",
+ ht:"<b>Dispatcher w la travay ak tout gwo sous machandiz yo</b> — plis relasyon dirèk ak brokers, wout pa wout."},
+"svc.d.p":{
+ es:"Somos tu oficina: buscamos carga, negociamos tarifas y manejamos el papeleo bajo <b>tu</b> autoridad.",
+ fr:"On est votre back-office : recherche de fret, négociation des tarifs et paperasse sous <b>votre</b> autorité.",
+ ru:"Мы — ваш бэк-офис: ищем грузы, ведём переговоры и оформляем документы под <b>вашей</b> авторизацией.",
+ ht:"Nou se biwo w: nou chèche machandiz, negosye pri epi okipe papye anba <b>otorite pa w</b>."},
+"ab.p2":{
+ es:"Empezamos con un estándar simple: <b style=\"color:var(--paper)\">tratar cada camión como si fuera nuestro.</b> Eso significa verificar al broker antes de reservar, negociar como si el margen fuera nuestro, planificar rutas según el tiempo en casa del chofer — y contestar el teléfono a las 2am cuando algo sale mal.",
+ fr:"On a commencé avec un standard simple : <b style=\"color:var(--paper)\">traiter chaque camion comme le nôtre.</b> Ça veut dire vérifier le broker avant de réserver, négocier comme si la marge était la nôtre, planifier les itinéraires autour du temps à la maison du chauffeur — et répondre au téléphone à 2h du matin quand ça tourne mal.",
+ ru:"Мы начали с простого стандарта: <b style=\"color:var(--paper)\">относиться к каждому грузовику как к своему.</b> Это значит проверять брокера до бронирования, торговаться как за свою маржу, планировать маршруты с учётом графика дома — и отвечать на звонок в 2 часа ночи, когда что-то идёт не так.",
+ ht:"Nou te kòmanse ak yon estanda senp: <b style=\"color:var(--paper)\">trete chak kamyon tankou se pa nou li ye.</b> Sa vle di verifye broker a anvan nou rezève, negosye tankou se maj pa nou, planifye wout selon tan lakay chofè a — epi reponn telefòn nan a 2è nan maten lè yon bagay pa mache."},
+"ct.hours":{
+ es:"Lun–Vie 8am–6pm ET · Sáb 9am–2pm ET<br>Soporte de despacho: 24/7, incluso feriados",
+ fr:"Lun–Ven 8h–18h ET · Sam 9h–14h ET<br>Support dispatch : 24/7, jours fériés compris",
+ ru:"Пн–Пт 8:00–18:00 ET · Сб 9:00–14:00 ET<br>Диспетчерская поддержка: 24/7, включая праздники",
+ ht:"Len–Van 8am–6pm ET · Sam 9am–2pm ET<br>Sipò dispatch: 24/7, jou ferye ladan"}
+};
+/* ---- engine ---- */
+(function(){
+  var SNAP=[], RICH_ELS={};
+  document.querySelectorAll('body *').forEach(function(el){
+    if(el.tagName==='SCRIPT'||el.tagName==='STYLE')return;
+    if(el.children.length===0){var t=el.textContent.trim(); if(t) SNAP.push([el,t]);}
+  });
+  document.querySelectorAll('[data-i18n]').forEach(function(el){RICH_ELS[el.getAttribute('data-i18n')]={el:el,html:el.innerHTML};});
+  window.setLang=function(l){
+    document.documentElement.lang=l;
+    SNAP.forEach(function(s){
+      var tr=(l!=='en'&&T[s[1]]&&T[s[1]][l])?T[s[1]][l]:s[1];
+      if(s[0].textContent!==tr) s[0].textContent=tr;
+    });
+    Object.keys(RICH_ELS).forEach(function(k){
+      var r=RICH_ELS[k];
+      r.el.innerHTML=(l!=='en'&&RICH[k]&&RICH[k][l])?RICH[k][l]:r.html;
+    });
+    document.querySelectorAll('.langsel').forEach(function(sel){sel.value=l;});
+  };
+})();
+
+</script>
+<script>
+/* ===== New Authority Program — translations ===== */
+Object.assign(T, {
+"Start your trucking company":{es:"Lanza tu compañía de transporte",fr:"Lancez votre compagnie de transport",ru:"Откройте свою транспортную компанию",ht:"Lanse konpayi transpò ou"},
+"No MC yet? We'll launch you — then dispatch you.":{es:"¿Aún sin MC? Te lanzamos — y luego te despachamos.",fr:"Pas encore de MC ? On vous lance — puis on vous dispatch.",ru:"Ещё нет MC? Мы запустим вас — а потом обеспечим грузами.",ht:"Poko gen MC? N ap lanse w — apre sa n ap dispatche w."},
+"Our New Authority Program handles the filings, then rolls you straight into dispatch. One partner from paperwork to first load.":{es:"Nuestro New Authority Program se encarga de los trámites y te lleva directo al despacho. Un solo socio del papeleo a la primera carga.",fr:"Notre New Authority Program gère les démarches, puis vous fait passer directement au dispatch. Un seul partenaire, de la paperasse au premier chargement.",ru:"Наша программа New Authority берёт на себя оформление, а затем сразу подключает вас к диспетчеризации. Один партнёр — от документов до первого груза.",ht:"New Authority Program nou an okipe tout demach yo, epi mennen w dirèk nan dispatch. Yon sèl patnè depi papye jiska premye chajman."},
+"Everything filed. Then dispatched.":{es:"Todo tramitado. Luego despachado.",fr:"Tout est déposé. Puis dispatché.",ru:"Всё оформлено. Затем — грузы.",ht:"Tout depoze. Apre sa, dispatch."},
+"LLC formation & EIN registration":{es:"Formación de LLC y registro de EIN",fr:"Création de LLC & enregistrement EIN",ru:"Регистрация LLC и получение EIN",ht:"Fòmasyon LLC ak enskripsyon EIN"},
+"MC & USDOT filing (FMCSA)":{es:"Trámite de MC y USDOT (FMCSA)",fr:"Dépôt MC & USDOT (FMCSA)",ru:"Оформление MC и USDOT (FMCSA)",ht:"Depo MC ak USDOT (FMCSA)"},
+"BOC-3 process agent designation":{es:"Designación de agente BOC-3",fr:"Désignation d'agent BOC-3",ru:"Назначение агента BOC-3",ht:"Deziyasyon ajan BOC-3"},
+"UCR registration":{es:"Registro UCR",fr:"Enregistrement UCR",ru:"Регистрация UCR",ht:"Enskripsyon UCR"},
+"Insurance guidance ($1M liability / $100K cargo)":{es:"Orientación de seguro ($1M responsabilidad / $100K carga)",fr:"Orientation assurance (1 M$ responsabilité / 100 K$ cargo)",ru:"Помощь со страховкой ($1 млн ответственность / $100 тыс. груз)",ht:"Oryantasyon asirans ($1M responsablite / $100K kago)"},
+"Straight into dispatch onboarding":{es:"Directo al onboarding de despacho",fr:"Directement vers l'onboarding dispatch",ru:"Сразу к подключению диспетчеризации",ht:"Dirèk nan onboarding dispatch"},
+"Start My Trucking Company →":{es:"Lanzar Mi Compañía →",fr:"Lancer Ma Compagnie →",ru:"Открыть мою компанию →",ht:"Lanse Konpayi Mwen →"},
+"// Document filing assistance only — we are not a law firm and do not provide legal advice.":{es:"// Solo asistencia en trámites de documentos — no somos un bufete de abogados ni damos asesoría legal.",fr:"// Assistance au dépôt de documents uniquement — nous ne sommes pas un cabinet d'avocats et ne donnons pas de conseil juridique.",ru:"// Только помощь с подачей документов — мы не юридическая фирма и не даём юридических консультаций.",ht:"// Sèlman asistans pou depoze dokiman — nou pa yon kabinè avoka e nou pa bay konsèy legal."},
+"Why launch with us":{es:"Por qué lanzar con nosotros",fr:"Pourquoi lancer avec nous",ru:"Почему запускаться с нами",ht:"Poukisa lanse ak nou"},
+"Why launch with a dispatch company?":{es:"¿Por qué lanzar con una empresa de dispatch?",fr:"Pourquoi lancer avec une entreprise de dispatch ?",ru:"Почему стоит запускаться с диспетчерской компанией?",ht:"Poukisa lanse ak yon konpayi dispatch?"},
+"Formation services file your paperwork and disappear. We file it — and then keep your truck loaded.":{es:"Los servicios de formación tramitan tus papeles y desaparecen. Nosotros los tramitamos — y luego mantenemos tu camión cargado.",fr:"Les services de création déposent vos papiers et disparaissent. Nous, on les dépose — puis on garde votre camion chargé.",ru:"Обычные сервисы регистрации подают документы и исчезают. Мы подаём их — а потом держим ваш грузовик с грузом.",ht:"Sèvis fòmasyon yo depoze papye w epi yo disparèt. Nou menm, nou depoze yo — epi nou kenbe kamyon w chaje."},
+"We know which brokers accept new authorities":{es:"Sabemos qué brokers aceptan autoridades nuevas",fr:"On sait quels brokers acceptent les nouvelles autorités",ru:"Мы знаем, какие брокеры работают с новыми авторизациями",ht:"Nou konnen ki brokers ki aksepte nouvo otorite"},
+"Lane planning built for your first 90 days":{es:"Planificación de rutas para tus primeros 90 días",fr:"Planification d'itinéraires pour vos 90 premiers jours",ru:"Планирование маршрутов на первые 90 дней",ht:"Planifikasyon wout pou premye 90 jou ou yo"},
+"Insurance guidance before you overpay":{es:"Orientación de seguro antes de que pagues de más",fr:"Conseils assurance avant de payer trop cher",ru:"Помощь со страховкой, пока вы не переплатили",ht:"Oryantasyon asirans anvan ou peye twòp"},
+"One team from LLC to first load":{es:"Un solo equipo de la LLC a la primera carga",fr:"Une seule équipe, de la LLC au premier chargement",ru:"Одна команда — от LLC до первого груза",ht:"Yon sèl ekip depi LLC jiska premye chajman"},
+"Talk to us first — it's free →":{es:"Habla con nosotros primero — es gratis →",fr:"Parlez-nous d'abord — c'est gratuit →",ru:"Сначала поговорите с нами — это бесплатно →",ht:"Pale ak nou anvan — li gratis →"},
+"New authority path — from zero to first load":{es:"Ruta de nueva autoridad — de cero a la primera carga",fr:"Parcours nouvelle autorité — de zéro au premier chargement",ru:"Путь новой авторизации — от нуля до первого груза",ht:"Chemen nouvo otorite — depi zewo jiska premye chajman"},
+"MC / USDOT":{es:"MC / USDOT",fr:"MC / USDOT",ru:"MC / USDOT",ht:"MC / USDOT"},
+"INSURANCE":{es:"SEGURO",fr:"ASSURANCE",ru:"СТРАХОВКА",ht:"ASIRANS"},
+"DISPATCH ONBOARDING":{es:"ONBOARDING DE DESPACHO",fr:"ONBOARDING DISPATCH",ru:"ПОДКЛЮЧЕНИЕ ДИСПЕТЧЕРА",ht:"ONBOARDING DISPATCH"},
+"FIRST LOAD":{es:"PRIMERA CARGA",fr:"PREMIER CHARGEMENT",ru:"ПЕРВЫЙ ГРУЗ",ht:"PREMYE CHAJMAN"},
+"I don't have my MC yet — can you help me start my trucking company?":{es:"Aún no tengo mi MC — ¿pueden ayudarme a crear mi compañía de transporte?",fr:"Je n'ai pas encore mon MC — pouvez-vous m'aider à créer ma compagnie de transport ?",ru:"У меня ещё нет MC — поможете открыть транспортную компанию?",ht:"Mwen poko gen MC — èske nou ka ede m kreye konpayi transpò mwen?"},
+"Yes. Our New Authority Program handles LLC formation, EIN, MC/USDOT filing, BOC-3 and UCR, plus insurance guidance — then rolls you straight into dispatch onboarding so you're loaded as soon as your authority activates. Document filing assistance only; we are not a law firm.":{es:"Sí. Nuestro New Authority Program se encarga de la LLC, el EIN, el trámite MC/USDOT, el BOC-3 y el UCR, más orientación de seguro — y luego te lleva directo al onboarding de despacho para que estés cargado en cuanto tu autoridad se active. Solo asistencia en trámites; no somos un bufete de abogados.",fr:"Oui. Notre New Authority Program gère la LLC, l'EIN, le dépôt MC/USDOT, le BOC-3 et l'UCR, plus l'orientation assurance — puis vous fait passer directement à l'onboarding dispatch pour être chargé dès l'activation de votre autorité. Assistance au dépôt de documents uniquement ; nous ne sommes pas un cabinet d'avocats.",ru:"Да. Наша программа New Authority берёт на себя LLC, EIN, оформление MC/USDOT, BOC-3 и UCR, плюс помощь со страховкой — а затем сразу подключает вас к диспетчеризации, чтобы вы получили груз в день активации авторизации. Только помощь с документами; мы не юридическая фирма.",ht:"Wi. New Authority Program nou an okipe LLC, EIN, depo MC/USDOT, BOC-3 ak UCR, plis oryantasyon asirans — apre sa li mennen w dirèk nan onboarding dispatch pou w chaje kou otorite w aktive. Sèlman asistans pou dokiman; nou pa yon kabinè avoka."},
+"Start Your Trucking Company":{es:"Lanza Tu Compañía de Transporte",fr:"Lancez Votre Compagnie de Transport",ru:"Откройте транспортную компанию",ht:"Lanse Konpayi Transpò Ou"}
+});
+</script>
+</body>
+</html>

@@ -1,33 +1,39 @@
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
+import { useV4, useV4Rich } from "@/i18n/v4";
 
 export function Hero() {
+  const tv = useV4();
+  const t = useV4Rich();
   return (
     <header className="hero" id="top">
       <div className="wrap">
         <span className="eyebrow">
-          Truck Dispatching · Freight Brokerage · Nationwide
+          {tv("Truck Dispatching · Freight Brokerage · Nationwide")}
         </span>
         <h1>
-          Your truck stays <em>loaded</em>.
-          <br />
-          We handle everything else.
+          {t.rich("rich_hero_title", {
+            em: (c) => <em>{c}</em>,
+            br: () => <br />,
+          })}
         </h1>
         <p className="lead">
-          Dedicated dispatch for owner-operators and small fleets — load
-          booking, rate negotiation, paperwork and 24/7 support. You drive. We
-          keep the freight coming.
+          {tv(
+            "Dedicated dispatch for owner-operators and small fleets — load booking, rate negotiation, paperwork and 24/7 support. You drive. We keep the freight coming.",
+          )}
         </p>
         <div className="hero-ctas">
           <Link className="btn btn-amber" href="/#quote">
-            Get Started in 60 Seconds
+            {tv("Get Started in 60 Seconds")}
           </Link>
           <a className="btn btn-ghost" href="tel:+19084045373">
-            Call (908) 404-5373
+            {tv("Call (908) 404-5373")}
           </a>
         </div>
         <p className="hero-note">
-          <b>■ DISPATCH ACTIVE NOW</b> &nbsp;·&nbsp; Brokerage division launches
-          with FMCSA MC authority &amp; BMC-84 bond — in process.
+          {t.rich("rich_hero_note", {
+            b: (c) => <b>{c}</b>,
+            br: () => <br />,
+          })}
         </p>
       </div>
     </header>

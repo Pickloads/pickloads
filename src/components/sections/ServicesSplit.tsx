@@ -1,52 +1,47 @@
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
+import { useV4, useV4Rich } from "@/i18n/v4";
 
 export function ServicesSplit() {
+  const tv = useV4();
+  const t = useV4Rich();
   return (
     <section id="dispatch">
       <div className="wrap">
-        <span className="eyebrow">Two divisions · One standard</span>
+        <span className="eyebrow">{tv("Two divisions · One standard")}</span>
         <h2 className="sec">
-          Dispatch for carriers. Brokerage for shippers. Kept separate — by
-          design.
+{tv("Dispatch for carriers. Brokerage for shippers. Kept separate — by design.")}
         </h2>
         <p className="sub">
-          Clear roles, clear paperwork, full FMCSA compliance. No double
-          brokering. Ever.
+{tv("Clear roles, clear paperwork, full FMCSA compliance. No double brokering. Ever.")}
         </p>
         <div className="services-grid">
           <div className="svc dispatch">
-            <span className="tag">For Carriers · Active Now</span>
-            <h3>Truck Dispatching</h3>
-            <p>
-              We act as your back office: finding freight, negotiating rates and
-              handling the paperwork under <b>your</b> operating authority.
-            </p>
+            <span className="tag">{tv("For Carriers · Active Now")}</span>
+            <h3>{tv("Truck Dispatching")}</h3>
+<p>{t.rich("rich_svc_d_p", { b: (c) => <b>{c}</b> })}</p>
             <ul>
-              <li>Load booking &amp; rate negotiation on top boards</li>
-              <li>Broker verification before every booking</li>
-              <li>Detention, lumper &amp; TONU support</li>
-              <li>Invoicing &amp; factoring coordination</li>
-              <li>No forced dispatch — you approve every load</li>
+              <li>{tv("Load booking & rate negotiation on top boards")}</li>
+              <li>{tv("Broker verification before every booking")}</li>
+              <li>{tv("Detention, lumper & TONU support")}</li>
+              <li>{tv("Invoicing & factoring coordination")}</li>
+              <li>{tv("No forced dispatch — you approve every load")}</li>
             </ul>
             <Link className="link" href="/#pricing">
-              See dispatch plans →
+              {tv("See dispatch plans →")}
             </Link>
           </div>
           <div className="svc broker" id="brokerage">
-            <span className="tag">For Shippers · Launching Soon</span>
-            <h3>Freight Brokerage</h3>
-            <p>
-              Full truckload and partial solutions with vetted carriers, real
-              tracking and one point of contact from pickup to POD.
-            </p>
+            <span className="tag">{tv("For Shippers · Launching Soon")}</span>
+            <h3>{tv("Freight Brokerage")}</h3>
+<p>{tv("Full truckload and partial solutions with vetted carriers, real tracking and one point of contact from pickup to POD.")}</p>
             <ul>
-              <li>FTL &amp; partial — dry, temp-controlled, open deck</li>
-              <li>Vetted carrier network (insurance &amp; safety checked)</li>
-              <li>Live shipment tracking &amp; proactive updates</li>
-              <li>Claims support &amp; document management</li>
+              <li>{tv("FTL & partial — dry, temp-controlled, open deck")}</li>
+              <li>{tv("Vetted carrier network (insurance & safety checked)")}</li>
+              <li>{tv("Live shipment tracking & proactive updates")}</li>
+              <li>{tv("Claims support & document management")}</li>
             </ul>
             <Link className="link" href="/shippers">
-              Request a freight quote →
+              {tv("Request a freight quote →")}
             </Link>
             <span className="soon">
               {"// Opens upon activation of MC authority + BMC-84 $75K surety bond"}

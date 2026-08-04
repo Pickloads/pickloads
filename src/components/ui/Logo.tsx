@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 
 /** V4 shield logo + wordmark (SVG copied verbatim from the prototype). */
 export function Logo({ small = false }: { small?: boolean }) {

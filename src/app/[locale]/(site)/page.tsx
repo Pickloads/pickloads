@@ -1,4 +1,5 @@
 import { Hero } from "@/components/sections/Hero";
+import { setRequestLocale } from "next-intl/server";
 import { LoadTicker } from "@/components/sections/LoadTicker";
 import { QuickQuote } from "@/components/sections/QuickQuote";
 import { ServicesSplit } from "@/components/sections/ServicesSplit";
@@ -22,7 +23,14 @@ import { CtaBand } from "@/components/sections/CtaBand";
  * company_settings gate once verified reviews exist.
  * NOTE: moves to src/app/[locale]/page.tsx in M-13.
  */
-export default function HomePage() {
+export default async function HomePage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+
   return (
     <main>
         <Hero />

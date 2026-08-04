@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { setRequestLocale } from "next-intl/server";
 import { PageHero } from "@/components/ui/PageHero";
 import { FreightQuoteForm } from "@/components/forms/FreightQuoteForm";
 
@@ -8,7 +9,14 @@ export const metadata: Metadata = {
     "Full truckload and partial freight with vetted carriers, live tracking and one point of contact from pickup to proof of delivery. Request a quote — answered within one business hour.",
 };
 
-export default function ShippersPage() {
+export default async function ShippersPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+
   return (
     <main>
       <PageHero

@@ -1,11 +1,10 @@
+import { useV4Rich } from "@/i18n/v4";
 export function BoardsStrip() {
+  const t = useV4Rich();
   return (
     <div className="boards-strip">
       <div className="wrap">
-        <p>
-          <b>Your dispatcher works every major load source</b> — plus direct
-          broker relationships built lane by lane.
-        </p>
+<p>{t.rich("rich_boards_p", { b: (c) => <b>{c}</b> })}</p>
         <div className="board-names">
           <span className="board-name">DAT ONE</span>
           <span className="board-name">TRUCKSTOP</span>

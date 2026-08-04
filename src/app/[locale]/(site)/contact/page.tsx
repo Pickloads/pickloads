@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { setRequestLocale } from "next-intl/server";
+import { Link } from "@/i18n/navigation";
 import { PageHero } from "@/components/ui/PageHero";
 
 export const metadata: Metadata = {
@@ -15,7 +16,14 @@ export const metadata: Metadata = {
  * Social links stay inert until the profiles exist (same rule as U-09:
  * no dead outbound links at launch — URLs land via company_settings in M-14).
  */
-export default function ContactPage() {
+export default async function ContactPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+
   return (
     <main>
       <PageHero eyebrow="Contact" title="Talk to a human. Today.">
