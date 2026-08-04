@@ -1,6 +1,7 @@
 import { Link } from "@/i18n/navigation";
+import { useV4 } from "@/i18n/v4";
 
-/* Slugs match /dispatch/[equipment] (M-16) and content/equipment/*.mdx */
+/* Slugs match /dispatch/[equipment] (M-16) and src/content/equipment.ts */
 const EQUIPMENT = [
   ["EQ-01", "dry-van", "Dry Van Dispatch", "53' general freight, the backbone of the network."],
   ["EQ-02", "reefer", "Reefer Dispatch", "Temp-controlled produce, food & pharma loads."],
@@ -13,21 +14,23 @@ const EQUIPMENT = [
 ] as const;
 
 export function EquipmentGrid() {
+  const tv = useV4();
   return (
     <section id="equipment">
       <div className="wrap">
-        <span className="eyebrow">Equipment we dispatch</span>
-        <h2 className="sec">Every trailer. Every lane.</h2>
+        <span className="eyebrow">{tv("Equipment we dispatch")}</span>
+        <h2 className="sec">{tv("Every trailer. Every lane.")}</h2>
         <p className="sub">
-          Each equipment type has its own dedicated dispatch page — lanes, rates
-          and requirements. Built for drivers searching Google.
+          {tv(
+            "Each equipment type has its own dedicated dispatch page — lanes, rates and requirements. Built for drivers searching Google.",
+          )}
         </p>
         <div className="eq-grid">
           {EQUIPMENT.map(([mm, slug, title, blurb]) => (
             <Link className="eq-card" key={slug} href={`/dispatch/${slug}`}>
               <span className="mm">{mm}</span>
-              <h3>{title}</h3>
-              <p>{blurb}</p>
+              <h3>{tv(title)}</h3>
+              <p>{tv(blurb)}</p>
             </Link>
           ))}
         </div>

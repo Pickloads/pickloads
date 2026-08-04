@@ -1,12 +1,15 @@
 "use client";
 
+import { useV4 } from "@/i18n/v4";
+
 /* Newsletter signup (double opt-in per audit S-05). Wiring lands in M-14. */
 export function NewsletterForm() {
+  const tv = useV4();
   return (
     <div className="newsletter">
-      <h3>Get Freight Insights in your inbox</h3>
+      <h3>{tv("Get Freight Insights in your inbox")}</h3>
       <div className="field">
-        <label htmlFor="nl-email">Email address</label>
+        <label htmlFor="nl-email">{tv("Email address")}</label>
         <input
           id="nl-email"
           name="email"
@@ -22,11 +25,12 @@ export function NewsletterForm() {
           /* M-14: subscribe server action + confirmation email */
         }}
       >
-        Subscribe
+        {tv("Subscribe")}
       </button>
       <div className="form-ok" style={{ flexBasis: "100%" }} role="status">
-        ✓ CHECK YOUR INBOX — Confirm your email to finish subscribing. Market
-        updates and dispatch tips, twice a month. No spam.
+        {tv(
+          "✓ CHECK YOUR INBOX — Confirm your email to finish subscribing. Market updates and dispatch tips, twice a month. No spam.",
+        )}
       </div>
     </div>
   );

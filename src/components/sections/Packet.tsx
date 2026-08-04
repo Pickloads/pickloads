@@ -1,6 +1,7 @@
 "use client";
 
 import { showToast } from "@/components/ui/PortalToast";
+import { useV4 } from "@/i18n/v4";
 
 /*
  * Download links stay inert until lawyer-approved PDFs exist
@@ -15,14 +16,25 @@ const PACKET_DOCS = [
 ] as const;
 
 export function Packet() {
+  const tv = useV4();
+  const uploadToast = () =>
+    showToast({
+      title: tv("Secure upload — Coming Soon."),
+      body: tv(
+        "Document upload + e-signature launch with the production build. Email your docs to support@pickloads.com for now.",
+      ),
+    });
   return (
     <section id="packet">
       <div className="wrap">
-        <span className="eyebrow">Carrier packet</span>
-        <h2 className="sec">Everything you need to sign on — in one place.</h2>
+        <span className="eyebrow">{tv("Carrier packet")}</span>
+        <h2 className="sec">
+          {tv("Everything you need to sign on — in one place.")}
+        </h2>
         <p className="sub">
-          Download the documents, or upload yours and let us build the packet
-          for you.
+          {tv(
+            "Download the documents, or upload yours and let us build the packet for you.",
+          )}
         </p>
         <div className="packet-grid">
           <div className="packet-list">
@@ -31,8 +43,8 @@ export function Packet() {
                 <div className="doc">
                   <i>PDF</i>
                   <div>
-                    <b>{title}</b>
-                    <span>{blurb}</span>
+                    <b>{tv(title)}</b>
+                    <span>{tv(blurb)}</span>
                   </div>
                 </div>
                 <a
@@ -41,12 +53,14 @@ export function Packet() {
                   onClick={(e) => {
                     e.preventDefault();
                     showToast({
-                      title: "Packet downloads — available at launch.",
-                      body: "Final documents are in legal review. Email support@pickloads.com and we'll send them directly.",
+                      title: tv("Packet downloads — available at launch."),
+                      body: tv(
+                        "Final documents are in legal review. Email support@pickloads.com and we'll send them directly.",
+                      ),
                     });
                   }}
                 >
-                  DOWNLOAD ↓
+                  {tv("DOWNLOAD ↓")}
                 </a>
               </div>
             ))}
@@ -55,30 +69,26 @@ export function Packet() {
             className="upload"
             role="button"
             tabIndex={0}
-            onClick={() =>
-              showToast({
-                title: "Secure upload — Coming Soon.",
-                body: "Document upload + e-signature launch with the production build. Email your docs to support@pickloads.com for now.",
-              })
-            }
+            onClick={uploadToast}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
-                showToast({
-                  title: "Secure upload — Coming Soon.",
-                  body: "Document upload + e-signature launch with the production build. Email your docs to support@pickloads.com for now.",
-                });
+                uploadToast();
               }
             }}
           >
             <span className="big" aria-hidden="true">⇪</span>
-            <b>Upload your documents</b>
+            <b>{tv("Upload your documents")}</b>
             <span>
-              MC/DOT letter, certificate of insurance, W-9, voided check — drag
-              &amp; drop or tap to browse.
+              {tv(
+                "MC/DOT letter, certificate of insurance, W-9, voided check — drag & drop or tap to browse.",
+              )}
             </span>
             <span className="mono">
-              {"// Secure upload + e-signature go live with the production build"}
+              {"// "}
+              {tv(
+                "Secure upload + e-signature go live with the production build",
+              )}
             </span>
           </div>
         </div>

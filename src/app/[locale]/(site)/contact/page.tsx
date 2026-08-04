@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { PageHero } from "@/components/ui/PageHero";
+import { useV4, useV4Rich } from "@/i18n/v4";
 
 export const metadata: Metadata = {
   title: "Contact PickLoads — Talk to a Human Today",
@@ -23,11 +24,18 @@ export default async function ContactPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
+  return <ContactContent />;
+}
 
+function ContactContent() {
+  const tv = useV4();
+  const t = useV4Rich();
   return (
     <main>
-      <PageHero eyebrow="Contact" title="Talk to a human. Today.">
-        Dispatch questions, freight quotes, partnerships — we answer fast.
+      <PageHero eyebrow={tv("Contact")} title={tv("Talk to a human. Today.")}>
+        {tv(
+          "Dispatch questions, freight quotes, partnerships — we answer fast.",
+        )}
       </PageHero>
 
       <section>
@@ -36,7 +44,7 @@ export default async function ContactPage({
             <div className="c-card">
               <span className="ic" aria-hidden="true">☎</span>
               <div>
-                <b>Phone — 24/7 Dispatch Line</b>
+                <b>{tv("Phone — 24/7 Dispatch Line")}</b>
                 <a href="tel:+19084045373" className="mono">
                   (908) 404-5373
                 </a>
@@ -45,7 +53,7 @@ export default async function ContactPage({
             <div className="c-card">
               <span className="ic" aria-hidden="true">✉</span>
               <div>
-                <b>Email</b>
+                <b>{tv("Email")}</b>
                 <a href="mailto:support@pickloads.com" className="mono">
                   support@pickloads.com
                 </a>
@@ -54,7 +62,7 @@ export default async function ContactPage({
             <div className="c-card">
               <span className="ic" aria-hidden="true">📍</span>
               <div>
-                <b>Office</b>
+                <b>{tv("Office")}</b>
                 <span>
                   50 Union Ave, Suite 805-A
                   <br />
@@ -65,18 +73,14 @@ export default async function ContactPage({
             <div className="c-card">
               <span className="ic" aria-hidden="true">🕐</span>
               <div>
-                <b>Office Hours</b>
-                <span>
-                  Mon–Fri 8am–6pm ET · Sat 9am–2pm ET
-                  <br />
-                  Dispatch support: 24/7, including holidays
-                </span>
+                <b>{tv("Office Hours")}</b>
+                <span>{t.rich("rich_ct_hours", { br: () => <br /> })}</span>
               </div>
             </div>
             <div className="c-card">
               <span className="ic" aria-hidden="true">＠</span>
               <div>
-                <b>Follow PickLoads</b>
+                <b>{tv("Follow PickLoads")}</b>
                 <div className="socials">
                   <a>FACEBOOK</a>
                   <a>INSTAGRAM</a>
@@ -100,22 +104,23 @@ export default async function ContactPage({
       <section className="cta-band">
         <div className="wrap">
           <div>
-            <h2>Prefer to just get started?</h2>
+            <h2>{tv("Prefer to just get started?")}</h2>
             <p>
-              Carrier setup takes 5 minutes. Shipper quotes answered within the
-              hour.
+              {tv(
+                "Carrier setup takes 5 minutes. Shipper quotes answered within the hour.",
+              )}
             </p>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <Link className="btn btn-dark" href="/#quote">
-              Start Carrier Setup
+              {tv("Start Carrier Setup")}
             </Link>
             <Link
               className="btn btn-ghost"
               style={{ borderColor: "rgba(18,22,26,.35)", color: "var(--ink)" }}
               href="/shippers"
             >
-              Request a Freight Quote
+              {tv("Request a Freight Quote")}
             </Link>
           </div>
         </div>

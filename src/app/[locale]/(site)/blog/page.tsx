@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
 import { PageHero } from "@/components/ui/PageHero";
 import { NewsletterForm } from "@/components/forms/NewsletterForm";
+import { useV4 } from "@/i18n/v4";
 
 export const metadata: Metadata = {
   title: "Freight Insights — Market Updates & Dispatch Strategy | PickLoads",
@@ -29,12 +30,20 @@ export default async function BlogPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
+  return <BlogContent />;
+}
 
+function BlogContent() {
+  const tv = useV4();
   return (
     <main>
-      <PageHero eyebrow="Freight Insights" title="The road, the rates, the rules.">
-        Market updates, dispatch strategy and FMCSA news — written for the
-        people actually running trucks.
+      <PageHero
+        eyebrow={tv("Freight Insights")}
+        title={tv("The road, the rates, the rules.")}
+      >
+        {tv(
+          "Market updates, dispatch strategy and FMCSA news — written for the people actually running trucks.",
+        )}
       </PageHero>
 
       <section>
@@ -42,11 +51,11 @@ export default async function BlogPage({
           <div className="blog-grid">
             {SAMPLE_POSTS.map(([cover, tag, title, excerpt, meta]) => (
               <a className="post" key={title}>
-                <div className={`cover ${cover}`}>{tag}</div>
+                <div className={`cover ${cover}`}>{tv(tag)}</div>
                 <div className="body">
-                  <h3>{title}</h3>
-                  <p>{excerpt}</p>
-                  <span className="meta">{meta}</span>
+                  <h3>{tv(title)}</h3>
+                  <p>{tv(excerpt)}</p>
+                  <span className="meta">{tv(meta)}</span>
                 </div>
               </a>
             ))}
