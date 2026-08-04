@@ -38,6 +38,7 @@ suites from M-40 on). Details live in each module's doc.
 | M-52 | U | [M-52-create-account-carrier.md](M-52-create-account-carrier.md) | `/create-account` chooser (D1-gated shipper door) + carrier registration with authority-status routing (onboarding / pending / new-authority / leased-on manual review), never-auto-confirmed signups, verified-email loop |
 | M-53 | U | [M-53-shipper-registration.md](M-53-shipper-registration.md) | Shipper registration (industry/frequency/regions, quote-request wording), server-side role promotion, post-verification quote claiming + RLS-scoped shipper portal reads (admin-client workaround retired for self-signups) |
 | M-54 | U | [M-54-role-redirects.md](M-54-role-redirects.md) | Role-aware redirects everywhere (login fallback → `/portal` router, authed auth-pages bounce), central suspension enforcement, expired-session + suspended + unverified-email states, role-integrity verified (unit + PG trigger checks) |
+| M-55 | U | [M-55-carrier-portal-completion.md](M-55-carrier-portal-completion.md) | Carrier portal completion: overview dashboard, D5 profile editing + change requests, trucks/drivers CRUD, agreements + re-send, invoices mirror surface, notifications, support threads (+staff inbox), account settings; migration 0010 |
 
 Phases: 0 = foundations · 1 = public site · 2 = onboarding/CRM · 3 =
 loads/billing/content · H = hardening · U = upgrade directive (M-50a audit).

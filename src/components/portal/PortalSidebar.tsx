@@ -2,10 +2,16 @@
 
 import { Link, usePathname } from "@/i18n/navigation";
 import { Logo } from "@/components/ui/Logo";
+import { useV4 } from "@/i18n/v4";
 import { createClient } from "@/lib/supabase/client";
 import type { UserRole } from "@/lib/supabase/database.types";
 
-/** M-23 portal navigation — V4 vocabulary on the dark shell (U-10). */
+/**
+ * M-23 portal navigation — V4 vocabulary on the dark shell (U-10).
+ * M-55/M-56 complete the customer navs (directive sections) and translate
+ * customer-facing labels via the V4 bridge; the staff nav stays English
+ * (existing scope decision).
+ */
 export function PortalSidebar({
   role,
   fullName,
@@ -13,6 +19,7 @@ export function PortalSidebar({
   role: UserRole;
   fullName: string | null;
 }) {
+  const tv = useV4();
   const pathname = usePathname();
   const isStaff = role === "admin" || role === "dispatcher";
 
@@ -49,25 +56,35 @@ export function PortalSidebar({
           {item("/portal/admin", "Dashboard", true)}
           {item("/portal/admin/leads", "Leads CRM")}
           {item("/portal/admin/loads", "Loads")}
+          {item("/portal/admin/support", "Support inbox")}
           {item("/portal/admin/posts", "Blog posts")}
           {role === "admin" ? item("/portal/admin/settings", "Settings") : null}
         </>
       ) : role === "shipper" ? (
         <>
-          <span className="plabel">Shipper portal</span>
-          {item("/portal/shipper", "My Quotes", true)}
-          <Link href="/shippers">Request a quote</Link>
+          {/* M-56 completes this nav (overview/quote form/support/settings). */}
+          <span className="plabel">{tv("Shipper portal")}</span>
+          {item("/portal/shipper", tv("My Quotes"), true)}
+          <Link href="/shippers">{tv("Request a quote")}</Link>
         </>
       ) : (
         <>
-          <span className="plabel">Carrier portal</span>
-          {item("/portal/carrier", "My Documents", true)}
-          {item("/portal/carrier/loads", "My Loads")}
-          {item("/portal/carrier/profile", "My Profile")}
+          <span className="plabel">{tv("Carrier portal")}</span>
+          {item("/portal/carrier", tv("Overview"), true)}
+          {item("/portal/carrier/profile", tv("Company Profile"))}
+          {item("/portal/carrier/trucks", tv("Trucks & Equipment"))}
+          {item("/portal/carrier/drivers", tv("Drivers"))}
+          {item("/portal/carrier/documents", tv("Documents"))}
+          {item("/portal/carrier/agreements", tv("Agreements"))}
+          {item("/portal/carrier/loads", tv("Loads"))}
+          {item("/portal/carrier/invoices", tv("Invoices & Payments"))}
+          {item("/portal/carrier/notifications", tv("Notifications"))}
+          {item("/portal/carrier/support", tv("Support"))}
+          {item("/portal/carrier/settings", tv("Account Settings"))}
         </>
       )}
-      <span className="plabel">Site</span>
-      <Link href="/">← Back to pickloads.com</Link>
+      <span className="plabel">{tv("Site")}</span>
+      <Link href="/">← {tv("Back to pickloads.com")}</Link>
       <a
         href="#signout"
         onClick={(e) => {
@@ -75,7 +92,7 @@ export function PortalSidebar({
           void signOut();
         }}
       >
-        Sign out
+        {tv("Sign out")}
       </a>
       <div className="pfoot">
         {fullName ?? "—"}

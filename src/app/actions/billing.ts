@@ -152,6 +152,24 @@ export async function generateLoadInvoice(
       console.error("[billing] ledger write failed", ledgerError.message);
     }
 
+    // ---- M-55: invoices mirror row (0008) — the queryable billing record
+    // the carrier "Invoices & Payments" page reads. Stripe stays the system
+    // of record for money; the webhook updates status transitions. ----
+    const { error: mirrorError } = await admin.from("invoices").insert({
+      carrier_id: carrier.id,
+      load_id: load.id,
+      stripe_invoice_id: invoice.id,
+      amount_cents: amountCents,
+      currency: "usd",
+      status: "open",
+      hosted_url: hostedUrl,
+      issued_at: new Date().toISOString(),
+      due_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    });
+    if (mirrorError) {
+      console.error("[billing] invoice mirror write failed", mirrorError.message);
+    }
+
     // ---- delivered → invoiced (cookie-bound: RLS + M-30 state machine) ----
     const { error: statusError } = await supabase
       .from("loads")

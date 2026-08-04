@@ -1,21 +1,26 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { getPathname } from "@/i18n/navigation";
-import { requireProfile, portalHomeFor } from "@/lib/auth";
+import { requireCarrier } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { getMyCarrierId } from "@/lib/memberships";
 import { getV4 } from "@/i18n/v4-server";
+import {
+  ChangeRequestForm,
+  ContactInfoForm,
+  DispatchPreferencesForm,
+} from "@/components/portal/CarrierProfileForms";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "My Profile — PickLoads Carrier Portal",
+  title: "Company Profile — PickLoads Carrier Portal",
   robots: { index: false, follow: false },
 };
 
 /**
- * M-25 — carrier profile & company info (read-only v1; changes go through
- * the dispatch desk so MC/insurance data stays verified — judgment call
- * documented in docs/modules/M-25-carrier-portal.md).
+ * M-55 — company profile, upgraded from the M-25 read-only page per decision
+ * D5: contact info + dispatch preferences are self-serve; regulated fields
+ * (MC/DOT/EIN/insurance/factoring) render read-only and change only through
+ * the staff-reviewed change-request flow (tagged support thread + audit).
  */
 export default async function CarrierProfilePage({
   params,
@@ -23,26 +28,26 @@ export default async function CarrierProfilePage({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
-  const session = await requireProfile(locale);
-  if (session.role !== "carrier") {
-    redirect(getPathname({ href: portalHomeFor(session.role), locale }));
-  }
+  const session = await requireCarrier(locale);
   const tv = await getV4(locale);
   const supabase = await createClient();
 
+  const carrierId = await getMyCarrierId(supabase);
   const [{ data: profile }, { data: carrier }] = await Promise.all([
     supabase
       .from("profiles")
       .select("full_name, phone, company_name, preferred_language")
       .eq("id", session.userId)
       .maybeSingle(),
-    supabase
-      .from("carriers")
-      .select(
-        "company_name, mc_number, dot_number, home_state, factoring_company, insurance_expiry, dispatch_fee_pct, agreement_signed_at, active, ein",
-      )
-      .eq("profile_id", session.userId)
-      .maybeSingle(),
+    carrierId
+      ? supabase
+          .from("carriers")
+          .select(
+            "company_name, mc_number, dot_number, home_state, factoring_company, insurance_expiry, dispatch_fee_pct, agreement_signed_at, active, ein, preferred_lanes, home_time_notes",
+          )
+          .eq("id", carrierId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
 
   const row = (label: string, value: React.ReactNode) => (
@@ -59,105 +64,95 @@ export default async function CarrierProfilePage({
       <div className="pbar">
         <div>
           <span className="crumb">{tv("Carrier portal")}</span>
-          <h1>{tv("My Profile")}</h1>
+          <h1>{tv("Company Profile")}</h1>
         </div>
       </div>
 
       <div className="pgrid2">
-        <div className="pcard">
-          <h2>{tv("Account")}</h2>
-          <div className="ptable-wrap" style={{ border: "none" }}>
-            <table className="ptable">
-              <tbody>
-                {row(tv("Name"), profile?.full_name ?? "—")}
-                {row(tv("Email"), session.email ?? "—")}
-                {row(tv("Phone"), profile?.phone ?? "—")}
-                {row(
-                  tv("Language"),
-                  (profile?.preferred_language ?? "en").toUpperCase(),
+        <div>
+          <div className="pcard">
+            <h2>{tv("Contact info")}</h2>
+            <p className="mono" style={{ fontSize: ".72rem", color: "var(--steel)", marginBottom: 12 }}>
+              {tv("Email")}: {session.email ?? "—"} ·{" "}
+              {tv("Change it in Account Settings.")}
+            </p>
+            <ContactInfoForm
+              fullName={profile?.full_name ?? null}
+              phone={profile?.phone ?? null}
+            />
+          </div>
+
+          <div className="pcard">
+            <h2>{tv("Dispatch preferences")}</h2>
+            <p className="mono" style={{ fontSize: ".72rem", color: "var(--steel)", marginBottom: 12 }}>
+              {tv("Your dispatcher plans lanes around these — update them any time.")}
+            </p>
+            {carrier ? (
+              <DispatchPreferencesForm
+                preferredLanes={carrier.preferred_lanes}
+                homeTimeNotes={carrier.home_time_notes}
+              />
+            ) : (
+              <p className="pempty" style={{ padding: 0 }}>
+                {tv(
+                  "Your account isn't linked to a carrier record yet. If you just onboarded, our team activates the link during document review — or call (908) 404-5373.",
                 )}
-              </tbody>
-            </table>
+              </p>
+            )}
           </div>
         </div>
 
-        <div className="pcard">
-          <h2>{tv("Company")}</h2>
-          {carrier ? (
-            <div className="ptable-wrap" style={{ border: "none" }}>
-              <table className="ptable">
-                <tbody>
-                  {row(tv("Company Name"), carrier.company_name)}
-                  {row(tv("MC #"), carrier.mc_number ?? "—")}
-                  {row(tv("USDOT #"), carrier.dot_number ?? "—")}
-                  {row(tv("Home State"), carrier.home_state ?? "—")}
-                  {row(tv("Factoring"), carrier.factoring_company ?? "—")}
-                  {row(tv("Insurance expiry"), carrier.insurance_expiry ?? "—")}
-                  {row(
-                    tv("Dispatch fee"),
-                    `${carrier.dispatch_fee_pct}% ${tv("of gross per load")}`,
-                  )}
-                  {row(
-                    tv("EIN"),
-                    carrier.ein !== null ? (
-                      <span className="pbadge green">
-                        {tv("on file (encrypted)")}
-                      </span>
-                    ) : (
-                      "—"
-                    ),
-                  )}
-                  {row(
-                    tv("Dispatch agreement"),
-                    carrier.agreement_signed_at !== null ? (
-                      <span className="pbadge green">
-                        {tv("Signed")}{" "}
-                        {new Date(
-                          carrier.agreement_signed_at,
-                        ).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </span>
-                    ) : (
-                      <span className="pbadge amber">
-                        {tv("Awaiting signature")}
-                      </span>
-                    ),
-                  )}
-                  {row(
-                    tv("Status"),
-                    carrier.active ? (
-                      <span className="pbadge green">{tv("Active carrier")}</span>
-                    ) : (
-                      <span className="pbadge amber">
-                        {tv("Onboarding in progress")}
-                      </span>
-                    ),
-                  )}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="pempty" style={{ padding: 0 }}>
+        <div>
+          <div className="pcard">
+            <h2>{tv("Regulated company data")}</h2>
+            {carrier ? (
+              <div className="ptable-wrap" style={{ border: "none" }}>
+                <table className="ptable">
+                  <tbody>
+                    {row(tv("Company Name"), carrier.company_name)}
+                    {row(tv("MC #"), carrier.mc_number ?? "—")}
+                    {row(tv("USDOT #"), carrier.dot_number ?? "—")}
+                    {row(tv("Home State"), carrier.home_state ?? "—")}
+                    {row(tv("Factoring"), carrier.factoring_company ?? "—")}
+                    {row(tv("Insurance expiry"), carrier.insurance_expiry ?? "—")}
+                    {row(
+                      tv("Dispatch fee"),
+                      `${carrier.dispatch_fee_pct}% ${tv("of gross per load")}`,
+                    )}
+                    {row(
+                      tv("EIN"),
+                      carrier.ein !== null ? (
+                        <span className="pbadge green">{tv("on file (encrypted)")}</span>
+                      ) : (
+                        "—"
+                      ),
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="pempty" style={{ padding: 0 }}>
+                {tv(
+                  "Your account isn't linked to a carrier record yet. If you just onboarded, our team activates the link during document review — or call (908) 404-5373.",
+                )}
+              </p>
+            )}
+            <p className="mono" style={{ fontSize: ".72rem", color: "var(--steel)", marginTop: 10 }}>
+              {"// "}
               {tv(
-                "Your account isn't linked to a carrier record yet. If you just onboarded, our team activates the link during document review — or call (908) 404-5373.",
+                "These fields are verified by our compliance team — request a change below and we'll apply it after review.",
               )}
             </p>
-          )}
+          </div>
+
+          {carrier ? (
+            <div className="pcard">
+              <h2>{tv("Request a change")}</h2>
+              <ChangeRequestForm />
+            </div>
+          ) : null}
         </div>
       </div>
-
-      <p
-        className="mono"
-        style={{ fontSize: ".72rem", color: "var(--steel)", marginTop: 6 }}
-      >
-        {"// "}
-        {tv(
-          "Need to update company details? Call (908) 404-5373 or email support@pickloads.com — changes to MC, insurance and banking data are verified by our team.",
-        )}
-      </p>
     </main>
   );
 }

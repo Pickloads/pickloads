@@ -123,6 +123,37 @@ export async function POST(request: Request) {
         .eq("id", loadId.data)
         .eq("status", "invoiced");
       if (updateError) throw new Error(updateError.message);
+
+      // M-55: keep the invoices mirror (0008) in step — the carrier portal
+      // reads it. Missing row (pre-mirror invoice) is not an error.
+      const { error: mirrorError } = await admin
+        .from("invoices")
+        .update({ status: "paid", paid_at: new Date().toISOString() })
+        .eq("stripe_invoice_id", invoice.data.id);
+      if (mirrorError) {
+        console.error("[stripe-webhook] mirror update failed", mirrorError.message);
+      }
+    } else if (
+      event.type === "invoice.voided" ||
+      event.type === "invoice.marked_uncollectible"
+    ) {
+      // M-55 mirror status transitions beyond paid.
+      const invoice = invoiceObjectSchema.safeParse(event.data.object);
+      if (invoice.success) {
+        const { error: mirrorError } = await admin
+          .from("invoices")
+          .update({
+            status:
+              event.type === "invoice.voided" ? "void" : "uncollectible",
+          })
+          .eq("stripe_invoice_id", invoice.data.id);
+        if (mirrorError) {
+          console.error(
+            "[stripe-webhook] mirror update failed",
+            mirrorError.message,
+          );
+        }
+      }
     } else if (event.type === "invoice.payment_failed") {
       const invoice = invoiceObjectSchema.safeParse(event.data.object);
       const invoiceId = invoice.success ? invoice.data.id : "unknown";

@@ -73,6 +73,24 @@ export function portalHomeFor(role: UserRole): string {
   return "/portal/carrier";
 }
 
+/** M-55 page gate: carrier role only; other roles land on their own home. */
+export async function requireCarrier(locale: string): Promise<SessionProfile> {
+  const session = await requireProfile(locale);
+  if (session.role !== "carrier") {
+    redirect(localizedPath(portalHomeFor(session.role), locale));
+  }
+  return session;
+}
+
+/** M-55 page gate: shipper role only; other roles land on their own home. */
+export async function requireShipper(locale: string): Promise<SessionProfile> {
+  const session = await requireProfile(locale);
+  if (session.role !== "shipper") {
+    redirect(localizedPath(portalHomeFor(session.role), locale));
+  }
+  return session;
+}
+
 /** Page gate: staff only (admin/dispatcher); others land on their portal. */
 export async function requireStaff(locale: string): Promise<SessionProfile> {
   const session = await requireProfile(locale);

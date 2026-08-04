@@ -190,6 +190,12 @@ type CarrierRow = {
   dispatch_fee_pct: number;
   agreement_signed_at: string | null;
   active: boolean;
+  /** M-55 (0010): self-serve dispatch preference (decision D5). */
+  preferred_lanes: string | null;
+  /** M-55 (0010): self-serve dispatch preference (decision D5). */
+  home_time_notes: string | null;
+  /** M-55 (0010): staff-assigned dispatcher (M-58 admin UI writes it). */
+  assigned_dispatcher_id: string | null;
   created_at: string;
   updated_at: string;
 }
