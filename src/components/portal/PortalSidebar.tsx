@@ -48,12 +48,14 @@ export function PortalSidebar({
           <span className="plabel">Dispatch desk</span>
           {item("/portal/admin", "Dashboard", true)}
           {item("/portal/admin/leads", "Leads CRM")}
+          {item("/portal/admin/loads", "Loads")}
           {role === "admin" ? item("/portal/admin/settings", "Settings") : null}
         </>
       ) : (
         <>
           <span className="plabel">Carrier portal</span>
           {item("/portal/carrier", "My Documents", true)}
+          {item("/portal/carrier/loads", "My Loads")}
           {item("/portal/carrier/profile", "My Profile")}
         </>
       )}

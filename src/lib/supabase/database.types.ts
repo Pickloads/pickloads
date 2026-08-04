@@ -212,6 +212,57 @@ type WebhookEventRow = {
   created_at: string;
 }
 
+/* ---------- Phase 3 rows (M-30 loads, M-33 posts) ---------- */
+
+type LoadRow = {
+  id: string;
+  carrier_id: string;
+  /** F-09: dispatcher attribution for the Dispatch dashboard module. */
+  dispatcher_id: string | null;
+  broker_name: string | null;
+  broker_mc: string | null;
+  origin_city: string | null;
+  origin_state: string | null;
+  dest_city: string | null;
+  dest_state: string | null;
+  pickup_date: string | null;
+  delivery_date: string | null;
+  equipment: string | null;
+  gross_rate: number | null;
+  miles: number | null;
+  /**
+   * F-03: snapshotted from carriers.dispatch_fee_pct by the BEFORE INSERT
+   * trigger when omitted. Nullable in DDL (trigger fills it), always set
+   * after insert (CHECK loads_fee_pct_applied_present).
+   */
+  fee_pct_applied: number | null;
+  /** Computed by trigger: round(gross_rate * fee_pct_applied / 100, 2). */
+  dispatch_fee: number;
+  status: LoadStatus;
+  rate_con_path: string | null;
+  bol_path: string | null;
+  pod_path: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+type PostRow = {
+  id: string;
+  slug: string;
+  locale: string;
+  title: string;
+  excerpt: string | null;
+  category: string | null;
+  body_md: string;
+  /** V4 blog cover gradient: c1 | c2 | c3 | c4. */
+  cover_style: string | null;
+  published: boolean;
+  published_at: string | null;
+  author_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 type Insertable<Row, Required extends keyof Row> = Pick<Row, Required> &
   Partial<Omit<Row, Required>>;
 
@@ -287,11 +338,20 @@ export type Database = {
         Update: Partial<WebhookEventRow>;
         Relationships: [];
       };
-      /*
-       * Phase 3 tables (loads, posts) are added here by their owning modules —
-       * or the whole file is replaced by `supabase gen types` output once a
-       * project is linked.
-       */
+      loads: {
+        // fee_pct_applied/dispatch_fee are trigger-computed (F-03) — inserts
+        // omit them unless an admin explicitly overrides the snapshot pct.
+        Row: LoadRow;
+        Insert: Insertable<LoadRow, "carrier_id">;
+        Update: Partial<LoadRow>;
+        Relationships: [];
+      };
+      posts: {
+        Row: PostRow;
+        Insert: Insertable<PostRow, "slug" | "title" | "body_md">;
+        Update: Partial<PostRow>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
