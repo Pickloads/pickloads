@@ -23,6 +23,8 @@ export function LoginForm() {
   const searchParams = useSearchParams();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // M-52: landing spot of the Supabase email-verification link.
+  const verified = searchParams.get("verified") === "1";
 
   const configured =
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
@@ -66,6 +68,11 @@ export function LoginForm() {
     <div className="bigform" style={{ maxWidth: 460, margin: "44px auto 0" }}>
       <h2>{tv("Carrier & staff sign in")}</h2>
       <p>{tv("Access your documents, agreement status and dispatch tools.")}</p>
+      {verified ? (
+        <div className="form-ok show" role="status" style={{ marginBottom: 18 }}>
+          {tv("✓ Email verified — you can sign in now.")}
+        </div>
+      ) : null}
       <form onSubmit={handleSubmit}>
         <div className="field" style={{ marginBottom: 16 }}>
           <label htmlFor="login-email">{tv("Email")}</label>

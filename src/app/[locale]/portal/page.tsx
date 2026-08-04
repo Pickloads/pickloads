@@ -69,8 +69,9 @@ export default async function PortalSelectPage({
                   {tv("Carrier Sign In →")}
                 </Link>
                 <span className="soon">
-                  <Link href="/become-a-carrier">
-                    {tv("New to PickLoads? Become a carrier →")}
+                  {/* M-52: account-first door replaces the wizard shortcut. */}
+                  <Link href="/create-account/carrier">
+                    {tv("New to PickLoads? Create your carrier account →")}
                   </Link>
                 </span>
               </div>

@@ -27,9 +27,10 @@ const MOBILE_LINKS = [
   { href: "/blog", label: "Freight Insights" },
   { href: "/about", label: "About Us" },
   { href: "/contact", label: "Contact" },
-  // M-51: auth + support entries (directive).
+  // M-51: auth + support entries (directive); M-52 points Get Started at
+  // the /create-account chooser.
   { href: "/login", label: "Login" },
-  { href: "/portal", label: "Get Started →" },
+  { href: "/create-account", label: "Get Started →" },
   { href: "/contact", label: "Support" },
 ] as const;
 
@@ -54,8 +55,8 @@ export function SiteNav() {
           ))}
         </div>
         <div className="nav-cta">
-          {/* M-51: secondary Get Started (directive) → the portal chooser. */}
-          <Link className="btn btn-ghost" href="/portal">
+          {/* M-51 secondary Get Started (directive); M-52 → account chooser. */}
+          <Link className="btn btn-ghost" href="/create-account">
             {tv("Get Started →")}
           </Link>
           <Link className="btn btn-amber" href="/#quote">

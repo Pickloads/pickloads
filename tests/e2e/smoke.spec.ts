@@ -121,6 +121,38 @@ test.describe("portal doors (M-51)", () => {
   });
 });
 
+test.describe("create account (M-52, secretless)", () => {
+  test("/create-account chooser renders both doors", async ({ page }) => {
+    await page.goto("/create-account");
+    await expect(
+      page.getByRole("heading", { name: "Get started with PickLoads" }),
+    ).toBeVisible();
+    await expect(page.locator(".svc.dispatch h3")).toHaveText("I run trucks");
+    await expect(page.locator(".svc.broker h3")).toHaveText("I ship freight");
+    await expect(
+      page.getByRole("link", { name: "Create Carrier Account →" }),
+    ).toBeVisible();
+  });
+
+  test("carrier registration degrades honestly without env", async ({
+    page,
+  }) => {
+    await page.goto("/create-account/carrier");
+    await page.locator("#ca-company").fill("Smoke Test Trucking LLC");
+    await page.locator("#ca-name").fill("Smoke Tester");
+    await page.locator("#ca-email").fill("smoke@example.com");
+    await page.locator("#ca-phone").fill("(908) 404-5373");
+    await page.locator("#ca-mc").fill("MC-123456");
+    await page.locator("#ca-pass").fill("hunter22b");
+    await page.getByRole("button", { name: /Create Account/ }).click();
+    // No Supabase env → the action must state that NOTHING was created —
+    // never a fake "check your email" (audit §6.4 honest-states rule).
+    await expect(page.locator(".form-err.show")).toContainText(
+      "no account was created",
+    );
+  });
+});
+
 test.describe("password recovery (M-42, secretless)", () => {
   test("/login links to /forgot-password, which degrades gracefully", async ({
     page,

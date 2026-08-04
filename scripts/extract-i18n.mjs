@@ -244,6 +244,210 @@ const SUPPLEMENTAL = {
       es: "El equipo de PickLoads inicia sesión por la misma puerta — el rol de tu cuenta te lleva al escritorio correcto.",
       fr: "L'équipe PickLoads se connecte par la même porte — le rôle de votre compte vous dirige vers le bon espace.",
     },
+  /* ---- M-52: /create-account chooser + carrier registration ---- */
+  "Get started with PickLoads": {
+    es: "Empieza con PickLoads",
+    fr: "Commencez avec PickLoads",
+  },
+  "Pick the account that matches how you move freight — it takes about two minutes.":
+    {
+      es: "Elige la cuenta que corresponde a cómo mueves tu carga — toma unos dos minutos.",
+      fr: "Choisissez le compte qui correspond à votre façon de transporter le fret — environ deux minutes.",
+    },
+  "Carrier Account": {
+    es: "Cuenta de Carrier",
+    fr: "Compte Transporteur",
+  },
+  "Shipper Account": {
+    es: "Cuenta de Shipper",
+    fr: "Compte Expéditeur",
+  },
+  "I run trucks": {
+    es: "Tengo camiones",
+    fr: "J'ai des camions",
+  },
+  "I ship freight": {
+    es: "Envío carga",
+    fr: "J'expédie du fret",
+  },
+  "Owner-operators and small fleets — with authority active, pending, or not started yet. We route you to the right next step.":
+    {
+      es: "Owner-operators y flotas pequeñas — con autoridad activa, pendiente o sin empezar. Te llevamos al siguiente paso correcto.",
+      fr: "Owner-operators et petites flottes — autorité active, en attente ou pas encore lancée. Nous vous guidons vers la bonne étape.",
+    },
+  "Authority active? Straight to onboarding.": {
+    es: "¿Autoridad activa? Directo al onboarding.",
+    fr: "Autorité active ? Directement à l'onboarding.",
+  },
+  "Application pending? We track it with you.": {
+    es: "¿Solicitud pendiente? La seguimos contigo.",
+    fr: "Demande en attente ? Nous la suivons avec vous.",
+  },
+  "No authority yet? We help you launch.": {
+    es: "¿Sin autoridad todavía? Te ayudamos a lanzarte.",
+    fr: "Pas encore d'autorité ? Nous vous aidons à démarrer.",
+  },
+  "Create Carrier Account →": {
+    es: "Crear cuenta de Carrier →",
+    fr: "Créer un compte transporteur →",
+  },
+  "Create Shipper Account →": {
+    es: "Crear cuenta de Shipper →",
+    fr: "Créer un compte expéditeur →",
+  },
+  "Already have an account? Sign in →": {
+    es: "¿Ya tienes cuenta? Inicia sesión →",
+    fr: "Vous avez déjà un compte ? Connectez-vous →",
+  },
+  "Get quotes and coordinate freight with vetted carriers — track every request and rate in your own portal.":
+    {
+      es: "Solicita cotizaciones y coordina tu carga con carriers verificados — sigue cada solicitud y tarifa en tu propio portal.",
+      fr: "Demandez des devis et coordonnez votre fret avec des transporteurs vérifiés — suivez chaque demande et tarif dans votre portail.",
+    },
+  "A dispatcher calls back within one business hour": {
+    es: "Un dispatcher te devuelve la llamada en una hora hábil",
+    fr: "Un dispatcher vous rappelle dans l'heure ouvrée",
+  },
+  "Shipper accounts are invite-only right now. Request a quote and we'll set you up personally.":
+    {
+      es: "Las cuentas de shipper son solo por invitación por ahora. Solicita una cotización y te configuramos personalmente.",
+      fr: "Les comptes expéditeur sont sur invitation pour le moment. Demandez un devis et nous vous installons personnellement.",
+    },
+  "Prefer a human? Call (908) 404-5373 and we'll set your account up over the phone.":
+    {
+      es: "¿Prefieres hablar con alguien? Llama al (908) 404-5373 y configuramos tu cuenta por teléfono.",
+      fr: "Vous préférez parler à quelqu'un ? Appelez le (908) 404-5373 et nous créerons votre compte par téléphone.",
+    },
+  "Create your carrier account": {
+    es: "Crea tu cuenta de carrier",
+    fr: "Créez votre compte transporteur",
+  },
+  "Tell us where your authority stands and we'll route you to the right next step — onboarding, tracking, or launch help.":
+    {
+      es: "Cuéntanos cómo va tu autoridad y te llevamos al siguiente paso correcto — onboarding, seguimiento o ayuda de lanzamiento.",
+      fr: "Dites-nous où en est votre autorité et nous vous guidons vers la bonne étape — onboarding, suivi ou aide au lancement.",
+    },
+  "Your carrier account": {
+    es: "Tu cuenta de carrier",
+    fr: "Votre compte transporteur",
+  },
+  "About 2 minutes. Onboarding — documents and the dispatch agreement — continues after your email is verified.":
+    {
+      es: "Unos 2 minutos. El onboarding — documentos y acuerdo de dispatch — continúa cuando verifiques tu correo.",
+      fr: "Environ 2 minutes. L'onboarding — documents et accord de dispatch — continue après la vérification de votre e-mail.",
+    },
+  "Where does your authority stand?": {
+    es: "¿Cómo va tu autoridad?",
+    fr: "Où en est votre autorité ?",
+  },
+  "My MC authority is active": {
+    es: "Mi autoridad MC está activa",
+    fr: "Mon autorité MC est active",
+  },
+  "I filed with FMCSA — authority pending": {
+    es: "Ya apliqué con FMCSA — autoridad pendiente",
+    fr: "J'ai déposé auprès de la FMCSA — autorité en attente",
+  },
+  "No authority yet — help me start": {
+    es: "Sin autoridad todavía — ayúdenme a empezar",
+    fr: "Pas encore d'autorité — aidez-moi à démarrer",
+  },
+  "I'm leased on to another authority": {
+    es: "Trabajo leased-on bajo otra autoridad",
+    fr: "Je roule en leased-on sous une autre autorité",
+  },
+  "MC #": {
+    es: "MC #",
+    fr: "N° MC",
+  },
+  "Phone": {
+    es: "Teléfono",
+    fr: "Téléphone",
+  },
+  "Your Full Name": {
+    es: "Tu nombre completo",
+    fr: "Votre nom complet",
+  },
+  "Password (8+ characters)": {
+    es: "Contraseña (8+ caracteres)",
+    fr: "Mot de passe (8+ caractères)",
+  },
+  "No authority yet? You still get a full account — plus the launch checklist and a same-day call from a dispatcher.":
+    {
+      es: "¿Sin autoridad todavía? Igual recibes una cuenta completa — más el checklist de lanzamiento y una llamada de un dispatcher el mismo día.",
+      fr: "Pas encore d'autorité ? Vous recevez quand même un compte complet — plus la checklist de lancement et l'appel d'un dispatcher le jour même.",
+    },
+  "Leased-on setups are reviewed personally — a dispatcher confirms how your lease works before dispatch starts.":
+    {
+      es: "Los esquemas leased-on se revisan personalmente — un dispatcher confirma cómo funciona tu lease antes de empezar el dispatch.",
+      fr: "Les configurations leased-on sont vérifiées personnellement — un dispatcher confirme votre lease avant de commencer le dispatch.",
+    },
+  "Create Account →": {
+    es: "Crear cuenta →",
+    fr: "Créer le compte →",
+  },
+  "Creating account…": {
+    es: "Creando cuenta…",
+    fr: "Création du compte…",
+  },
+  "Already have an account?": {
+    es: "¿Ya tienes cuenta?",
+    fr: "Vous avez déjà un compte ?",
+  },
+  "Sign In →": {
+    es: "Iniciar sesión →",
+    fr: "Se connecter →",
+  },
+  "This preview environment isn't connected to the account service — no account was created. Call (908) 404-5373 and we'll set you up directly.":
+    {
+      es: "Este entorno de vista previa no está conectado al servicio de cuentas — no se creó ninguna cuenta. Llama al (908) 404-5373 y te configuramos directamente.",
+      fr: "Cet environnement de prévisualisation n'est pas connecté au service de comptes — aucun compte n'a été créé. Appelez le (908) 404-5373 et nous vous installons directement.",
+    },
+  "✓ ACCOUNT CREATED — Check your inbox and click the verification link, then sign in.":
+    {
+      es: "✓ CUENTA CREADA — Revisa tu correo y haz clic en el enlace de verificación; luego inicia sesión.",
+      fr: "✓ COMPTE CRÉÉ — Vérifiez votre boîte mail et cliquez sur le lien de vérification, puis connectez-vous.",
+    },
+  "✓ ACCOUNT CREATED — You're signed in.": {
+    es: "✓ CUENTA CREADA — Ya iniciaste sesión.",
+    fr: "✓ COMPTE CRÉÉ — Vous êtes connecté.",
+  },
+  "Next: finish onboarding — your documents and dispatch agreement take about 10 minutes.":
+    {
+      es: "Siguiente: termina el onboarding — tus documentos y el acuerdo de dispatch toman unos 10 minutos.",
+      fr: "Ensuite : terminez l'onboarding — vos documents et l'accord de dispatch prennent environ 10 minutes.",
+    },
+  "Your MC application is pending — our team verifies it and activates dispatch. Sign in any time to track your documents.":
+    {
+      es: "Tu solicitud de MC está pendiente — nuestro equipo la verifica y activa el dispatch. Inicia sesión cuando quieras para seguir tus documentos.",
+      fr: "Votre demande MC est en attente — notre équipe la vérifie et active le dispatch. Connectez-vous à tout moment pour suivre vos documents.",
+    },
+  "We'll help you launch: your checklist is ready, and a dispatcher calls you the same day.":
+    {
+      es: "Te ayudamos a lanzarte: tu checklist está lista y un dispatcher te llama el mismo día.",
+      fr: "Nous vous aidons à démarrer : votre checklist est prête et un dispatcher vous appelle le jour même.",
+    },
+  "Because you run leased-on, a dispatcher reviews your setup personally and calls you — usually the same day.":
+    {
+      es: "Como trabajas leased-on, un dispatcher revisa tu configuración personalmente y te llama — normalmente el mismo día.",
+      fr: "Comme vous roulez en leased-on, un dispatcher vérifie votre configuration personnellement et vous appelle — généralement le jour même.",
+    },
+  "Continue to onboarding →": {
+    es: "Continuar al onboarding →",
+    fr: "Continuer vers l'onboarding →",
+  },
+  "See your launch checklist →": {
+    es: "Ver tu checklist de lanzamiento →",
+    fr: "Voir votre checklist de lancement →",
+  },
+  "New to PickLoads? Create your carrier account →": {
+    es: "¿Nuevo en PickLoads? Crea tu cuenta de carrier →",
+    fr: "Nouveau chez PickLoads ? Créez votre compte transporteur →",
+  },
+  "✓ Email verified — you can sign in now.": {
+    es: "✓ Correo verificado — ya puedes iniciar sesión.",
+    fr: "✓ E-mail vérifié — vous pouvez vous connecter.",
+  },
 };
 for (const [en, tr] of Object.entries(SUPPLEMENTAL)) addEntry(en, tr, false);
 // RICH entries are keyed by data-i18n id (hero.title etc.) with per-locale HTML;
