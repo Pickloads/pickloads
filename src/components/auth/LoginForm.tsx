@@ -12,10 +12,14 @@ import { createClient } from "@/lib/supabase/client";
  * do a full navigation so the middleware sees the fresh session cookies.
  */
 
-/** Only same-origin relative paths — prevents open-redirect via ?next=. */
+/**
+ * Only same-origin relative paths — prevents open-redirect via ?next=.
+ * M-54: the fallback is /portal (the server-side role router), so every
+ * role — carrier/shipper/dispatcher/admin — lands on its own home.
+ */
 function safeNext(next: string | null): string {
   if (next && next.startsWith("/") && !next.startsWith("//")) return next;
-  return "/portal/carrier";
+  return "/portal";
 }
 
 export function LoginForm() {
@@ -25,6 +29,11 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   // M-52: landing spot of the Supabase email-verification link.
   const verified = searchParams.get("verified") === "1";
+  // M-54: clear auth states — expired session (middleware-detected stale
+  // cookies), suspension (requireProfile bounce), plain auth-wall redirect.
+  const expired = searchParams.get("expired") === "1";
+  const suspended = searchParams.get("error") === "suspended";
+  const hasNext = searchParams.get("next") !== null;
 
   const configured =
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
@@ -50,7 +59,13 @@ export function LoginForm() {
         password,
       });
       if (authError) {
-        setError("Invalid email or password. Please try again.");
+        // M-54: distinguish the unverified-email state (M-52 signups are
+        // never auto-confirmed) from bad credentials.
+        setError(
+          /confirm/i.test(authError.message)
+            ? "Verify your email first — click the confirmation link we sent you, then sign in."
+            : "Invalid email or password. Please try again.",
+        );
         setPending(false);
         return;
       }
@@ -72,6 +87,22 @@ export function LoginForm() {
         <div className="form-ok show" role="status" style={{ marginBottom: 18 }}>
           {tv("✓ Email verified — you can sign in now.")}
         </div>
+      ) : null}
+      {suspended ? (
+        <div className="form-err show" role="alert" style={{ marginBottom: 18 }}>
+          {tv(
+            "Your account is suspended. Call (908) 404-5373 or email support@pickloads.com to resolve it.",
+          )}
+        </div>
+      ) : expired ? (
+        <div className="form-err show" role="alert" style={{ marginBottom: 18 }}>
+          {tv("Your session expired — sign in again to continue.")}
+        </div>
+      ) : hasNext ? (
+        <p className="mono" style={{ fontSize: ".74rem", margin: "0 0 18px" }}>
+          {"// "}
+          {tv("Sign in to continue where you left off.")}
+        </p>
       ) : null}
       <form onSubmit={handleSubmit}>
         <div className="field" style={{ marginBottom: 16 }}>

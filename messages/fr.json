@@ -343,6 +343,7 @@
     "shipping_regions_check_all_that_apply": "Régions d'expédition (cochez toutes celles qui s'appliquent)",
     "sign_electronically": "Signature électronique",
     "sign_in": "Se connecter →",
+    "sign_in_to_continue_where_you_left_off": "Connectez-vous pour reprendre où vous en étiez.",
     "small_fleet": "Petite Flotte",
     "southeast": "Sud-Est",
     "southwest": "Sud-Ouest",
@@ -387,6 +388,7 @@
     "upload_replacement_documents_any_time": "Téléversez des documents de remplacement à tout moment",
     "upload_your_documents": "Envoyez vos documents",
     "verify_us_before_you_sign_we_insist": "Vérifiez-nous avant de signer. On y tient.",
+    "verify_your_email_first_click_the_confirmation_link_we_s": "Vérifiez d'abord votre e-mail — cliquez sur le lien de confirmation que nous vous avons envoyé, puis connectez-vous.",
     "vetted_carrier_network_insurance_safety_checked": "Réseau de transporteurs vérifiés (assurance & sécurité)",
     "vetted_carriers_live_tracking_and_claims_support_see_why": "Transporteurs vérifiés, suivi en direct et gestion des réclamations — voyez pourquoi les expéditeurs choisissent PickLoads.",
     "vetted_carriers_only": "Transporteurs vérifiés uniquement",
@@ -423,6 +425,7 @@
     "you_drive_you_get_paid": "Vous roulez. Vous êtes payé.",
     "you_re_paid_directly_by_the_broker_or_through_your_facto": "Vous êtes payé directement par le broker ou via votre société de factoring — l'argent ne passe jamais par nous. On prépare et soumet les factures et documents pour que rien ne retarde votre règlement.",
     "you_see_every_rate_con_what_the_broker_pays_is_what_you": "Vous voyez chaque rate con. Ce que le broker paie, c'est ce que vous voyez.",
+    "your_account_is_suspended_call_908_404_5373_or_email_sup": "Votre compte est suspendu. Appelez le (908) 404-5373 ou écrivez à support@pickloads.com pour le résoudre.",
     "your_carrier_account": "Votre compte transporteur",
     "your_dispatch_back_office_document_review_agreement_stat": "Votre back-office dispatch : vérification des documents, statut de l'accord et vos chargements — au même endroit.",
     "your_dispatcher_learns_your_lanes_your_rate_floor_and_yo": "Votre dispatcher apprend vos itinéraires, votre tarif plancher et vos besoins de temps à la maison — puis se met au travail.",
@@ -431,6 +434,7 @@
     "your_mc_application_is_pending_our_team_verifies_it_and": "Votre demande MC est en attente — notre équipe la vérifie et active le dispatch. Connectez-vous à tout moment pour suivre vos documents.",
     "your_mc_dot_authority_a_w_9_a_certificate_of_insurance_1": "Votre autorité MC/DOT, un W-9, un certificat d'assurance (1 M$ responsabilité / 100 K$ cargo) et un chèque annulé ou avis de factoring. L'inscription prend 5 minutes ; la plupart reçoivent leur premier chargement sous 24 heures.",
     "your_phone": "Votre Téléphone",
+    "your_session_expired_sign_in_again_to_continue": "Votre session a expiré — reconnectez-vous pour continuer.",
     "your_shipper_account": "Votre compte expéditeur",
     "your_shipper_portal_tracks_every_quote_request_and_rate": "Votre portail expéditeur suit chaque demande de devis et tarif — et les devis déjà demandés avec cet e-mail sont liés automatiquement."
   }

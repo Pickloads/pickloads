@@ -175,6 +175,25 @@ test.describe("create account (M-52, secretless)", () => {
   });
 });
 
+test.describe("auth states (M-54)", () => {
+  test("/login renders the clear expired / suspended / continue states", async ({
+    page,
+  }) => {
+    await page.goto("/login?next=%2Fportal%2Fcarrier");
+    await expect(page.locator("main")).toContainText(
+      "Sign in to continue where you left off.",
+    );
+    await page.goto("/login?next=%2Fportal%2Fcarrier&expired=1");
+    await expect(page.locator(".form-err.show").first()).toContainText(
+      "Your session expired",
+    );
+    await page.goto("/login?error=suspended");
+    await expect(page.locator(".form-err.show").first()).toContainText(
+      "Your account is suspended",
+    );
+  });
+});
+
 test.describe("password recovery (M-42, secretless)", () => {
   test("/login links to /forgot-password, which degrades gracefully", async ({
     page,

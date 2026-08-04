@@ -343,6 +343,7 @@
     "shipping_regions_check_all_that_apply": "Shipping Regions (check all that apply)",
     "sign_electronically": "Sign electronically",
     "sign_in": "Sign In →",
+    "sign_in_to_continue_where_you_left_off": "Sign in to continue where you left off.",
     "small_fleet": "Small Fleet",
     "southeast": "Southeast",
     "southwest": "Southwest",
@@ -387,6 +388,7 @@
     "upload_replacement_documents_any_time": "Upload replacement documents any time",
     "upload_your_documents": "Upload your documents",
     "verify_us_before_you_sign_we_insist": "Verify us before you sign. We insist.",
+    "verify_your_email_first_click_the_confirmation_link_we_s": "Verify your email first — click the confirmation link we sent you, then sign in.",
     "vetted_carrier_network_insurance_safety_checked": "Vetted carrier network (insurance & safety checked)",
     "vetted_carriers_live_tracking_and_claims_support_see_why": "Vetted carriers, live tracking and claims support — see why shippers choose PickLoads.",
     "vetted_carriers_only": "Vetted carriers only",
@@ -423,6 +425,7 @@
     "you_drive_you_get_paid": "You drive. You get paid.",
     "you_re_paid_directly_by_the_broker_or_through_your_facto": "You're paid directly by the broker or through your factoring company — money never passes through us. We prepare and submit the invoices and paperwork so nothing delays your settlement.",
     "you_see_every_rate_con_what_the_broker_pays_is_what_you": "You see every rate con. What the broker pays is what you see.",
+    "your_account_is_suspended_call_908_404_5373_or_email_sup": "Your account is suspended. Call (908) 404-5373 or email support@pickloads.com to resolve it.",
     "your_carrier_account": "Your carrier account",
     "your_dispatch_back_office_document_review_agreement_stat": "Your dispatch back office: document review, agreement status and your loads — in one place.",
     "your_dispatcher_learns_your_lanes_your_rate_floor_and_yo": "Your dispatcher learns your lanes, your rate floor and your home-time needs — then gets to work.",
@@ -431,6 +434,7 @@
     "your_mc_application_is_pending_our_team_verifies_it_and": "Your MC application is pending — our team verifies it and activates dispatch. Sign in any time to track your documents.",
     "your_mc_dot_authority_a_w_9_a_certificate_of_insurance_1": "Your MC/DOT authority, a W-9, a certificate of insurance ($1M auto liability / $100K cargo) and a voided check or factoring notice. Setup takes about 5 minutes; most carriers get their first load within 24 hours.",
     "your_phone": "Your Phone",
+    "your_session_expired_sign_in_again_to_continue": "Your session expired — sign in again to continue.",
     "your_shipper_account": "Your shipper account",
     "your_shipper_portal_tracks_every_quote_request_and_rate": "Your shipper portal tracks every quote request and rate — and any quotes you already requested under this email get linked automatically."
   }

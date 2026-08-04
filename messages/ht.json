@@ -343,6 +343,7 @@
     "shipping_regions_check_all_that_apply": "Shipping Regions (check all that apply)",
     "sign_electronically": "Siyen elektwonikman",
     "sign_in": "Sign In →",
+    "sign_in_to_continue_where_you_left_off": "Sign in to continue where you left off.",
     "small_fleet": "Ti Flòt",
     "southeast": "Southeast",
     "southwest": "Southwest",
@@ -387,6 +388,7 @@
     "upload_replacement_documents_any_time": "Upload replacement documents any time",
     "upload_your_documents": "Voye dokiman w yo",
     "verify_us_before_you_sign_we_insist": "Verifye nou anvan ou siyen. Nou ensiste.",
+    "verify_your_email_first_click_the_confirmation_link_we_s": "Verify your email first — click the confirmation link we sent you, then sign in.",
     "vetted_carrier_network_insurance_safety_checked": "Rezo carriers verifye (asirans ak sekirite tcheke)",
     "vetted_carriers_live_tracking_and_claims_support_see_why": "Carriers verifye, swivi an dirèk ak sipò reklamasyon — gade poukisa shippers chwazi PickLoads.",
     "vetted_carriers_only": "Sèlman carriers verifye",
@@ -423,6 +425,7 @@
     "you_drive_you_get_paid": "Ou kondwi. Ou touche.",
     "you_re_paid_directly_by_the_broker_or_through_your_facto": "Broker a oswa konpayi factoring ou peye w dirèkteman — lajan pa janm pase nan men nou. Nou prepare epi soumèt fakti ak papye yo pou anyen pa fè règleman w pran reta.",
     "you_see_every_rate_con_what_the_broker_pays_is_what_you": "Ou wè chak rate con. Sa broker a peye a, se sa ou wè.",
+    "your_account_is_suspended_call_908_404_5373_or_email_sup": "Your account is suspended. Call (908) 404-5373 or email support@pickloads.com to resolve it.",
     "your_carrier_account": "Your carrier account",
     "your_dispatch_back_office_document_review_agreement_stat": "Your dispatch back office: document review, agreement status and your loads — in one place.",
     "your_dispatcher_learns_your_lanes_your_rate_floor_and_yo": "Dispatcher w la aprann wout ou, pri minimòm ou ak bezwen tan lakay ou — epi li mete men nan travay.",
@@ -431,6 +434,7 @@
     "your_mc_application_is_pending_our_team_verifies_it_and": "Your MC application is pending — our team verifies it and activates dispatch. Sign in any time to track your documents.",
     "your_mc_dot_authority_a_w_9_a_certificate_of_insurance_1": "Otorite MC/DOT ou, yon W-9, sètifika asirans ($1M responsablite / $100K kago) ak yon chèk anile oswa avi factoring. Enskripsyon an pran anviwon 5 minit; pifò carriers jwenn premye chajman yo nan 24 èdtan.",
     "your_phone": "Telefòn Ou",
+    "your_session_expired_sign_in_again_to_continue": "Your session expired — sign in again to continue.",
     "your_shipper_account": "Your shipper account",
     "your_shipper_portal_tracks_every_quote_request_and_rate": "Your shipper portal tracks every quote request and rate — and any quotes you already requested under this email get linked automatically."
   }

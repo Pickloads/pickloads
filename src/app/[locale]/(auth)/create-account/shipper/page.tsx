@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { setRequestLocale } from "next-intl/server";
-import { Link } from "@/i18n/navigation";
+import { getPathname, Link } from "@/i18n/navigation";
+import { getSessionProfile, portalHomeFor } from "@/lib/auth";
 import { PageHero } from "@/components/ui/PageHero";
 import { CreateShipperForm } from "@/components/auth/CreateShipperForm";
 import { createClient } from "@/lib/supabase/server";
@@ -46,6 +48,11 @@ export default async function CreateShipperAccountPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
+  // M-54: signed-in visitors are role-routed to their portal home.
+  const session = await getSessionProfile();
+  if (session && session.status !== "suspended") {
+    redirect(getPathname({ href: portalHomeFor(session.role), locale }));
+  }
   const tv = await getV4(locale);
   const open = await shipperSignupEnabled();
 

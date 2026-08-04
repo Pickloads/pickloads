@@ -533,6 +533,25 @@ const SUPPLEMENTAL = {
       es: "Aún no hay solicitudes de cotización. Pide tu primera cotización y aparecerá aquí — junto con las solicitudes anteriores hechas con tu correo verificado.",
       fr: "Pas encore de demande de devis. Demandez votre premier devis et il apparaîtra ici — avec les demandes passées faites avec votre e-mail vérifié.",
     },
+  /* ---- M-54: clear auth states on /login ---- */
+  "Your account is suspended. Call (908) 404-5373 or email support@pickloads.com to resolve it.":
+    {
+      es: "Tu cuenta está suspendida. Llama al (908) 404-5373 o escribe a support@pickloads.com para resolverlo.",
+      fr: "Votre compte est suspendu. Appelez le (908) 404-5373 ou écrivez à support@pickloads.com pour le résoudre.",
+    },
+  "Your session expired — sign in again to continue.": {
+    es: "Tu sesión expiró — inicia sesión de nuevo para continuar.",
+    fr: "Votre session a expiré — reconnectez-vous pour continuer.",
+  },
+  "Sign in to continue where you left off.": {
+    es: "Inicia sesión para continuar donde quedaste.",
+    fr: "Connectez-vous pour reprendre où vous en étiez.",
+  },
+  "Verify your email first — click the confirmation link we sent you, then sign in.":
+    {
+      es: "Primero verifica tu correo — haz clic en el enlace de confirmación que te enviamos y luego inicia sesión.",
+      fr: "Vérifiez d'abord votre e-mail — cliquez sur le lien de confirmation que nous vous avons envoyé, puis connectez-vous.",
+    },
 };
 for (const [en, tr] of Object.entries(SUPPLEMENTAL)) addEntry(en, tr, false);
 // RICH entries are keyed by data-i18n id (hero.title etc.) with per-locale HTML;

@@ -3,7 +3,10 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { getPathname } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { UserRole } from "@/lib/supabase/database.types";
+import type {
+  AccountStatus,
+  UserRole,
+} from "@/lib/supabase/database.types";
 
 /**
  * M-23 server-side session/role helpers for the portal surface.
@@ -19,6 +22,8 @@ export interface SessionProfile {
   userId: string;
   email: string | null;
   role: UserRole;
+  /** M-54 (0005): account status — suspension is enforced centrally here. */
+  status: AccountStatus;
   fullName: string | null;
 }
 
@@ -30,7 +35,7 @@ export async function getSessionProfile(): Promise<SessionProfile | null> {
   if (!user) return null;
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, full_name")
+    .select("role, status, full_name")
     .eq("id", user.id)
     .maybeSingle();
   if (!profile) return null;
@@ -38,6 +43,7 @@ export async function getSessionProfile(): Promise<SessionProfile | null> {
     userId: user.id,
     email: user.email ?? null,
     role: profile.role,
+    status: profile.status,
     fullName: profile.full_name,
   };
 }
@@ -46,10 +52,17 @@ function localizedPath(href: string, locale: string): string {
   return getPathname({ href, locale });
 }
 
-/** Page gate: any authenticated profile, else → /login. */
+/**
+ * Page gate: any authenticated, non-suspended profile, else → /login.
+ * Suspension is enforced HERE (audit §6.5) so every portal page — current
+ * and future — inherits it; the login page renders the clear error state.
+ */
 export async function requireProfile(locale: string): Promise<SessionProfile> {
   const session = await getSessionProfile();
   if (!session) redirect(localizedPath("/login", locale));
+  if (session.status === "suspended") {
+    redirect(`${localizedPath("/login", locale)}?error=suspended`);
+  }
   return session;
 }
 

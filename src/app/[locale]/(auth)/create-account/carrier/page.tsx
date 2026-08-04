@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { setRequestLocale } from "next-intl/server";
+import { getPathname } from "@/i18n/navigation";
+import { getSessionProfile, portalHomeFor } from "@/lib/auth";
 import { PageHero } from "@/components/ui/PageHero";
 import { CreateCarrierForm } from "@/components/auth/CreateCarrierForm";
 import { useV4 } from "@/i18n/v4";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Create Carrier Account — PickLoads Logistics Group",
@@ -21,6 +26,11 @@ export default async function CreateCarrierAccountPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
+  // M-54: signed-in visitors are role-routed to their portal home.
+  const session = await getSessionProfile();
+  if (session && session.status !== "suspended") {
+    redirect(getPathname({ href: portalHomeFor(session.role), locale }));
+  }
   return <CarrierAccountContent />;
 }
 

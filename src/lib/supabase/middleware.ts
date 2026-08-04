@@ -68,6 +68,13 @@ export async function updateSession(request: NextRequest) {
     url.pathname = `${prefix}/login`;
     url.search = "";
     url.searchParams.set("next", pathname);
+    // M-54: auth cookies present but no valid user → the session expired
+    // (or was revoked); the login page shows the explicit expired state
+    // instead of a silent bounce.
+    const hadSession = request.cookies
+      .getAll()
+      .some((c) => c.name.includes("-auth-token"));
+    if (hadSession) url.searchParams.set("expired", "1");
     return NextResponse.redirect(url);
   }
 

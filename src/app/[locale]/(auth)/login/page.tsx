@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { setRequestLocale } from "next-intl/server";
+import { getPathname } from "@/i18n/navigation";
+import { getSessionProfile, portalHomeFor } from "@/lib/auth";
 import { PageHero } from "@/components/ui/PageHero";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { useV4 } from "@/i18n/v4";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Sign In — PickLoads Logistics Group",
@@ -17,6 +22,13 @@ export default async function LoginPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
+  // M-54: an already-authenticated visitor is role-routed to their home
+  // (carrier/shipper/dispatcher/admin) — except suspended accounts, which
+  // must be able to see the clear error state below.
+  const session = await getSessionProfile();
+  if (session && session.status !== "suspended") {
+    redirect(getPathname({ href: portalHomeFor(session.role), locale }));
+  }
   return <LoginContent />;
 }
 

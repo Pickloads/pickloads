@@ -343,6 +343,7 @@
     "shipping_regions_check_all_that_apply": "Regiones de envío (marca todas las que apliquen)",
     "sign_electronically": "Firma electrónica",
     "sign_in": "Iniciar sesión →",
+    "sign_in_to_continue_where_you_left_off": "Inicia sesión para continuar donde quedaste.",
     "small_fleet": "Flota Pequeña",
     "southeast": "Sureste",
     "southwest": "Suroeste",
@@ -387,6 +388,7 @@
     "upload_replacement_documents_any_time": "Sube documentos de reemplazo cuando quieras",
     "upload_your_documents": "Sube tus documentos",
     "verify_us_before_you_sign_we_insist": "Verifícanos antes de firmar. Insistimos.",
+    "verify_your_email_first_click_the_confirmation_link_we_s": "Primero verifica tu correo — haz clic en el enlace de confirmación que te enviamos y luego inicia sesión.",
     "vetted_carrier_network_insurance_safety_checked": "Red de carriers verificados (seguro y seguridad)",
     "vetted_carriers_live_tracking_and_claims_support_see_why": "Carriers verificados, rastreo en vivo y apoyo en reclamos — mira por qué los shippers eligen PickLoads.",
     "vetted_carriers_only": "Solo carriers verificados",
@@ -423,6 +425,7 @@
     "you_drive_you_get_paid": "Tú manejas. Tú cobras.",
     "you_re_paid_directly_by_the_broker_or_through_your_facto": "Te paga directamente el broker o tu compañía de factoring — el dinero nunca pasa por nosotros. Nosotros preparamos y enviamos facturas y papeleo para que nada retrase tu pago.",
     "you_see_every_rate_con_what_the_broker_pays_is_what_you": "Ves cada rate con. Lo que paga el broker es lo que ves.",
+    "your_account_is_suspended_call_908_404_5373_or_email_sup": "Tu cuenta está suspendida. Llama al (908) 404-5373 o escribe a support@pickloads.com para resolverlo.",
     "your_carrier_account": "Tu cuenta de carrier",
     "your_dispatch_back_office_document_review_agreement_stat": "Tu back office de dispatch: revisión de documentos, estado del acuerdo y tus cargas — todo en un solo lugar.",
     "your_dispatcher_learns_your_lanes_your_rate_floor_and_yo": "Tu dispatcher aprende tus rutas, tu tarifa mínima y tu tiempo en casa — y se pone a trabajar.",
@@ -431,6 +434,7 @@
     "your_mc_application_is_pending_our_team_verifies_it_and": "Tu solicitud de MC está pendiente — nuestro equipo la verifica y activa el dispatch. Inicia sesión cuando quieras para seguir tus documentos.",
     "your_mc_dot_authority_a_w_9_a_certificate_of_insurance_1": "Tu autoridad MC/DOT, un W-9, certificado de seguro ($1M responsabilidad / $100K carga) y un cheque anulado o aviso de factoring. El registro toma 5 minutos; la mayoría recibe su primera carga en 24 horas.",
     "your_phone": "Tu Teléfono",
+    "your_session_expired_sign_in_again_to_continue": "Tu sesión expiró — inicia sesión de nuevo para continuar.",
     "your_shipper_account": "Tu cuenta de shipper",
     "your_shipper_portal_tracks_every_quote_request_and_rate": "Tu portal de shipper sigue cada solicitud de cotización y tarifa — y las cotizaciones que ya pediste con este correo se vinculan automáticamente."
   }
