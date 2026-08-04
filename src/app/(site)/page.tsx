@@ -1,8 +1,3 @@
-import { Topbar } from "@/components/layout/Topbar";
-import { SiteNav } from "@/components/layout/SiteNav";
-import { Footer } from "@/components/layout/Footer";
-import { CallFab } from "@/components/layout/CallFab";
-import { PortalToast } from "@/components/ui/PortalToast";
 import { Hero } from "@/components/sections/Hero";
 import { LoadTicker } from "@/components/sections/LoadTicker";
 import { QuickQuote } from "@/components/sections/QuickQuote";
@@ -29,10 +24,7 @@ import { CtaBand } from "@/components/sections/CtaBand";
  */
 export default function HomePage() {
   return (
-    <>
-      <Topbar />
-      <SiteNav />
-      <main>
+    <main>
         <Hero />
         <LoadTicker />
         <QuickQuote />
@@ -48,10 +40,6 @@ export default function HomePage() {
         <Compliance />
         <Packet />
         <CtaBand />
-      </main>
-      <Footer />
-      <PortalToast />
-      <CallFab />
-    </>
+    </main>
   );
 }
