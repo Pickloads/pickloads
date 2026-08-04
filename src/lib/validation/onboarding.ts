@@ -49,9 +49,12 @@ export type OnboardingInfoInput = z.infer<typeof onboardingInfoSchema>;
 /** Step 2 — server-side upload request validation (S-03). */
 export const DOC_TYPES = ["mc_authority", "coi", "w9", "voided_check"] as const;
 
+/** M-25 portal replacements accept two extra types beyond the wizard four. */
+export const UPLOADABLE_DOC_TYPES = [...DOC_TYPES, "noa", "other"] as const;
+
 export const uploadRequestSchema = z.object({
   carrier_id: z.uuid("Invalid onboarding session."),
-  doc_type: z.enum(DOC_TYPES),
+  doc_type: z.enum(UPLOADABLE_DOC_TYPES),
 });
 
 /** Step 4 — account creation. */
