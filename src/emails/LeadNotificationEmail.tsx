@@ -10,7 +10,17 @@ export function LeadNotificationEmail({ lead }: { lead: CarrierLeadInput }) {
       preview={`New carrier lead: ${lead.phone} (${lead.truck_type ?? "unknown truck"})`}
       rows={[
         { label: "Phone (call now)", value: lead.phone },
+        {
+          label: "Lead type",
+          value:
+            lead.lead_type === "new_authority"
+              ? "NEW AUTHORITY (start-your-trucking-company)"
+              : "Dispatch",
+        },
+        { label: "Name", value: lead.full_name ?? "—" },
+        { label: "Email", value: lead.email ?? "—" },
         { label: "Truck type", value: lead.truck_type ?? "—" },
+        ...(lead.stage ? [{ label: "Stage", value: lead.stage }] : []),
         { label: "Trailer type", value: lead.trailer_type ?? "—" },
         { label: "Home state", value: lead.home_state ?? "—" },
         { label: "# of trucks", value: lead.truck_count ?? "—" },

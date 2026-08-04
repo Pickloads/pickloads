@@ -21,6 +21,7 @@ export const PUBLIC_ROUTES = [
   "/blog",
   "/contact",
   "/become-a-carrier",
+  "/start-your-trucking-company",
 ] as const;
 
 type Href = Parameters<typeof getPathname>[0]["href"];

@@ -77,7 +77,7 @@ export function Footer() {
           <div>
             <h4>{tv("Carriers")}</h4>
             <Link href="/become-a-carrier">{tv("Become a Carrier")}</Link>
-            <Link href="/#new-authority">
+            <Link href="/start-your-trucking-company">
               {tv("Start Your Trucking Company")}
             </Link>
             <Link href="/#packet">{tv("Carrier Packet")}</Link>
