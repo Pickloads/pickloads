@@ -52,7 +52,7 @@ export type LoadStatus =
 
 export type Locale = "en" | "es" | "fr" | "ru" | "ht";
 
-interface ProfileRow {
+type ProfileRow = {
   id: string;
   role: UserRole;
   full_name: string | null;
@@ -63,7 +63,7 @@ interface ProfileRow {
   updated_at: string;
 }
 
-interface CarrierLeadRow {
+type CarrierLeadRow = {
   id: string;
   lead_type: LeadType;
   truck_type: string | null;
@@ -87,7 +87,7 @@ interface CarrierLeadRow {
   updated_at: string;
 }
 
-interface FreightQuoteRow {
+type FreightQuoteRow = {
   id: string;
   pickup_zip: string | null;
   delivery_zip: string | null;
@@ -107,7 +107,7 @@ interface FreightQuoteRow {
   updated_at: string;
 }
 
-interface ContactMessageRow {
+type ContactMessageRow = {
   id: string;
   full_name: string | null;
   email: string;
@@ -120,7 +120,7 @@ interface ContactMessageRow {
   created_at: string;
 }
 
-interface SubscriberRow {
+type SubscriberRow = {
   id: string;
   email: string;
   locale: string;
@@ -130,7 +130,7 @@ interface SubscriberRow {
   created_at: string;
 }
 
-interface CompanySettingRow {
+type CompanySettingRow = {
   key: string;
   value: unknown;
   description: string | null;
@@ -138,7 +138,7 @@ interface CompanySettingRow {
   updated_at: string;
 }
 
-interface EmailLogRow {
+type EmailLogRow = {
   id: string;
   to_email: string;
   template: string;
@@ -154,43 +154,50 @@ interface EmailLogRow {
 type Insertable<Row, Required extends keyof Row> = Pick<Row, Required> &
   Partial<Omit<Row, Required>>;
 
-export interface Database {
+export type Database = {
   public: {
     Tables: {
       profiles: {
         Row: ProfileRow;
         Insert: Insertable<ProfileRow, "id">;
         Update: Partial<ProfileRow>;
+        Relationships: [];
       };
       carrier_leads: {
         Row: CarrierLeadRow;
         Insert: Insertable<CarrierLeadRow, "phone">;
         Update: Partial<CarrierLeadRow>;
+        Relationships: [];
       };
       freight_quotes: {
         Row: FreightQuoteRow;
         Insert: Insertable<FreightQuoteRow, "email">;
         Update: Partial<FreightQuoteRow>;
+        Relationships: [];
       };
       contact_messages: {
         Row: ContactMessageRow;
         Insert: Insertable<ContactMessageRow, "email" | "body">;
         Update: Partial<ContactMessageRow>;
+        Relationships: [];
       };
       subscribers: {
         Row: SubscriberRow;
         Insert: Insertable<SubscriberRow, "email">;
         Update: Partial<SubscriberRow>;
+        Relationships: [];
       };
       company_settings: {
         Row: CompanySettingRow;
         Insert: Insertable<CompanySettingRow, "key" | "value">;
         Update: Partial<CompanySettingRow>;
+        Relationships: [];
       };
       email_log: {
         Row: EmailLogRow;
         Insert: Insertable<EmailLogRow, "to_email" | "template" | "subject">;
         Update: Partial<EmailLogRow>;
+        Relationships: [];
       };
       /*
        * Phase 2/3 tables (carriers, documents, loads, lead_activities, posts,

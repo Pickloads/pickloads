@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { setRequestLocale } from "next-intl/server";
 import { PageHero } from "@/components/ui/PageHero";
 import { NewsletterForm } from "@/components/forms/NewsletterForm";
@@ -60,7 +61,10 @@ function BlogContent() {
               </a>
             ))}
           </div>
-          <NewsletterForm />
+          {/* Suspense: NewsletterForm reads useSearchParams (confirm redirect) */}
+          <Suspense fallback={null}>
+            <NewsletterForm />
+          </Suspense>
         </div>
       </section>
     </main>

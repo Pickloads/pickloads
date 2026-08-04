@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { PageHero } from "@/components/ui/PageHero";
+import { ContactForm } from "@/components/forms/ContactForm";
 import { useV4, useV4Rich } from "@/i18n/v4";
 
 export const metadata: Metadata = {
@@ -98,6 +99,13 @@ function ContactContent() {
               referrerPolicy="no-referrer-when-downgrade"
             />
           </div>
+        </div>
+      </section>
+
+      {/* M-14: contact form section (audit F-08) — .bigform vocabulary */}
+      <section className="light" style={{ paddingTop: 0, marginTop: -20 }}>
+        <div className="wrap">
+          <ContactForm />
         </div>
       </section>
 

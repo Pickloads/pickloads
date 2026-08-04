@@ -18,3 +18,21 @@ export function createAdminClient() {
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
 }
+
+/**
+ * M-14 graceful-degradation variant: returns null (with a warning) when the
+ * service-role key isn't configured, so form actions and email logging keep
+ * working in secretless dev/preview environments instead of throwing.
+ */
+export function tryCreateAdminClient(): ReturnType<typeof createAdminClient> | null {
+  if (
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    !process.env.SUPABASE_SERVICE_ROLE_KEY
+  ) {
+    console.warn(
+      "[supabase] SUPABASE_SERVICE_ROLE_KEY unset — DB write skipped (dev mode)",
+    );
+    return null;
+  }
+  return createAdminClient();
+}

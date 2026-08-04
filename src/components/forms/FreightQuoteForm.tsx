@@ -1,14 +1,24 @@
 "use client";
 
+import { useActionState } from "react";
+import { useLocale } from "next-intl";
 import { useV4 } from "@/i18n/v4";
+import { initialFormState } from "@/lib/form-state";
+import { submitFreightQuote } from "@/app/actions/freight-quote";
+import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
 
 /*
  * Shipper freight-quote form — V4 markup with U-02 label association and
- * U-06 date floor. Server-action wiring (Zod + Turnstile + rate limit +
- * Resend) lands in M-14 with the rest of the form pipeline.
+ * U-06 date floor. M-14: wired to submitFreightQuote (Zod + Turnstile +
+ * rate limit + Resend) with U-03 loading/success/error states.
  */
 export function FreightQuoteForm() {
   const tv = useV4();
+  const locale = useLocale();
+  const [state, formAction, pending] = useActionState(
+    submitFreightQuote,
+    initialFormState,
+  );
   const today = new Date().toISOString().slice(0, 10);
   return (
     <div className="bigform">
@@ -18,12 +28,8 @@ export function FreightQuoteForm() {
           "Tell us about your shipment — we respond within one business hour (Mon–Sat). Brokerage operations open with our MC activation; early requests get priority onboarding.",
         )}
       </p>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          /* M-14: useActionState(submitFreightQuote) */
-        }}
-      >
+      <form action={formAction}>
+        <input type="hidden" name="locale" value={locale} />
         <div className="grid3">
           <div className="field">
             <label htmlFor="fq-pickup-zip">{tv("Pickup ZIP")}</label>
@@ -82,21 +88,38 @@ export function FreightQuoteForm() {
         <div className="grid2">
           <div className="field">
             <label htmlFor="fq-email">{tv("Contact Email")}</label>
-            <input id="fq-email" name="email" type="email" placeholder="you@company.com" autoComplete="email" />
+            <input id="fq-email" name="email" type="email" placeholder="you@company.com" autoComplete="email" required aria-describedby="fq-err" />
           </div>
           <div className="field">
             <label htmlFor="fq-phone">{tv("Contact Phone")}</label>
             <input id="fq-phone" name="phone" type="tel" placeholder="(___) ___-____" inputMode="tel" autoComplete="tel" />
           </div>
         </div>
-        <button className="btn btn-amber" type="submit">
-          {tv("Request Freight Quote →")}
+        <TurnstileWidget theme="light" />
+        <button
+          className="btn btn-amber"
+          type="submit"
+          aria-busy={pending}
+          disabled={pending}
+          style={{ marginTop: 4 }}
+        >
+          {pending ? tv("Sending…") : tv("Request Freight Quote →")}
         </button>
       </form>
-      <div className="form-ok" role="status">
+      <div
+        className={`form-ok${state.status === "success" ? " show" : ""}`}
+        role="status"
+      >
         {tv(
           "✓ RECEIVED — Our team will reply within one business hour at the email provided. Questions now? Call (908) 404-5373 or email support@pickloads.com",
         )}
+      </div>
+      <div
+        id="fq-err"
+        className={`form-err${state.status === "error" ? " show" : ""}`}
+        role="alert"
+      >
+        {state.status === "error" && state.message ? tv(state.message) : null}
       </div>
     </div>
   );
