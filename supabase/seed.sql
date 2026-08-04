@@ -13,5 +13,6 @@ insert into company_settings (key, value, description) values
   ('testimonials_visible', 'false',                              'V4 sample testimonials stay hidden until 5+ verified reviews exist'),
   ('stats',                '{"fee":"5%","avg_rate":null,"support":"24/7","states":"48"}', 'Home stats tiles; null values render as hidden until real figures exist'),
   ('packet_downloads_live','false',                              'Carrier packet download buttons — off until lawyer-approved PDFs are uploaded'),
-  ('load_ticker_mode',     '"sample"',                           'Home load board ticker: sample | live (Phase 3)')
+  ('load_ticker_mode',     '"sample"',                           'Home load board ticker: sample | live (Phase 3)'),
+  ('shipper_signup_enabled','true',                              'Decision D1: public shipper self-signup (quote-request wording only, no brokerage claims). Legal can flip off without a deploy.')
 on conflict (key) do nothing;

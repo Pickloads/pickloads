@@ -52,6 +52,12 @@ export type LoadStatus =
 
 export type Locale = "en" | "es" | "fr" | "ru" | "ht";
 
+/* ---------- M-50 enums (migrations 0005–0008) ---------- */
+export type MembershipRole = "owner" | "member";
+export type AccountStatus = "pending" | "active" | "suspended";
+export type SupportStatus = "open" | "answered" | "closed";
+export type InvoiceStatus = "draft" | "open" | "paid" | "void" | "uncollectible";
+
 type ProfileRow = {
   id: string;
   role: UserRole;
@@ -59,6 +65,8 @@ type ProfileRow = {
   phone: string | null;
   company_name: string | null;
   preferred_language: string;
+  /** M-50 (0005): approve/suspend state — enforced centrally in requireProfile. */
+  status: AccountStatus;
   created_at: string;
   updated_at: string;
 }
@@ -103,6 +111,21 @@ type FreightQuoteRow = {
   locale: string;
   status: LeadStatus;
   quoted_rate: number | null;
+  /** M-50 (0008): the M-32 Phase-4 owner FK — RLS "member read own quotes". */
+  shipper_id: string | null;
+  hazmat: boolean | null;
+  temp_controlled: boolean | null;
+  temp_min_f: number | null;
+  temp_max_f: number | null;
+  dims_l_in: number | null;
+  dims_w_in: number | null;
+  dims_h_in: number | null;
+  pickup_address: string | null;
+  pickup_city: string | null;
+  pickup_state: string | null;
+  delivery_address: string | null;
+  delivery_city: string | null;
+  delivery_state: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -263,6 +286,144 @@ type PostRow = {
   updated_at: string;
 }
 
+/* ---------- M-50 rows (migrations 0005–0008) ---------- */
+
+type ShipperRow = {
+  id: string;
+  company_name: string;
+  industry: string | null;
+  shipping_frequency: string | null;
+  regions: string[] | null;
+  phone: string | null;
+  billing_email: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+type CarrierMembershipRow = {
+  carrier_id: string;
+  profile_id: string;
+  role: MembershipRole;
+  created_at: string;
+}
+
+type ShipperMembershipRow = {
+  shipper_id: string;
+  profile_id: string;
+  role: MembershipRole;
+  created_at: string;
+}
+
+type AccountStatusHistoryRow = {
+  id: string;
+  profile_id: string;
+  old_status: AccountStatus | null;
+  new_status: AccountStatus;
+  reason: string | null;
+  changed_by: string | null;
+  created_at: string;
+}
+
+type AuditEventRow = {
+  id: string;
+  actor_id: string | null;
+  /** e.g. 'user.suspend', 'settings.update', 'account.signup'. */
+  action: string;
+  target_table: string | null;
+  target_id: string | null;
+  detail: unknown;
+  ip: string | null;
+  created_at: string;
+}
+
+type UserPreferencesRow = {
+  profile_id: string;
+  email_load_updates: boolean;
+  email_document_reviews: boolean;
+  email_marketing: boolean;
+  updated_at: string;
+}
+
+type TruckRow = {
+  id: string;
+  carrier_id: string;
+  unit_number: string | null;
+  /** Keep in sync with the 8 equipment slugs (src/content). */
+  equipment: string;
+  year: number | null;
+  make: string | null;
+  model: string | null;
+  vin: string | null;
+  plate: string | null;
+  plate_state: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+type DriverRow = {
+  id: string;
+  carrier_id: string;
+  full_name: string;
+  phone: string | null;
+  email: string | null;
+  cdl_number: string | null;
+  cdl_state: string | null;
+  cdl_expiry: string | null;
+  medical_card_expiry: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+type SupportThreadRow = {
+  id: string;
+  profile_id: string;
+  carrier_id: string | null;
+  shipper_id: string | null;
+  subject: string;
+  status: SupportStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+type SupportMessageRow = {
+  id: string;
+  thread_id: string;
+  author_id: string;
+  /** ≤ 5000 chars (DB check) — render escape-first (M-33 discipline). */
+  body: string;
+  is_staff: boolean;
+  created_at: string;
+}
+
+type NotificationRow = {
+  id: string;
+  profile_id: string;
+  kind: string;
+  title: string;
+  body: string | null;
+  href: string | null;
+  read_at: string | null;
+  created_at: string;
+}
+
+type InvoiceRow = {
+  id: string;
+  carrier_id: string;
+  load_id: string | null;
+  stripe_invoice_id: string | null;
+  amount_cents: number;
+  currency: string;
+  status: InvoiceStatus;
+  hosted_url: string | null;
+  issued_at: string | null;
+  due_at: string | null;
+  paid_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 type Insertable<Row, Required extends keyof Row> = Pick<Row, Required> &
   Partial<Omit<Row, Required>>;
 
@@ -352,11 +513,85 @@ export type Database = {
         Update: Partial<PostRow>;
         Relationships: [];
       };
+      shippers: {
+        Row: ShipperRow;
+        Insert: Insertable<ShipperRow, "company_name">;
+        Update: Partial<ShipperRow>;
+        Relationships: [];
+      };
+      carrier_memberships: {
+        Row: CarrierMembershipRow;
+        Insert: Insertable<CarrierMembershipRow, "carrier_id" | "profile_id">;
+        Update: Partial<CarrierMembershipRow>;
+        Relationships: [];
+      };
+      shipper_memberships: {
+        Row: ShipperMembershipRow;
+        Insert: Insertable<ShipperMembershipRow, "shipper_id" | "profile_id">;
+        Update: Partial<ShipperMembershipRow>;
+        Relationships: [];
+      };
+      account_status_history: {
+        Row: AccountStatusHistoryRow;
+        Insert: Insertable<AccountStatusHistoryRow, "profile_id" | "new_status">;
+        Update: Partial<AccountStatusHistoryRow>;
+        Relationships: [];
+      };
+      audit_events: {
+        Row: AuditEventRow;
+        Insert: Insertable<AuditEventRow, "action">;
+        Update: Partial<AuditEventRow>;
+        Relationships: [];
+      };
+      user_preferences: {
+        Row: UserPreferencesRow;
+        Insert: Insertable<UserPreferencesRow, "profile_id">;
+        Update: Partial<UserPreferencesRow>;
+        Relationships: [];
+      };
+      trucks: {
+        Row: TruckRow;
+        Insert: Insertable<TruckRow, "carrier_id" | "equipment">;
+        Update: Partial<TruckRow>;
+        Relationships: [];
+      };
+      drivers: {
+        Row: DriverRow;
+        Insert: Insertable<DriverRow, "carrier_id" | "full_name">;
+        Update: Partial<DriverRow>;
+        Relationships: [];
+      };
+      support_threads: {
+        Row: SupportThreadRow;
+        Insert: Insertable<SupportThreadRow, "profile_id" | "subject">;
+        Update: Partial<SupportThreadRow>;
+        Relationships: [];
+      };
+      support_messages: {
+        Row: SupportMessageRow;
+        Insert: Insertable<SupportMessageRow, "thread_id" | "author_id" | "body">;
+        Update: Partial<SupportMessageRow>;
+        Relationships: [];
+      };
+      notifications: {
+        Row: NotificationRow;
+        Insert: Insertable<NotificationRow, "profile_id" | "kind" | "title">;
+        Update: Partial<NotificationRow>;
+        Relationships: [];
+      };
+      invoices: {
+        Row: InvoiceRow;
+        Insert: Insertable<InvoiceRow, "carrier_id" | "amount_cents">;
+        Update: Partial<InvoiceRow>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
       current_user_role: { Args: Record<string, never>; Returns: UserRole };
       is_staff: { Args: Record<string, never>; Returns: boolean };
+      my_carrier_ids: { Args: Record<string, never>; Returns: string[] };
+      my_shipper_ids: { Args: Record<string, never>; Returns: string[] };
     };
   };
 }
