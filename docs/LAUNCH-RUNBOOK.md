@@ -6,8 +6,10 @@ degrades gracefully when a secret is missing (dev warnings, honest pending
 states) — so a partial deploy never crashes, it just quietly disables the
 affected integration. **Production must have every var set.**
 
-*Last revised for M-62 (final QA), covering the full account-system upgrade
-M-50…M-61: migrations 0005–0013 with per-migration rollback notes, the
+*Last revised for M-71 (shipment schema): migrations 0014–0018 added to the
+order-and-rollback table, the `0001 → 0018` chain and the 280-assertion RLS
+gate. Previously revised for M-62 (final QA), covering the account-system
+upgrade M-50…M-61: migrations 0005–0013 with per-migration rollback notes, the
 Supabase auth email templates, staff TOTP MFA + first-admin enrollment, the
 in-app staff invite flow, the `shipper_signup_enabled` switch, and
 `npm run test:rls` as a pre-deploy gate. Acceptance status for every
@@ -49,11 +51,16 @@ region `us-east-1` (closest to NJ ops). For **each** project, in order:
    | 0011 | `0011_quote_fields.sql` | `freight_quotes.pickup_company`, `.delivery_company`, `.delivery_deadline`, `.special_instructions`, `.contact_name` | `alter table freight_quotes drop column pickup_company, delivery_company, delivery_deadline, special_instructions, contact_name;` The in-portal quote form breaks until redeployed against the older schema. |
    | 0012 | `0012_staff_invites.sql` | `staff_invites` (hash-only tokens, role CHECK admin/dispatcher, staff-read policy) | `drop table staff_invites cascade;` Safe — invites are transient; already-accepted staff keep their roles. |
    | 0013 | `0013_public_read_grant_fix.sql` | `grant execute on function public.is_staff() to anon` | `revoke execute on function public.is_staff() from anon;` **Do not roll this back.** Revoking it re-breaks the public blog, every post page and `sitemap.xml` the moment one unpublished draft exists (SECURITY-REVIEW.md §3). |
+   | 0014 | `0014_subscriber_unsubscribe_token.sql` | `subscribers.unsubscribe_token` (+ unique index, backfill) — the M-69/P-1 CAN-SPAM credential | `alter table subscribers drop column unsubscribe_token;` **Do not roll this back while marketing sends are live** — every `List-Unsubscribe` link already delivered stops resolving, which is the CAN-SPAM exposure P-1 closed. |
+   | 0015 | `0015_company_settings_referral_flag.sql` | `company_settings` row `referral_program_active` (default `false`) | `delete from company_settings where key = 'referral_program_active';` The accessor fails closed, so the referral copy stays hidden — safe. |
+   | 0016 | `0016_loads_deadhead_miles.sql` | `loads.deadhead_miles` (+ non-negative CHECK) | `alter table loads drop column if exists deadhead_miles;` Dump captured values first (`select id, deadhead_miles from loads where deadhead_miles is not null`); "True RPM" reverts to "—". |
+   | 0017 | `0017_shipment_schema.sql` | **M-71.** 17 shipment enum types; `broker_partners`, `broker_partner_memberships`, `shipments`, `shipment_parties`, `shipment_assignments`; 17 indexes; `set_updated_at` triggers; `trg_shipments_tracking_number_immutable` (§5); `trg_shipments_brokerage_gate` (§2 — refuses INSERT while `brokerage_active` is false, fail-closed) | Full script in [`docs/modules/M-71-shipment-schema.md`](modules/M-71-shipment-schema.md) §DB changes. Drop the 4 triggers, the 2 trigger functions, the 5 tables `cascade`, then the 17 types. **Destructive** — dump the 5 tables first. Run **after** 0018's rollback. Also roll back `src/lib/supabase/database.types.ts` in the same deploy. |
+   | 0018 | `0018_shipment_rls.sql` | **M-71.** `my_broker_partner_ids()` (active-filtered per §12); RLS on the 5 tables from 0017; 15 policies; **no anon policy by design** (§19 forbids anonymous shipment SELECT) | Full script in the M-71 doc. Drop the 15 policies, `disable row level security` on the 5 tables, drop the helper. **Dangerous in isolation** — this leaves five populated tables with no tenant isolation. Only ever run it immediately before rolling back 0017 too. |
 
    After applying, sanity-check the chain the same way CI does:
 
    ```bash
-   npm run test:rls     # rebuilds a throwaway DB from 0001→0016 + seed + fixtures
+   npm run test:rls     # rebuilds a throwaway DB from 0001→0018 + seed + fixtures
    ```
 
 2. **Seed** — run `supabase/seed.sql` (idempotent, `on conflict do nothing`).
@@ -221,16 +228,21 @@ sets them expecting an effect:
 ```bash
 npm run typecheck && npm run lint && npm run build   # module gate (CLAUDE.md)
 npm test            # 268 unit assertions
-npm run test:rls    # 173 RLS isolation assertions — see below
+npm run test:rls    # 280 RLS isolation assertions — see below
 npm run test:e2e    # 160 chromium tests against the production build
 ```
 
 **`npm run test:rls` is a release gate, not an optional extra.** It rebuilds
-a throwaway database from `0001 → 0016` + seed + two-tenant fixtures and
+a throwaway database from `0001 → 0018` + seed + two/three-tenant fixtures and
 asserts that carrier A cannot reach carrier B, shipper A cannot reach shipper
 B (including *unclaimed* public quotes), anon reaches nothing but
 `company_settings` and published posts, and no session — staff or admin — can
-forge an audit row, an invite or a role change. It needs a local PostgreSQL
+forge an audit row, an invite or a role change. Since M-71 it also asserts
+the shipment cluster: shipper/carrier/**broker** A cannot reach B's shipment,
+an unapproved broker organization grants nothing, anon reads nothing from any
+shipment table, no customer session can write a shipment at all, and the
+tracking-number immutability trigger and the `brokerage_active` gate reject
+even the table owner. It needs a local PostgreSQL
 16; it is deliberately **not** part of `npm test`, because vitest runs on
 placeholder env with no database and that property is load-bearing for CI.
 

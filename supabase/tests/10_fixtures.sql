@@ -149,3 +149,101 @@ insert into lead_activities (id, lead_id, type, body, created_by) values
 insert into posts (id, slug, locale, title, body_md, published, published_at) values
   ('dddddddd-dddd-dddd-dddd-dddddddd0001', 'published-post', 'en', 'Published', '# hi', true, now()),
   ('dddddddd-dddd-dddd-dddd-dddddddd0002', 'draft-post', 'en', 'Draft', '# wip', false, null);
+
+-- ===========================================================================
+-- M-71 — shipment schema fixtures (migrations 0017–0018)
+--
+-- Adds a THIRD axis to the two-tenant model: broker organizations. Identity
+-- map extension
+--   ...00ab01  broker A owner        ...00ab02  broker B owner
+--   ...00ab03  member of broker C, which an admin has NOT activated
+--
+-- NOTE ON PROFILE ROLES. Broker access is ORGANIZATION-scoped, never
+-- role-scoped: §12 calls it "optional role or organization type", and every
+-- policy in 0018 keys off `broker_partner_memberships` + `broker_partners.
+-- active`, never off `profiles.role`. `user_role` (0001, frozen) is therefore
+-- deliberately NOT extended with a 'broker' value — doing so would break
+-- every exhaustive `Record<UserRole, …>` in the codebase for zero security
+-- gain. These fixtures leave the broker users on the enum's default role to
+-- make that concrete: their profile role is immaterial and the assertions
+-- below still hold.
+-- ===========================================================================
+
+insert into auth.users (id, email) values
+  ('00000000-0000-0000-0000-00000000ab01', 'ownerA@broker-a.test'),
+  ('00000000-0000-0000-0000-00000000ab02', 'ownerB@broker-b.test'),
+  ('00000000-0000-0000-0000-00000000ab03', 'member@broker-c-inactive.test');
+
+-- ---------- broker organizations -------------------------------------------
+-- A and B are admin-approved (active). C is invited but NOT approved, which
+-- is the §12 state my_broker_partner_ids() must treat as "no access".
+insert into broker_partners (id, company_name, mc_number, active, approved_by, approved_at) values
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeee0a01', 'Broker A Partners', 'MC-200001', true,
+   '00000000-0000-0000-0000-0000000000f1', now()),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeee0b01', 'Broker B Partners', 'MC-200002', true,
+   '00000000-0000-0000-0000-0000000000f1', now()),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeee0c01', 'Broker C Unapproved', 'MC-200003', false, null, null);
+
+insert into broker_partner_memberships (broker_partner_id, profile_id, role) values
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeee0a01', '00000000-0000-0000-0000-00000000ab01', 'owner'),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeee0b01', '00000000-0000-0000-0000-00000000ab02', 'owner'),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeee0c01', '00000000-0000-0000-0000-00000000ab03', 'owner');
+
+-- ---------- shipments ------------------------------------------------------
+-- The §2 gate (trg_shipments_brokerage_gate) refuses INSERT while
+-- brokerage_active is false, and it refuses it for the table OWNER too — so
+-- even this fixture load has to open the gate deliberately. It is closed
+-- again immediately afterwards, both because `false` is the seeded launch
+-- state every other assertion assumes and because 20_rls_isolation.sql proves
+-- the closed gate rejects an insert.
+update company_settings set value = 'true'::jsonb where key = 'brokerage_active';
+
+insert into shipments (
+  id, tracking_number, shipper_id, carrier_id, dispatcher_id, quote_id,
+  broker_partner_id, load_id, status,
+  origin_city, origin_state, destination_city, destination_state,
+  equipment, gross_shipper_amount, carrier_pay, margin,
+  public_tracking_enabled, tracking_mode, location_visibility, public_access_hash
+) values
+  ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 'PL-2026-000101',
+   '22222222-2222-2222-2222-2222222aaaaa', '11111111-1111-1111-1111-11111111aaaa',
+   '00000000-0000-0000-0000-0000000000e1', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0a01',
+   'eeeeeeee-eeee-eeee-eeee-eeeeeeee0a01', '44444444-4444-4444-4444-44444444aaaa',
+   'in_transit', 'Newark', 'NJ', 'Atlanta', 'GA', 'dry-van',
+   2400, 2000, 400, true, 'manual', 'approximate', 'sha256-secondary-a'),
+  ('ffffffff-ffff-ffff-ffff-ffffffff0b01', 'PL-2026-000202',
+   '22222222-2222-2222-2222-2222222bbbbb', '11111111-1111-1111-1111-11111111bbbb',
+   '00000000-0000-0000-0000-0000000000e1', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0b01',
+   'eeeeeeee-eeee-eeee-eeee-eeeeeeee0b01', '44444444-4444-4444-4444-44444444bbbb',
+   'picked_up', 'Chicago', 'IL', 'Dallas', 'TX', 'reefer',
+   3100, 2600, 500, false, 'manual', 'hidden', 'sha256-secondary-b');
+
+update company_settings set value = 'false'::jsonb where key = 'brokerage_active';
+
+-- ---------- shipment parties ----------------------------------------------
+-- Shipment A carries one shareable contact and one that is not: §12 lets a
+-- broker partner see "approved contact channels" and nothing else, so the
+-- pair is what makes that policy testable rather than trivially true.
+insert into shipment_parties (id, shipment_id, party_role, organization_id,
+                              company_name, contact_name, phone, email, public_contact) values
+  ('fafafafa-fafa-fafa-fafa-fafafafa0a01', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'consignee', null, 'Atlanta DC', 'Receiving Desk', '4045550100',
+   'dock@atlanta-dc.test', true),
+  ('fafafafa-fafa-fafa-fafa-fafafafa0a02', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'shipper', '22222222-2222-2222-2222-2222222aaaaa', 'Shipper A Inc',
+   'Private Buyer', '9735550100', 'buyer@shipper-a.test', false),
+  ('fafafafa-fafa-fafa-fafa-fafafafa0b01', 'ffffffff-ffff-ffff-ffff-ffffffff0b01',
+   'consignee', null, 'Dallas DC', 'Receiving Desk', '2145550100',
+   'dock@dallas-dc.test', true);
+
+-- ---------- shipment assignments -------------------------------------------
+insert into shipment_assignments (id, shipment_id, carrier_id, driver_id, truck_id,
+                                  dispatcher_id, assigned_by) values
+  ('fbfbfbfb-fbfb-fbfb-fbfb-fbfbfbfb0a01', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   '11111111-1111-1111-1111-11111111aaaa', '66666666-6666-6666-6666-66666666aaaa',
+   '55555555-5555-5555-5555-55555555aaaa', '00000000-0000-0000-0000-0000000000e1',
+   '00000000-0000-0000-0000-0000000000e1'),
+  ('fbfbfbfb-fbfb-fbfb-fbfb-fbfbfbfb0b01', 'ffffffff-ffff-ffff-ffff-ffffffff0b01',
+   '11111111-1111-1111-1111-11111111bbbb', '66666666-6666-6666-6666-66666666bbbb',
+   '55555555-5555-5555-5555-55555555bbbb', '00000000-0000-0000-0000-0000000000e1',
+   '00000000-0000-0000-0000-0000000000e1');

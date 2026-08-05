@@ -412,7 +412,8 @@ select rls_test.eq((select count(*) from staff_invites), 1, 'dispatcher reads st
 select rls_test.eq((select count(*) from support_threads), 2, 'dispatcher reads every support thread');
 select rls_test.eq((select count(*) from support_messages), 2, 'dispatcher reads every support message');
 select rls_test.eq((select count(*) from user_preferences), 2, 'dispatcher reads user preferences');
-select rls_test.eq((select count(*) from profiles), 8, 'dispatcher reads all profiles');
+-- 8 M-61 identities + the 3 broker identities M-71's fixtures add.
+select rls_test.eq((select count(*) from profiles), 11, 'dispatcher reads all profiles');
 -- staff limits
 select rls_test.eq((select count(*) from notifications), 0, 'dispatcher does NOT inherit customer notifications');
 select rls_test.affects($$update company_settings set value = '"nope"'::jsonb where key = 'mc_number'$$, 0,
@@ -492,6 +493,330 @@ select rls_test.eq((select count(*) from loads where carrier_id <> '11111111-111
   'carrierA sees no other tenant loads/deadhead data (M-69/P-7)');
 select rls_test.eq((select count(*) from subscribers), 0,
   'carrierA still cannot read subscribers after 0014 (M-69/P-1)');
+
+reset role;
+set request.jwt.claim.sub = '';
+
+-- ===========================================================================
+-- 7 · M-71 — shipment schema (migrations 0017–0018)
+--
+-- Three axes now: shipper A/B, carrier A/B and broker A/B, plus broker C —
+-- an organization an admin has NOT activated, which must grant nothing even
+-- though its membership row exists.
+--
+-- Identity extension
+--   broker A owner   00000000-0000-0000-0000-00000000ab01
+--   broker B owner   00000000-0000-0000-0000-00000000ab02
+--   broker C member  00000000-0000-0000-0000-00000000ab03  (org NOT active)
+--   shipment A       ffffffff-ffff-ffff-ffff-ffffffff0a01  (shipper/carrier/broker A)
+--   shipment B       ffffffff-ffff-ffff-ffff-ffffffff0b01  (shipper/carrier/broker B)
+-- ===========================================================================
+
+/**
+ * Exact-SQLSTATE rejection. rls_test.denied() accepts any of three policy
+ * shapes, which is right for RLS but too loose for a constraint proof: a
+ * CHECK test that passes because a TRIGGER fired first proves nothing about
+ * the CHECK. This variant names the code it demands and re-raises anything
+ * else, so each database guarantee below is attributed to the object that
+ * actually produced it.
+ */
+create function rls_test.rejects_with(stmt text, expected_state text, label text)
+returns void language plpgsql as $$
+declare
+  allowed boolean := false;
+  state text;
+  msg text;
+begin
+  begin
+    execute stmt;
+    allowed := true;
+  exception when others then
+    get stacked diagnostics state = returned_sqlstate, msg = message_text;
+    if state <> expected_state then
+      raise exception 'RLS TEST BROKEN: % — expected SQLSTATE %, got % (%) for: %',
+        label, expected_state, state, msg, stmt;
+    end if;
+  end;
+  if allowed then
+    raise exception 'RLS ASSERTION FAILED: % — statement was ALLOWED but must be rejected with %: %',
+      label, expected_state, stmt;
+  end if;
+  perform rls_test.record(label);
+end;
+$$;
+grant execute on function rls_test.rejects_with(text, text, text)
+  to authenticated, anon, service_role, public;
+
+-- ---------------------------------------------------------------------------
+-- 7a · SHIPPER A vs SHIPPER B  (§19 "Shipper A cannot view Shipper B's")
+-- ---------------------------------------------------------------------------
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1';
+
+select rls_test.eq((select count(*) from shipments), 1, 'shipperA sees exactly 1 shipment');
+select rls_test.eq((select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'), 1, 'shipperA sees its own shipment row');
+select rls_test.eq((select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'), 0, 'shipperA cannot select shipperB shipment');
+select rls_test.eq((select count(*) from shipments where tracking_number = 'PL-2026-000202'), 0, 'shipperA cannot select shipperB shipment BY TRACKING NUMBER (§5 is an identifier, not an access grant)');
+select rls_test.eq((select count(*) from shipment_parties), 2, 'shipperA sees both parties of its own shipment');
+select rls_test.eq((select count(*) from shipment_parties where shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'), 0, 'shipperA cannot select shipperB shipment parties');
+select rls_test.eq((select count(*) from shipment_assignments), 1, 'shipperA sees the assignment on its own shipment');
+select rls_test.eq((select count(*) from shipment_assignments where shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'), 0, 'shipperA cannot select shipperB assignments');
+select rls_test.eq((select count(*) from broker_partners), 0, 'shipperA cannot select any broker organization');
+select rls_test.eq((select count(*) from broker_partner_memberships), 0, 'shipperA cannot select broker memberships');
+select rls_test.eq((select count(*) from my_broker_partner_ids()), 0, 'my_broker_partner_ids is empty for a shipper owner');
+-- §19: no customer may write a shipment at all — there is no INSERT/UPDATE/
+-- DELETE policy, so "carrier users cannot edit financial fields" is not a
+-- column list to maintain, it is the absence of a grant.
+select rls_test.affects($$update shipments set margin = 0 where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$, 0,
+  'shipperA cannot edit financial fields on its OWN shipment');
+select rls_test.affects($$update shipments set status = 'delivered' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$, 0,
+  'shipperA cannot change its own shipment status (§20 transitions are server-side)');
+select rls_test.affects($$update shipments set public_tracking_enabled = true where id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'$$, 0,
+  'shipperA cannot publish shipperB shipment to the public tracking page');
+select rls_test.affects($$delete from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$, 0,
+  'shipperA cannot delete its own shipment');
+select rls_test.affects($$update shipment_parties set public_contact = true where id = 'fafafafa-fafa-fafa-fafa-fafafafa0a02'$$, 0,
+  'shipperA cannot flip a private contact to public');
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c2';
+select rls_test.eq((select count(*) from shipments), 1, 'shipperB sees exactly 1 shipment');
+select rls_test.eq((select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'), 0, 'shipperB cannot select shipperA shipment');
+select rls_test.eq((select count(*) from shipment_parties where shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'), 0, 'shipperB cannot select shipperA shipment parties');
+
+-- ---------------------------------------------------------------------------
+-- 7b · CARRIER A vs CARRIER B  (§19 "Carrier A cannot view Carrier B's")
+-- ---------------------------------------------------------------------------
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';
+select rls_test.eq((select count(*) from shipments), 1, 'carrierA sees exactly 1 shipment');
+select rls_test.eq((select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'), 0, 'carrierA cannot select carrierB shipment');
+select rls_test.eq((select count(*) from shipment_assignments), 1, 'carrierA sees only its own assignment');
+select rls_test.eq((select count(*) from shipment_assignments where carrier_id = '11111111-1111-1111-1111-11111111bbbb'), 0, 'carrierA cannot select carrierB assignments');
+select rls_test.eq((select count(*) from shipment_parties where shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'), 0, 'carrierA cannot select carrierB shipment parties');
+select rls_test.eq((select count(*) from broker_partners), 0, 'carrierA cannot select broker organizations');
+select rls_test.affects($$update shipments set carrier_pay = 99999 where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$, 0,
+  'carrierA cannot edit carrier_pay on the shipment it hauls (§19 financial-write rejection)');
+select rls_test.affects($$update shipments set margin = 0, gross_shipper_amount = 0 where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$, 0,
+  'carrierA cannot edit shipper financial data (§20 impossible-transition list)');
+select rls_test.affects($$update shipments set status = 'delivered' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'$$, 0,
+  'carrierA cannot mark another carrier shipment delivered (§20)');
+select rls_test.affects($$update shipment_assignments set released_at = now() where id = 'fbfbfbfb-fbfb-fbfb-fbfb-fbfbfbfb0b01'$$, 0,
+  'carrierA cannot release carrierB assignment');
+
+-- non-owner MEMBER of carrier A reaches the same shipment through membership
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a2';
+select rls_test.eq((select count(*) from shipments), 1, 'carrierA member reads carrierA shipment via membership');
+select rls_test.eq((select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'), 0, 'carrierA member still cannot read carrierB shipment');
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000b1';
+select rls_test.eq((select count(*) from shipments), 1, 'carrierB sees exactly 1 shipment');
+select rls_test.eq((select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'), 0, 'carrierB cannot select carrierA shipment');
+
+-- ---------------------------------------------------------------------------
+-- 7c · BROKER A vs BROKER B  (§19 "Broker A cannot view Broker B's", §12)
+-- ---------------------------------------------------------------------------
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab01';
+select rls_test.eq((select count(*) from my_broker_partner_ids()), 1, 'my_broker_partner_ids scopes brokerA to 1 organization');
+select rls_test.eq((select count(*) from shipments), 1, 'brokerA sees exactly the 1 shipment explicitly linked to it');
+select rls_test.eq((select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'), 0, 'brokerA cannot select brokerB shipment');
+select rls_test.eq((select count(*) from broker_partners), 1, 'brokerA sees only its own broker organization');
+select rls_test.eq((select count(*) from broker_partners where id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeee0b01'), 0, 'brokerA cannot select brokerB organization');
+-- §12 "approved contact channels": the private party row stays invisible.
+select rls_test.eq((select count(*) from shipment_parties), 1, 'brokerA sees ONLY the public_contact party (§12 approved channels)');
+select rls_test.eq((select count(*) from shipment_parties where id = 'fafafafa-fafa-fafa-fafa-fafafafa0a02'), 0, 'brokerA cannot see the shipment private contact');
+-- §12 must-not-see: carrier operational detail.
+select rls_test.eq((select count(*) from shipment_assignments), 0, 'brokerA reads NO carrier assignment detail (§12)');
+select rls_test.eq((select count(*) from carriers), 0, 'brokerA cannot select carrier records (§12 carrier packet/insurance)');
+select rls_test.eq((select count(*) from documents), 0, 'brokerA cannot select carrier documents (§12)');
+select rls_test.eq((select count(*) from invoices), 0, 'brokerA cannot select shipper billing (§12)');
+select rls_test.eq((select count(*) from freight_quotes), 0, 'brokerA cannot select freight quotes (§12)');
+select rls_test.affects($$update shipments set status = 'delivered' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$, 0,
+  'brokerA cannot write the shipment it is linked to');
+select rls_test.affects($$update shipments set broker_partner_id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeee0a01' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'$$, 0,
+  'brokerA cannot link itself to another shipment (the link is an admin write)');
+select rls_test.affects($$update broker_partners set active = true where id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeee0c01'$$, 0,
+  'brokerA cannot activate an unapproved broker organization');
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab02';
+select rls_test.eq((select count(*) from shipments), 1, 'brokerB sees exactly its own linked shipment');
+select rls_test.eq((select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'), 0, 'brokerB cannot select brokerA shipment');
+select rls_test.eq((select count(*) from shipment_parties where shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'), 0, 'brokerB cannot select brokerA shipment parties');
+
+-- broker C: the membership row EXISTS, the organization is not activated —
+-- §12's admin-approval gate, enforced inside my_broker_partner_ids().
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab03';
+select rls_test.eq((select count(*) from broker_partner_memberships), 1, 'brokerC member CAN see that it holds a membership (non-vacuous fixture)');
+select rls_test.eq((select count(*) from my_broker_partner_ids()), 0, 'an UNAPPROVED broker organization grants nothing (§12 admin approval)');
+select rls_test.eq((select count(*) from shipments), 0, 'brokerC member sees no shipments');
+select rls_test.eq((select count(*) from broker_partners), 0, 'brokerC member cannot even read its own unapproved organization');
+
+-- ---------------------------------------------------------------------------
+-- 7d · AUTHENTICATED NON-MEMBER
+-- ---------------------------------------------------------------------------
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000d1';
+select rls_test.eq((select count(*) from shipments), 0, 'non-member sees no shipments');
+select rls_test.eq((select count(*) from shipment_parties), 0, 'non-member sees no shipment parties');
+select rls_test.eq((select count(*) from shipment_assignments), 0, 'non-member sees no shipment assignments');
+select rls_test.eq((select count(*) from broker_partners), 0, 'non-member sees no broker organizations');
+select rls_test.eq((select count(*) from broker_partner_memberships), 0, 'non-member sees no broker memberships');
+
+-- ---------------------------------------------------------------------------
+-- 7e · ANON — §19 forbids direct anonymous SELECT on ANY of these tables.
+-- The shim grants anon the same table privileges Supabase does, so a pass
+-- here proves the POLICY (its absence) blocks it, not a missing grant.
+-- ---------------------------------------------------------------------------
+reset role;
+set request.jwt.claim.sub = '';
+set role anon;
+
+select rls_test.reads_nothing('shipments', 'anon reads nothing from shipments (§19 no anonymous SELECT)');
+select rls_test.reads_nothing('shipment_parties', 'anon reads nothing from shipment_parties');
+select rls_test.reads_nothing('shipment_assignments', 'anon reads nothing from shipment_assignments');
+select rls_test.reads_nothing('broker_partners', 'anon reads nothing from broker_partners');
+select rls_test.reads_nothing('broker_partner_memberships', 'anon reads nothing from broker_partner_memberships');
+select rls_test.writes_nothing($$update shipments set public_tracking_enabled = true$$,
+  'anon cannot enable public tracking on anything');
+select rls_test.writes_nothing($$update shipments set status = 'delivered'$$,
+  'anon cannot mark a shipment delivered (§20 impossible transition)');
+select rls_test.writes_nothing($$delete from shipment_assignments$$,
+  'anon cannot delete assignments');
+
+-- ---------------------------------------------------------------------------
+-- 7f · STAFF — dispatcher and admin see the whole desk (non-vacuity for
+-- every zero above), and are still bound by the tracking-number trigger.
+-- ---------------------------------------------------------------------------
+reset role;
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000e1';
+select rls_test.eq((select count(*) from shipments), 2, 'dispatcher reads all shipments');
+select rls_test.eq((select count(*) from shipment_parties), 3, 'dispatcher reads all shipment parties');
+select rls_test.eq((select count(*) from shipment_assignments), 2, 'dispatcher reads all shipment assignments');
+select rls_test.eq((select count(*) from broker_partners), 3, 'dispatcher reads all broker organizations, active or not');
+select rls_test.affects($$update shipments set status = 'arrived_at_delivery' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$, 1,
+  'dispatcher CAN advance a shipment status (proves every 0 above is a policy result, not an empty table)');
+select rls_test.rejects_with($$update shipments set tracking_number = 'PL-2026-123456' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
+  'P0001', 'dispatcher cannot rewrite a tracking number either (§5 immutability)');
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000f1';
+select rls_test.eq((select count(*) from shipments), 2, 'admin reads all shipments');
+select rls_test.eq((select count(*) from shipment_parties), 3, 'admin reads all shipment parties');
+select rls_test.affects($$update broker_partners set active = true where id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeee0c01'$$, 1,
+  'admin CAN approve a broker organization');
+select rls_test.affects($$update broker_partners set active = false where id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeee0c01'$$, 1,
+  'admin CAN revoke a broker organization (one write kills access everywhere)');
+
+-- ---------------------------------------------------------------------------
+-- 7g · INSERT rejection for customer roles.
+--
+-- Run with the §2 gate OPEN on purpose: the BEFORE INSERT gate fires before
+-- RLS WITH CHECK, so with the gate closed every one of these would be
+-- rejected by the gate and would prove nothing about the policies. Opening it
+-- first makes 42501 — "no INSERT policy applies to you" — the only possible
+-- outcome.
+-- ---------------------------------------------------------------------------
+reset role;
+set request.jwt.claim.sub = '';
+update company_settings set value = 'true'::jsonb where key = 'brokerage_active';
+
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1';
+select rls_test.rejects_with($$insert into shipments (tracking_number, shipper_id, origin_city, origin_state, destination_city, destination_state, equipment) values ('PL-2026-000301','22222222-2222-2222-2222-2222222aaaaa','Newark','NJ','Atlanta','GA','dry-van')$$,
+  '42501', 'shipperA cannot insert a shipment even for its own company (service role only)');
+select rls_test.rejects_with($$insert into shipment_parties (shipment_id, party_role, company_name) values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','third_party','Ghost')$$,
+  '42501', 'shipperA cannot insert a shipment party');
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';
+select rls_test.rejects_with($$insert into shipment_assignments (shipment_id, carrier_id) values ('ffffffff-ffff-ffff-ffff-ffffffff0b01','11111111-1111-1111-1111-11111111aaaa')$$,
+  '42501', 'carrierA cannot assign itself to carrierB shipment');
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab01';
+select rls_test.rejects_with($$insert into shipments (tracking_number, shipper_id, broker_partner_id, origin_city, origin_state, destination_city, destination_state, equipment) values ('PL-2026-000302','22222222-2222-2222-2222-2222222aaaaa','eeeeeeee-eeee-eeee-eeee-eeeeeeee0a01','Newark','NJ','Atlanta','GA','dry-van')$$,
+  '42501', 'brokerA cannot insert a shipment');
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000d1';
+select rls_test.rejects_with($$insert into shipments (tracking_number, shipper_id, origin_city, origin_state, destination_city, destination_state, equipment) values ('PL-2026-000303','22222222-2222-2222-2222-2222222aaaaa','Newark','NJ','Atlanta','GA','dry-van')$$,
+  '42501', 'a NON-MEMBER cannot insert a shipment');
+select rls_test.rejects_with($$insert into broker_partners (company_name, active) values ('Self-serve Brokerage', true)$$,
+  '42501', 'a non-member cannot self-register a broker organization (§12 admin-invited only)');
+select rls_test.rejects_with($$insert into broker_partner_memberships (broker_partner_id, profile_id) values ('eeeeeeee-eeee-eeee-eeee-eeeeeeee0a01','00000000-0000-0000-0000-0000000000d1')$$,
+  '42501', 'a non-member cannot join a broker organization');
+
+set role anon;
+set request.jwt.claim.sub = '';
+select rls_test.rejects_with($$insert into shipments (tracking_number, shipper_id, origin_city, origin_state, destination_city, destination_state, equipment) values ('PL-2026-000304','22222222-2222-2222-2222-2222222aaaaa','Newark','NJ','Atlanta','GA','dry-van')$$,
+  '42501', 'anon cannot insert a shipment');
+select rls_test.rejects_with($$insert into shipment_parties (shipment_id, party_role) values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','third_party')$$,
+  '42501', 'anon cannot insert a shipment party');
+
+-- ---------------------------------------------------------------------------
+-- 7h · Constraints and triggers, asserted as the TABLE OWNER.
+--
+-- `reset role` here is postgres — RLS is bypassed entirely. Anything that
+-- still fails can only be a CHECK, a unique index or a trigger, which is
+-- exactly the point: these are the guarantees that survive the service role,
+-- not just the browser session.
+-- ---------------------------------------------------------------------------
+reset role;
+set request.jwt.claim.sub = '';
+
+-- §5 format CHECK (gate is currently OPEN, so the CHECK is what rejects).
+select rls_test.rejects_with($$insert into shipments (tracking_number, shipper_id, origin_city, origin_state, destination_city, destination_state, equipment) values ('PL-26-1','22222222-2222-2222-2222-2222222aaaaa','Newark','NJ','Atlanta','GA','dry-van')$$,
+  '23514', 'malformed tracking number rejected by shipments_tracking_number_format');
+select rls_test.rejects_with($$insert into shipments (tracking_number, shipper_id, origin_city, origin_state, destination_city, destination_state, equipment) values ('pl-2026-000401','22222222-2222-2222-2222-2222222aaaaa','Newark','NJ','Atlanta','GA','dry-van')$$,
+  '23514', 'lowercase tracking number rejected — only the canonical form is storable');
+select rls_test.rejects_with($$insert into shipments (tracking_number, shipper_id, origin_city, origin_state, destination_city, destination_state, equipment) values ('PL-2026-0004010','22222222-2222-2222-2222-2222222aaaaa','Newark','NJ','Atlanta','GA','dry-van')$$,
+  '23514', 'seven-digit sequence rejected (truncation would resolve to another customer shipment)');
+
+-- The owner CAN insert a well-formed shipment while the gate is open.
+select rls_test.affects($$insert into shipments (id, tracking_number, shipper_id, origin_city, origin_state, destination_city, destination_state, equipment) values ('ffffffff-ffff-ffff-ffff-ffffffff0c01','PL-2026-000401','22222222-2222-2222-2222-2222222aaaaa','Newark','NJ','Atlanta','GA','dry-van')$$,
+  1, 'a well-formed shipment inserts while brokerage_active is true (non-vacuous)');
+
+-- §5 uniqueness.
+select rls_test.rejects_with($$insert into shipments (tracking_number, shipper_id, origin_city, origin_state, destination_city, destination_state, equipment) values ('PL-2026-000101','22222222-2222-2222-2222-2222222aaaaa','Newark','NJ','Atlanta','GA','dry-van')$$,
+  '23505', 'duplicate tracking number rejected by shipments_tracking_number_key (the 23505 the generator retries on)');
+
+-- §20 — `cancelled` must record a reason.
+select rls_test.rejects_with($$update shipments set status = 'cancelled' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0c01'$$,
+  '23514', 'cancelled without a cancellation_reason rejected (§20)');
+select rls_test.affects($$update shipments set status = 'cancelled', cancellation_reason = 'shipper withdrew' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0c01'$$,
+  1, 'cancelled WITH a reason is accepted (non-vacuous)');
+
+-- §5 immutability — the headline M-71 requirement.
+select rls_test.rejects_with($$update shipments set tracking_number = 'PL-2026-777777' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
+  'P0001', 'tracking_number UPDATE rejected by trg_shipments_tracking_number_immutable — as the TABLE OWNER, with RLS bypassed');
+select rls_test.rejects_with($$update shipments set tracking_number = null where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
+  'P0001', 'tracking_number cannot be nulled either');
+select rls_test.rejects_with($$update shipments set tracking_number = 'PL-2026-777777'$$,
+  'P0001', 'a bulk tracking-number rewrite is rejected too (row-level trigger, no set-level escape)');
+select rls_test.affects($$update shipments set origin_city = 'Elizabeth' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
+  1, 'a non-tracking-number UPDATE still succeeds — the trigger is column-scoped, not a table lock');
+select rls_test.ok((select tracking_number = 'PL-2026-000101' from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'),
+  'tracking number is unchanged after every rewrite attempt');
+select rls_test.ok((select updated_at > created_at from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'),
+  'trg_shipments_updated_at stamped the row (set_updated_at idiom)');
+
+-- One unreleased assignment per shipment ("reassignment is a new row").
+select rls_test.rejects_with($$insert into shipment_assignments (shipment_id, carrier_id) values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','11111111-1111-1111-1111-11111111bbbb')$$,
+  '23505', 'a second UNRELEASED assignment on one shipment is rejected by shipment_assignments_one_active');
+select rls_test.affects($$update shipment_assignments set released_at = now(), release_reason = 'test reassignment' where id = 'fbfbfbfb-fbfb-fbfb-fbfb-fbfbfbfb0a01'$$,
+  1, 'releasing the active assignment succeeds');
+select rls_test.affects($$insert into shipment_assignments (shipment_id, carrier_id) values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','11111111-1111-1111-1111-11111111bbbb')$$,
+  1, 'a reassignment AFTER release is allowed — append-only history, not a lock (non-vacuous)');
+
+-- §2 gate — close it again and prove it refuses the owner.
+update company_settings set value = 'false'::jsonb where key = 'brokerage_active';
+select rls_test.rejects_with($$insert into shipments (tracking_number, shipper_id, origin_city, origin_state, destination_city, destination_state, equipment) values ('PL-2026-000501','22222222-2222-2222-2222-2222222aaaaa','Newark','NJ','Atlanta','GA','dry-van')$$,
+  'P0001', 'trg_shipments_brokerage_gate refuses INSERT while brokerage_active is false — as the TABLE OWNER (the service role has strictly fewer privileges)');
+select rls_test.affects($$update shipments set delay_minutes = 30 where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
+  1, 'the closed gate does NOT block updates to an in-flight shipment (INSERT-only by design — freight already moving must stay operable)');
+select rls_test.affects($$update shipments set status = 'cancelled', cancellation_reason = 'gate closed mid-flight' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'$$,
+  1, 'an in-flight shipment can still be CANCELLED while the gate is closed');
+
+-- Fail-closed: with the key removed entirely the gate must still refuse.
+delete from company_settings where key = 'brokerage_active';
+select rls_test.rejects_with($$insert into shipments (tracking_number, shipper_id, origin_city, origin_state, destination_city, destination_state, equipment) values ('PL-2026-000502','22222222-2222-2222-2222-2222222aaaaa','Newark','NJ','Atlanta','GA','dry-van')$$,
+  'P0001', 'the §2 gate FAILS CLOSED when brokerage_active is missing entirely');
+insert into company_settings (key, value, description) values
+  ('brokerage_active', 'false', 'restored by the M-71 suite');
 
 reset role;
 set request.jwt.claim.sub = '';

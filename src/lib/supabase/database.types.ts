@@ -462,6 +462,63 @@ type InvoiceRow = {
   updated_at: string;
 }
 
+/* ---------- M-71 rows (migrations 0017–0018) ----------
+ *
+ * The three shipment row types are IMPORTED, not re-declared. `src/lib/
+ * shipments/types.ts` is the source of truth M-71's DDL was written from
+ * (M-70's "What M-71 must match" table); a second copy here would be a
+ * duplicate DTO of exactly the kind the executive directive forbids, and the
+ * first `ALTER` would silently make one of them wrong. The shipment ENUM
+ * types live there too — import them from `@/lib/shipments/types`, not from
+ * this file.
+ *
+ * `broker_partners` / `broker_partner_memberships` have no M-70 counterpart
+ * (M-70 predates the decision to give `ShipmentRow.broker_partner_id` a real
+ * referent), so they are declared here alongside the other 0005-era
+ * membership rows they mirror. */
+import type {
+  ShipmentRow,
+  ShipmentPartyRow,
+  ShipmentAssignmentRow,
+} from "@/lib/shipments/types";
+
+/**
+ * `src/lib/shipments/types.ts` declares its rows as `interface`, which in
+ * TypeScript does NOT carry the implicit index signature that supabase-js's
+ * `GenericTable` constraint (`Row: Record<string, unknown>`) requires — a
+ * mismatch that silently collapses EVERY table in this file to `never`, not
+ * just the new ones. This homomorphic mapped type is the standard adapter: it
+ * derives each property from the source type, so it restates nothing and
+ * cannot drift. Changing an interface to a type alias upstream would work
+ * too, but M-70's file is the published specification M-71's DDL was written
+ * against and is better left byte-identical.
+ */
+type AsRow<T> = { [K in keyof T]: T[K] };
+
+type BrokerPartnerRow = {
+  id: string;
+  company_name: string;
+  mc_number: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  /** §12: FALSE until an admin approves. `my_broker_partner_ids()` filters on
+   * it, so an unapproved organization grants access to nothing. */
+  active: boolean;
+  approved_by: string | null;
+  approved_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+type BrokerPartnerMembershipRow = {
+  broker_partner_id: string;
+  profile_id: string;
+  role: MembershipRole;
+  created_at: string;
+}
+
 type Insertable<Row, Required extends keyof Row> = Pick<Row, Required> &
   Partial<Omit<Row, Required>>;
 
@@ -632,6 +689,52 @@ export type Database = {
         Update: Partial<StaffInviteRow>;
         Relationships: [];
       };
+      /* ---------- M-71 (0017–0018) ---------- */
+      shipments: {
+        Row: AsRow<ShipmentRow>;
+        /* Everything else is nullable or defaulted in 0017. `tracking_number`
+         * is required because it is server-generated (never a DB default) and
+         * `id` is not, because `gen_random_uuid()` supplies it. */
+        Insert: Insertable<
+          AsRow<ShipmentRow>,
+          | "tracking_number"
+          | "shipper_id"
+          | "origin_city"
+          | "origin_state"
+          | "destination_city"
+          | "destination_state"
+          | "equipment"
+        >;
+        Update: Partial<AsRow<ShipmentRow>>;
+        Relationships: [];
+      };
+      shipment_parties: {
+        Row: AsRow<ShipmentPartyRow>;
+        Insert: Insertable<AsRow<ShipmentPartyRow>, "shipment_id" | "party_role">;
+        Update: Partial<AsRow<ShipmentPartyRow>>;
+        Relationships: [];
+      };
+      shipment_assignments: {
+        Row: AsRow<ShipmentAssignmentRow>;
+        Insert: Insertable<AsRow<ShipmentAssignmentRow>, "shipment_id" | "carrier_id">;
+        Update: Partial<AsRow<ShipmentAssignmentRow>>;
+        Relationships: [];
+      };
+      broker_partners: {
+        Row: BrokerPartnerRow;
+        Insert: Insertable<BrokerPartnerRow, "company_name">;
+        Update: Partial<BrokerPartnerRow>;
+        Relationships: [];
+      };
+      broker_partner_memberships: {
+        Row: BrokerPartnerMembershipRow;
+        Insert: Insertable<
+          BrokerPartnerMembershipRow,
+          "broker_partner_id" | "profile_id"
+        >;
+        Update: Partial<BrokerPartnerMembershipRow>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -639,6 +742,9 @@ export type Database = {
       is_staff: { Args: Record<string, never>; Returns: boolean };
       my_carrier_ids: { Args: Record<string, never>; Returns: string[] };
       my_shipper_ids: { Args: Record<string, never>; Returns: string[] };
+      /** M-71 (0018) — active-filtered, so an unapproved broker org yields
+       * nothing (§12). */
+      my_broker_partner_ids: { Args: Record<string, never>; Returns: string[] };
     };
   };
 }
