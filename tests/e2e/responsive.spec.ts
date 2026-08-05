@@ -50,6 +50,9 @@ const ROUTES: { path: string; slug: string; group: string }[] = [
   { path: "/", slug: "home", group: "public" },
   { path: "/about", slug: "about", group: "public" },
   { path: "/contact", slug: "contact", group: "public" },
+  // M-73: §22's mobile tracking page — the timeline is the widest thing on
+  // the public site and the most likely source of a reflow failure.
+  { path: "/track", slug: "track", group: "public" },
   { path: "/faq", slug: "faq", group: "public" },
   { path: "/shippers", slug: "shippers", group: "public" },
   { path: "/become-a-carrier", slug: "become-a-carrier", group: "public" },

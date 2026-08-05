@@ -481,6 +481,7 @@ import type {
   ShipmentPartyRow,
   ShipmentAssignmentRow,
   ShipmentEventRow,
+  ShipmentTrackingAccessRow,
   ShipmentEventSource,
   ShipmentEventType,
   ShipmentEventVisibility,
@@ -741,6 +742,27 @@ export type Database = {
           "shipment_id" | "event_type" | "source"
         >;
         Update: Partial<AsRow<ShipmentEventRow>>;
+        Relationships: [];
+      };
+      /* ---------- M-73 (0020) ----------
+       *
+       * Append-only §19 access ledger. `Insert` is the only member `src/`
+       * uses (`src/lib/shipments/public-lookup.ts`, via the service-role
+       * client); `Update` is declared for shape completeness and is
+       * unreachable — 0020's trigger refuses every UPDATE and DELETE for
+       * every role, service role included.
+       *
+       * NOTE WHAT IS ABSENT FROM THE ROW TYPE: any field able to carry the
+       * attempted SECONDARY VALUE. M-70's interface has none, 0020's table has
+       * no column, and the insert helper takes no parameter — three
+       * independent constructions of the same guarantee. */
+      shipment_tracking_access: {
+        Row: AsRow<ShipmentTrackingAccessRow>;
+        Insert: Insertable<
+          AsRow<ShipmentTrackingAccessRow>,
+          "tracking_number_attempted" | "outcome"
+        >;
+        Update: Partial<AsRow<ShipmentTrackingAccessRow>>;
         Relationships: [];
       };
       broker_partners: {

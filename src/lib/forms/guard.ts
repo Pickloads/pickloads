@@ -23,16 +23,26 @@ export type GuardResult =
   | { ok: true; ip: string }
   | { ok: false; message: string };
 
+/**
+ * `limit` overrides the 5-per-10-minutes default for THIS form's bucket.
+ *
+ * M-73 passes a TIGHTER value than the default: `/track` is an enumeration
+ * surface rather than a lead form (§19 "prevents enumeration"), and the cost
+ * of a false refusal there is a customer waiting ten minutes, while the cost
+ * of a generous limit is a guessing budget. Every other caller keeps the
+ * default by omitting the argument.
+ */
 export async function guardPublicForm(
   form: string,
   formData: FormData,
+  limit?: number,
 ): Promise<GuardResult> {
   const h = await headers();
   const forwarded = h.get("x-forwarded-for");
   const ip =
     forwarded?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
 
-  if (!(await checkRateLimit(form, ip))) {
+  if (!(await checkRateLimit(form, ip, limit))) {
     return { ok: false, message: GUARD_MESSAGES.rate_limit };
   }
 

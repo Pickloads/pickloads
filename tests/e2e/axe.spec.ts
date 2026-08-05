@@ -20,6 +20,12 @@ const PAGES = [
   "/about",
   "/contact",
   "/faq",
+  /* M-73: the public tracking LOOKUP page. The RESULT view cannot be scanned
+   * here — a live result needs a shipment in a database and this lane runs on
+   * placeholder credentials by design — so it is scanned with the same
+   * axe-core engine against the same component in
+   * tests/unit/tracking-result-a11y.test.tsx, which explains the split. */
+  "/track",
   "/shippers",
   "/become-a-carrier",
   "/start-your-trucking-company",
@@ -68,7 +74,7 @@ test("no horizontal overflow at 320px on key public pages", async ({
     reducedMotion: "reduce",
   });
   const page = await ctx.newPage();
-  for (const path of ["/", "/about", "/contact", "/shippers", "/login"]) {
+  for (const path of ["/", "/about", "/contact", "/shippers", "/login", "/track"]) {
     await page.goto(path);
     const over = await page.evaluate(
       () =>

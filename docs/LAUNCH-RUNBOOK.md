@@ -6,11 +6,15 @@ degrades gracefully when a secret is missing (dev warnings, honest pending
 states) — so a partial deploy never crashes, it just quietly disables the
 affected integration. **Production must have every var set.**
 
-*Last revised for M-72 (status-transition engine): migration 0019 added to the
-order-and-rollback table, the `0001 → 0019` chain, the 339-assertion RLS gate
-and a **new release gate — `npm run test:integration`** (the §27 tier
-`FINAL-IMPLEMENTATION-PLAN` §4 restores). Previously revised for M-71 (shipment
-schema): migrations 0014–0018 and the `0001 → 0018` chain. Previously revised for M-62 (final QA), covering the account-system
+*Last revised for M-73 (public secure tracking, `/track`): migration **0020**
+added to the order-and-rollback table, the `0001 → 0020` chain, **one new
+environment variable (`TRACKING_ACCESS_SECRET`) that fails CLOSED**, a `/track`
+smoke test, and refreshed gate counts (437 unit / 357 RLS / 47 integration /
+174 e2e / 348 pages). Previously revised for M-72 (status-transition engine):
+migration 0019, the 339-assertion RLS gate and a **new release gate —
+`npm run test:integration`** (the §27 tier `FINAL-IMPLEMENTATION-PLAN` §4
+restores). Previously revised for M-71 (shipment schema): migrations 0014–0018
+and the `0001 → 0018` chain. Previously revised for M-62 (final QA), covering the account-system
 upgrade M-50…M-61: migrations 0005–0013 with per-migration rollback notes, the
 Supabase auth email templates, staff TOTP MFA + first-admin enrollment, the
 in-app staff invite flow, the `shipper_signup_enabled` switch, and
@@ -59,11 +63,12 @@ region `us-east-1` (closest to NJ ops). For **each** project, in order:
    | 0017 | `0017_shipment_schema.sql` | **M-71.** 17 shipment enum types; `broker_partners`, `broker_partner_memberships`, `shipments`, `shipment_parties`, `shipment_assignments`; 17 indexes; `set_updated_at` triggers; `trg_shipments_tracking_number_immutable` (§5); `trg_shipments_brokerage_gate` (§2 — refuses INSERT while `brokerage_active` is false, fail-closed) | Full script in [`docs/modules/M-71-shipment-schema.md`](modules/M-71-shipment-schema.md) §DB changes. Drop the 4 triggers, the 2 trigger functions, the 5 tables `cascade`, then the 17 types. **Destructive** — dump the 5 tables first. Run **after** 0018's rollback. Also roll back `src/lib/supabase/database.types.ts` in the same deploy. |
    | 0018 | `0018_shipment_rls.sql` | **M-71.** `my_broker_partner_ids()` (active-filtered per §12); RLS on the 5 tables from 0017; 15 policies; **no anon policy by design** (§19 forbids anonymous shipment SELECT) | Full script in the M-71 doc. Drop the 15 policies, `disable row level security` on the 5 tables, drop the helper. **Dangerous in isolation** — this leaves five populated tables with no tenant isolation. Only ever run it immediately before rolling back 0017 too. |
    | 0019 | `0019_shipment_events.sql` | **M-72.** `shipment_events` (all 18 §7 fields; globally unique `idempotency_key`, per-shipment unique `external_event_id`); 6 indexes; `trg_shipment_events_append_only` (refuses UPDATE/DELETE for **every** role, service role included); RLS + 4 policies mirroring `AUDIENCE_EVENT_VISIBILITY`, **no anon policy**; 5 `security definer` functions (`shipment_transition_facts`, `apply_shipment_transition`, `append_shipment_event`, `set_shipment_appointment`, `apply_shipment_correction`) with **EXECUTE granted to `service_role` only** | Full script in [`docs/modules/M-72-transition-engine.md`](modules/M-72-transition-engine.md) §DB changes. Drop the 4 policies, disable RLS, drop the 5 functions (full signatures in the doc), drop the trigger **before** the table, then the trigger function, then `shipment_events cascade`. **Destructive** — dump `shipment_events` first; it is the entire timeline of every shipment. Roll back `src/lib/supabase/database.types.ts` and delete `src/lib/shipments/apply-transition.ts` in the same deploy. `shipments`/`shipment_parties`/`shipment_assignments` are untouched and keep working — statuses simply stop being writable through the engine. |
+   | 0020 | `0020_shipment_tracking_access.sql` | **M-73.** `shipment_tracking_access` — the §19 public-tracking access ledger (8 columns, both FKs `NO ACTION`, length CHECKs); 4 indexes (per-IP, per-attempted-number, per-shipment, failures); `trg_shipment_tracking_access_append_only` (refuses UPDATE/DELETE for **every** role, service role included); RLS with **one** policy — staff SELECT — and **no anon policy and no write policy at all**, so every row arrives through the service role | Full script in [`docs/modules/M-73-public-tracking.md`](modules/M-73-public-tracking.md) §DB changes. Drop the policy, disable RLS, drop the trigger **before** the table, then the trigger function, then `shipment_tracking_access cascade`. Do **not** drop the `tracking_access_outcome` type — 0017 created it. **Destructive** — this is the only record of enumeration attempts against the platform; `pg_dump -t shipment_tracking_access` first. Roll back `src/lib/supabase/database.types.ts` and remove `src/lib/shipments/public-lookup.ts` + the `/track` route in the same deploy; the failure mode if you don't is *closed* (the lookup refuses when it cannot log), so `/track` says "temporarily unavailable" rather than serving unlogged lookups. |
 
    After applying, sanity-check the chain the same way CI does:
 
    ```bash
-   npm run test:rls     # rebuilds a throwaway DB from 0001→0019 + seed + fixtures
+   npm run test:rls     # rebuilds a throwaway DB from 0001→0020 + seed + fixtures
    ```
 
 2. **Seed** — run `supabase/seed.sql` (idempotent, `on conflict do nothing`).
@@ -213,6 +218,7 @@ which is exactly why a half-configured deploy is dangerous rather than loud.
 | `STRIPE_WEBHOOK_SECRET` | server only | signing secret from step 8 | payments never mark invoices paid; the `invoices` mirror stalls at `open` |
 | `CRON_SECRET` | server only | generate: `openssl rand -hex 32` — Vercel Cron sends it as the Bearer token automatically | `/api/cron/daily` refuses every call → **no insurance-expiry alerts, no callback digest** |
 | `NEXT_PUBLIC_GA4_MEASUREMENT_ID` | build/public | GA4 admin (step 10) — fires only after cookie consent (S-05) | no analytics; admin marketing tiles keep their honest placeholders |
+| `TRACKING_ACCESS_SECRET` | server only | generate: `openssl rand -hex 32` — HMAC key for the §4 public-tracking secondary credential (recipient ZIP / access code) | **`/track` refuses EVERY lookup** ("tracking is temporarily unavailable"). This is the one secret in this table that fails **closed**, deliberately: "cannot verify the credential" is not "the credential is correct". Rotating it invalidates every stored `public_access_hash` — every shipment then needs its access code re-issued by dispatch. |
 
 **Declared in `.env.example` but read by no code today** — listed so nobody
 sets them expecting an effect:
@@ -230,14 +236,14 @@ sets them expecting an effect:
 
 ```bash
 npm run typecheck && npm run lint && npm run build   # module gate (CLAUDE.md)
-npm test                 # 353 unit assertions
-npm run test:rls         # 339 RLS isolation assertions — see below
-npm run test:integration # 33 integration tests against local PG16 — see below
-npm run test:e2e         # 160 chromium tests against the production build
+npm test                 # 437 unit assertions
+npm run test:rls         # 357 RLS isolation assertions — see below
+npm run test:integration # 47 integration tests against local PG16 — see below
+npm run test:e2e         # 174 chromium tests against the production build
 ```
 
 **`npm run test:rls` is a release gate, not an optional extra.** It rebuilds
-a throwaway database from `0001 → 0019` + seed + two/three-tenant fixtures and
+a throwaway database from `0001 → 0020` + seed + two/three-tenant fixtures and
 asserts that carrier A cannot reach carrier B, shipper A cannot reach shipper
 B (including *unclaimed* public quotes), anon reaches nothing but
 `company_settings` and published posts, and no session — staff or admin — can
@@ -250,7 +256,14 @@ even the table owner. Since M-72 it also asserts the timeline bands: a shipper
 never reads a `staff_only` event, a carrier never reads a shipper-band event, a
 broker reads only its own band, anon reads nothing, the append-only trigger
 refuses even staff, and **even an admin session is refused EXECUTE** on the five
-write functions. It needs a local PostgreSQL 16; it is deliberately **not** part of `npm test`, because vitest runs on
+write functions. Since M-73 it also asserts the access ledger: its **exact
+eight-column set** (so a future migration adding a column able to hold the
+attempted secondary value fails the suite), that anon / the owning shipper /
+the assigned carrier / a broker partner all read nothing from it while staff
+read everything, that **no session can insert into it at all** — staff included,
+because a session that could write the ledger could forge the evidence — and
+that its append-only trigger refuses UPDATE and DELETE for the table owner.
+It needs a local PostgreSQL 16; it is deliberately **not** part of `npm test`, because vitest runs on
 placeholder env with no database and that property is load-bearing for CI.
 
 ```bash
@@ -265,12 +278,17 @@ the tracking directive's §27 integration tier, which
 [`docs/FINAL-IMPLEMENTATION-PLAN.md`](FINAL-IMPLEMENTATION-PLAN.md) §4 records
 as *"diagnosed absent, then dropped entirely"* by the extension audit and
 restores as M-83b; M-72 ships the lane plus the four tests it can prove today.
-It builds its own throwaway database (`0001 → 0019` + seed, **not** the RLS
+It builds its own throwaway database (`0001 → 0020` + seed, **not** the RLS
 fixtures — it creates shipments through the engine) and then runs vitest
 against it, so the real TypeScript transition engine drives the real SQL write
 path: create → assign carrier → create event → update status, idempotent
 replay, provider dedupe, compare-and-swap conflict, event-sourced appointments,
-the §20 correction flow and the append-only refusal.
+the §20 correction flow and the append-only refusal. **M-73 adds §27's fifth
+named test — the public tracking lookup** — as fourteen scenarios driving the
+real `lookupPublicTracking` against the real schema through a psql-backed
+PostgREST adapter: happy path, wrong secondary value, unknown number, an
+admin-suspended shipment, a rate-limit trip, and a sweep of the whole access
+ledger proving the submitted secret is stored in no form.
 
 ```bash
 npm run test:integration   # PGHOST / PGPORT / PGUSER / INTEGRATION_TEST_DB override defaults
@@ -400,7 +418,14 @@ effect site-wide immediately — **no deploy**.
       blog looks abandoned; SEO needs crawlable content at launch).
 - [ ] **RU/HT native review** of the translated catalogs — machine-assisted
       RU/HT strings plus the M-42 supplemental strings (which deliberately
-      mirror English in ru/ht) need a native speaker pass.
+      mirror English in ru/ht) need a native speaker pass. **M-73 adds the
+      `shipment` namespace: 176 keys, `en`/`es`/`fr` authored, `ru`/`ht`
+      mirroring English pending review** (the established precedent — §24
+      forbids machine-translating customer-facing tracking text, so a Russian
+      visitor sees English words rather than plausible-sounding machine
+      Russian about where their freight is). The statuses, the nine milestone
+      labels and decision D-6's 29 curated operator phrases are the priority:
+      they are what a customer actually reads on `/track`.
 - [ ] Founder photo (About page shows a monogram until the shoot).
 
 **Technical smoke (after DNS cutover)**
@@ -413,7 +438,32 @@ effect site-wide immediately — **no deploy**.
       (test mode) → portal.
 - [ ] Password recovery round-trip (forgot → email → reset → portal).
 - [ ] `robots.txt`, `sitemap.xml`, hreflang, security headers (check on
-      [securityheaders.com](https://securityheaders.com)).
+      [securityheaders.com](https://securityheaders.com)). `sitemap.xml` must
+      list `/track` in all five locales and contain **nothing** matching
+      `PL-\d{4}-\d{6}` (M-73: the lookup form is indexable, results have no
+      URL at all).
+- [ ] **`/track` smoke test (M-73).** With `TRACKING_ACCESS_SECRET` set and a
+      real shipment created by dispatch (`public_tracking_enabled = true`, an
+      access code set through `hashSecondaryValue`):
+      1. `/track` renders the two-field form in all five locales; while
+         `brokerage_active` is false the honest pre-brokerage notice is shown.
+      2. Correct number **+** correct ZIP/access code → the result panel:
+         status, ETA with "ETA provided by dispatcher", the nine-step timeline
+         with visible "Completed"/"Current step" text, the shipment summary,
+         and "Last updated by dispatch".
+      3. Correct number **+ wrong** ZIP → one refusal message. Then an
+         **unknown** number + any value → the **same** message, word for word.
+         If the two differ, stop: that is an enumeration oracle.
+      4. Five rapid attempts from one IP → the rate-limit message on the fifth.
+      5. `select outcome, ip, tracking_number_attempted from
+         shipment_tracking_access order by accessed_at desc limit 10` shows one
+         row per attempt with the right outcomes — and **no column anywhere in
+         the table holds the ZIP or access code you typed**.
+      6. Submit the support-message button → a row in `contact_messages` whose
+         subject is `Tracking support — PL-YYYY-######`, plus the internal
+         notification email.
+      7. With `TRACKING_ACCESS_SECRET` **unset** in a preview environment,
+         every lookup says "temporarily unavailable" — never grants.
 - [ ] Stripe + Dropbox Sign webhook test deliveries show in
       `webhook_events`.
 

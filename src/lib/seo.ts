@@ -23,6 +23,12 @@ export const PUBLIC_ROUTES = [
   "/faq",
   "/blog",
   "/contact",
+  /* M-73: the /track LOOKUP FORM is a legitimate public landing page and is
+   * indexable. Individual tracking RESULTS are not, and cannot be: they have
+   * no URL (the lookup is a POST server action) and `TrackingResult` renders
+   * `noindex, nofollow` while one is on screen. Adding this route therefore
+   * adds one page per locale to the sitemap and zero shipment data. */
+  "/track",
   "/become-a-carrier",
   "/start-your-trucking-company",
   "/truck-dispatch",

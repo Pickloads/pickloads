@@ -1034,3 +1034,125 @@ select rls_test.rejects_with($$select append_shipment_event('ffffffff-ffff-ffff-
 
 reset role;
 set request.jwt.claim.sub = '';
+
+-- ===========================================================================
+-- 9 · M-73 / 0020 — `shipment_tracking_access` (§19 access log + enumeration)
+-- ===========================================================================
+--
+-- Four things are proved here, in order of how badly each would hurt:
+--
+--   9a  the table CANNOT hold the attempted secondary value — asserted as an
+--       exact column set, so adding such a column fails this suite;
+--   9b  nobody but staff can read the ledger (anon, shipper, carrier, broker);
+--   9c  nobody at all can WRITE it through a browser session, staff included —
+--       the ledger is written by the service role or not at all;
+--   9d  it is append-only for every role, table owner included.
+
+-- Two ledger rows to assert against: one granted access to shipment A, one
+-- enumeration miss with no shipment at all. Written as the table OWNER, which
+-- is what the service-role client is in this fixture database.
+reset role;
+set request.jwt.claim.sub = '';
+insert into shipment_tracking_access
+  (id, shipment_id, tracking_number_attempted, outcome, ip, user_agent) values
+  ('ada00000-0000-0000-0000-00000000a001', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'PL-2026-000101', 'granted', '198.51.100.10', 'Mozilla/5.0 (test)'),
+  ('ada00000-0000-0000-0000-00000000a002', null,
+   'PL-2026-999999', 'not_found', '198.51.100.99', 'curl/8.0');
+
+-- ---------------------------------------------------------------------------
+-- 9a · THE COLUMN THAT MUST NOT EXIST
+-- ---------------------------------------------------------------------------
+--
+-- M-70's doc and 0020's header both say the attempted SECONDARY VALUE is never
+-- stored "in any form, hashed or otherwise". A comment cannot enforce that, and
+-- a future migration adding `secondary_hash` for the best of reasons would slip
+-- through review. An EXACT column-set assertion cannot: it fails on any added
+-- column, which forces the decision back into a review.
+select rls_test.ok(
+  (select array_agg(column_name::text order by column_name)
+     from information_schema.columns
+    where table_schema = 'public' and table_name = 'shipment_tracking_access')
+  = array['accessed_at','id','ip','outcome','profile_id','shipment_id',
+          'tracking_number_attempted','user_agent'],
+  'shipment_tracking_access has EXACTLY the 8 columns of M-70''s ShipmentTrackingAccessRow — no column exists that could hold the attempted secondary value (§4)');
+
+-- The positive half: the attempted NUMBER is stored, because that is the thing
+-- being guessed and the ledger is useless without it.
+select rls_test.eq((select count(*) from shipment_tracking_access
+                     where tracking_number_attempted = 'PL-2026-999999'), 1,
+  'the attempted tracking NUMBER is stored — an enumeration ledger that does not record the guess records nothing');
+
+-- ---------------------------------------------------------------------------
+-- 9b · Reads — staff only
+-- ---------------------------------------------------------------------------
+set role anon;
+set request.jwt.claim.sub = '';
+select rls_test.reads_nothing('shipment_tracking_access',
+  'anon reads NOTHING from the access ledger (§19: no anon SELECT — an anon policy would publish our enumeration telemetry to the party generating it)');
+
+set role authenticated;
+-- Shipper A owns shipment A, whose access row this is. Still nothing: §15 makes
+-- access history an ADMIN capability, and the rows carry third-party IPs.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000b1';
+select rls_test.reads_nothing('shipment_tracking_access',
+  'the OWNING shipper cannot read the access ledger for their own shipment (the rows carry third-party IPs and user agents)');
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';
+select rls_test.reads_nothing('shipment_tracking_access',
+  'the assigned carrier cannot read the access ledger');
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab01';
+select rls_test.reads_nothing('shipment_tracking_access',
+  'a broker partner cannot read the access ledger');
+
+-- The control that makes every zero above a POLICY result and not an empty
+-- table.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000e1';
+select rls_test.eq((select count(*) from shipment_tracking_access), 2,
+  'the dispatcher reads both ledger rows (so the zeros above are policy, not an empty table)');
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000f1';
+select rls_test.eq((select count(*) from shipment_tracking_access where outcome = 'not_found'), 1,
+  'the admin reads the enumeration row, whose shipment_id is null');
+
+-- ---------------------------------------------------------------------------
+-- 9c · Writes — nobody, through a session
+-- ---------------------------------------------------------------------------
+--
+-- 0020 creates ONE policy (staff SELECT) and no write policy at all. A staff
+-- session that could insert here could forge the evidence, so the absence is
+-- the feature.
+select rls_test.writes_nothing($$insert into shipment_tracking_access (tracking_number_attempted, outcome) values ('PL-2026-000101','granted')$$,
+  'even an ADMIN session cannot INSERT into the access ledger — every row arrives through the service role');
+set role anon;
+set request.jwt.claim.sub = '';
+select rls_test.writes_nothing($$insert into shipment_tracking_access (tracking_number_attempted, outcome) values ('PL-2026-000101','granted')$$,
+  'anon cannot INSERT into the access ledger');
+select rls_test.writes_nothing($$delete from shipment_tracking_access$$,
+  'anon cannot DELETE from the access ledger');
+
+-- ---------------------------------------------------------------------------
+-- 9d · Append-only, asserted as the TABLE OWNER with RLS bypassed
+-- ---------------------------------------------------------------------------
+--
+-- Anything that still fails here is a trigger, not a policy — the guarantee
+-- that survives the service role (BYPASSRLS is not BYPASSTRIGGER).
+reset role;
+set request.jwt.claim.sub = '';
+select rls_test.rejects_with($$update shipment_tracking_access set outcome = 'granted' where id = 'ada00000-0000-0000-0000-00000000a002'$$,
+  'P0001', 'an access-log UPDATE is refused by trg_shipment_tracking_access_append_only — as the TABLE OWNER, with RLS bypassed');
+select rls_test.rejects_with($$delete from shipment_tracking_access where id = 'ada00000-0000-0000-0000-00000000a002'$$,
+  'P0001', 'an access-log DELETE is refused by the same trigger');
+select rls_test.rejects_with($$delete from shipment_tracking_access$$,
+  'P0001', 'a bulk delete is refused too (row-level trigger, no set-level escape)');
+select rls_test.eq((select count(*) from shipment_tracking_access), 2,
+  'both ledger rows survive every tampering attempt');
+select rls_test.affects($$insert into shipment_tracking_access (tracking_number_attempted, outcome, ip) values ('PL-2026-000303','bad_secondary','203.0.113.7')$$,
+  1, 'the service role CAN append (non-vacuous: the refusals above are not a missing grant)');
+
+-- Bounds: 0020's CHECKs, not just the application's truncation.
+select rls_test.rejects_with($$insert into shipment_tracking_access (tracking_number_attempted, outcome) values (repeat('X', 65), 'not_found')$$,
+  '23514', 'a 65-character attempted number is rejected by the length CHECK — the ledger is not free storage for a script');
+select rls_test.rejects_with($$insert into shipment_tracking_access (tracking_number_attempted, outcome, user_agent) values ('PL-2026-000404','not_found', repeat('U', 513))$$,
+  '23514', 'a 513-character user agent is rejected by the length CHECK');
+
+reset role;
+set request.jwt.claim.sub = '';

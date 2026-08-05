@@ -1019,10 +1019,286 @@ for (const [id, en] of Object.entries(RICH_EN)) {
   keyIndex[key] = en;
 }
 
+
+/* ==========================================================================
+ * M-73 — the `shipment` namespace (DIRECTIVE-tracking §24, §30; decision D-6)
+ *
+ * WHY IT LIVES IN THE GENERATOR AND NOT IN `messages/*.json`.
+ * `messages/{en,es,fr,ru,ht}.json` are BUILD ARTIFACTS: the last statement of
+ * this file overwrites all five. A namespace hand-edited into those files
+ * would survive exactly until the next `node scripts/extract-i18n.mjs`, and
+ * then vanish without a diff anybody reviewed. The generator stays the single
+ * source of truth (audit U-08), so the namespace is declared here.
+ *
+ * WHY IT IS NESTED WHERE `v4` IS FLAT. The v4 namespace is keyed by slugs of
+ * English sentences; this one is keyed by MACHINE IDENTIFIERS that
+ * `src/lib/shipments/types.ts` already generates (`statusKey()`,
+ * `eventTypeKey()`, `exceptionTypeKey()`, `exceptionSeverityKey()`) plus
+ * M-73's own `milestoneKey()` and `phraseKey()`. Those builders return dotted
+ * paths, which next-intl resolves against nested objects — so the shape here
+ * is dictated by code that shipped in M-70, not chosen.
+ *
+ * LOCALE POLICY, stated honestly. `en`, `es` and `fr` are AUTHORED. `ru` and
+ * `ht` MIRROR ENGLISH and are flagged for native review in
+ * docs/LAUNCH-RUNBOOK.md — the established M-42 / M-55 / M-69 precedent, and
+ * the only alternative to machine translation, which §24 forbids for exactly
+ * this kind of content. A Russian visitor sees English words rather than
+ * plausible-sounding machine Russian describing where their freight is.
+ *
+ * DECISION D-6 lives in the `phrase.*` branch: a curated library of operator
+ * sentences, translated like any other UI string, which is what makes a
+ * dispatcher's status note readable in five languages without translating
+ * anything at request time. `label.dispatch_written` is the other half — the
+ * honest label on free text that is NOT in the library.
+ * ========================================================================== */
+const SHIPMENT = {
+  /* ---- §6 statuses (M-70 `statusKey()`) ---------------------------------- */
+  "status.quote_requested": { en: "Quote requested", es: "Cotización solicitada", fr: "Devis demandé" },
+  "status.quote_sent": { en: "Quote sent", es: "Cotización enviada", fr: "Devis envoyé" },
+  "status.quote_accepted": { en: "Quote accepted", es: "Cotización aceptada", fr: "Devis accepté" },
+  "status.carrier_search": { en: "Finding a carrier", es: "Buscando transportista", fr: "Recherche d'un transporteur" },
+  "status.carrier_assigned": { en: "Carrier assigned", es: "Transportista asignado", fr: "Transporteur assigné" },
+  "status.dispatched": { en: "Dispatched", es: "Despachado", fr: "Camion envoyé" },
+  "status.en_route_to_pickup": { en: "En route to pickup", es: "En camino a la recogida", fr: "En route vers le chargement" },
+  "status.arrived_at_pickup": { en: "Arrived at pickup", es: "Llegó a la recogida", fr: "Arrivé au chargement" },
+  "status.loading": { en: "Loading", es: "Cargando", fr: "Chargement en cours" },
+  "status.picked_up": { en: "Picked up", es: "Recogido", fr: "Chargé" },
+  "status.in_transit": { en: "In transit", es: "En tránsito", fr: "En transit" },
+  "status.delayed": { en: "Delayed", es: "Retrasado", fr: "Retardé" },
+  "status.arrived_at_delivery": { en: "Arrived at delivery", es: "Llegó a la entrega", fr: "Arrivé à la livraison" },
+  "status.unloading": { en: "Unloading", es: "Descargando", fr: "Déchargement en cours" },
+  "status.delivered": { en: "Delivered", es: "Entregado", fr: "Livré" },
+  "status.pod_uploaded": { en: "Proof of delivery received", es: "Prueba de entrega recibida", fr: "Preuve de livraison reçue" },
+  "status.completed": { en: "Completed", es: "Completado", fr: "Terminé" },
+  "status.cancelled": { en: "Cancelled", es: "Cancelado", fr: "Annulé" },
+
+  /* ---- §8 milestones (M-73 `milestoneKey()`) ----------------------------
+   * Separate from `status.*` on purpose: §8's ninth step is "POD Available"
+   * (a fact about the customer's paperwork), while the status is "Proof of
+   * delivery received" (a fact about an operator's action). One key serving
+   * both would force one of them to be wrong in five languages. */
+  "milestone.quote_accepted": { en: "Quote accepted", es: "Cotización aceptada", fr: "Devis accepté" },
+  "milestone.carrier_assigned": { en: "Carrier assigned", es: "Transportista asignado", fr: "Transporteur assigné" },
+  "milestone.dispatched": { en: "Dispatched", es: "Despachado", fr: "Camion envoyé" },
+  "milestone.arrived_at_pickup": { en: "Arrived at pickup", es: "Llegada a la recogida", fr: "Arrivée au chargement" },
+  "milestone.picked_up": { en: "Picked up", es: "Recogido", fr: "Chargé" },
+  "milestone.in_transit": { en: "In transit", es: "En tránsito", fr: "En transit" },
+  "milestone.arrived_at_delivery": { en: "Arrived at delivery", es: "Llegada a la entrega", fr: "Arrivée à la livraison" },
+  "milestone.delivered": { en: "Delivered", es: "Entregado", fr: "Livré" },
+  "milestone.pod_uploaded": { en: "POD available", es: "Prueba de entrega disponible", fr: "Preuve de livraison disponible" },
+
+  /* ---- §7 event types (M-70 `eventTypeKey()`) --------------------------- */
+  "event.shipment_created": { en: "Shipment created", es: "Envío creado", fr: "Expédition créée" },
+  "event.status_change": { en: "Status updated", es: "Estado actualizado", fr: "Statut mis à jour" },
+  "event.location_update": { en: "Location updated", es: "Ubicación actualizada", fr: "Position mise à jour" },
+  "event.eta_update": { en: "Estimated time updated", es: "Hora estimada actualizada", fr: "Heure estimée mise à jour" },
+  "event.appointment_set": { en: "Appointment set", es: "Cita programada", fr: "Rendez-vous fixé" },
+  "event.appointment_rescheduled": { en: "Appointment rescheduled", es: "Cita reprogramada", fr: "Rendez-vous reporté" },
+  "event.assignment_created": { en: "Carrier assigned", es: "Transportista asignado", fr: "Transporteur assigné" },
+  "event.assignment_released": { en: "Carrier released", es: "Transportista liberado", fr: "Transporteur libéré" },
+  "event.document_uploaded": { en: "Document uploaded", es: "Documento cargado", fr: "Document téléversé" },
+  "event.document_approved": { en: "Document approved", es: "Documento aprobado", fr: "Document approuvé" },
+  "event.pod_requested": { en: "Proof of delivery requested", es: "Prueba de entrega solicitada", fr: "Preuve de livraison demandée" },
+  "event.exception_opened": { en: "Issue reported", es: "Incidencia reportada", fr: "Incident signalé" },
+  "event.exception_resolved": { en: "Issue resolved", es: "Incidencia resuelta", fr: "Incident résolu" },
+  "event.public_update": { en: "Update from dispatch", es: "Actualización de dispatch", fr: "Mise à jour de la régulation" },
+  "event.internal_note": { en: "Internal note", es: "Nota interna", fr: "Note interne" },
+  "event.call_logged": { en: "Call logged", es: "Llamada registrada", fr: "Appel enregistré" },
+  "event.email_logged": { en: "Email logged", es: "Correo registrado", fr: "E-mail enregistré" },
+  "event.notification_sent": { en: "Notification sent", es: "Notificación enviada", fr: "Notification envoyée" },
+  "event.correction": { en: "Record corrected", es: "Registro corregido", fr: "Enregistrement corrigé" },
+  "event.cancellation": { en: "Shipment cancelled", es: "Envío cancelado", fr: "Expédition annulée" },
+
+  /* ---- §21 exception types (M-70 `exceptionTypeKey()`) ------------------ */
+  "exception.pickup_delay": { en: "Pickup delay", es: "Retraso en la recogida", fr: "Retard au chargement" },
+  "exception.delivery_delay": { en: "Delivery delay", es: "Retraso en la entrega", fr: "Retard à la livraison" },
+  "exception.mechanical_issue": { en: "Mechanical issue", es: "Problema mecánico", fr: "Problème mécanique" },
+  "exception.weather": { en: "Weather", es: "Clima", fr: "Météo" },
+  "exception.traffic": { en: "Traffic", es: "Tráfico", fr: "Circulation" },
+  "exception.facility_delay": { en: "Facility delay", es: "Retraso en las instalaciones", fr: "Retard sur le site" },
+  "exception.rejected_freight": { en: "Freight refused", es: "Carga rechazada", fr: "Marchandise refusée" },
+  "exception.damaged_freight": { en: "Freight damage", es: "Daño en la carga", fr: "Marchandise endommagée" },
+  "exception.missing_appointment": { en: "Appointment missing", es: "Falta la cita", fr: "Rendez-vous manquant" },
+  "exception.driver_unavailable": { en: "Driver unavailable", es: "Conductor no disponible", fr: "Chauffeur indisponible" },
+  "exception.carrier_cancellation": { en: "Carrier cancellation", es: "Cancelación del transportista", fr: "Annulation du transporteur" },
+  "exception.documentation_issue": { en: "Document issue", es: "Problema de documentación", fr: "Problème de document" },
+  "exception.other": { en: "Other issue", es: "Otra incidencia", fr: "Autre incident" },
+
+  /* ---- §21 severities (M-70 `exceptionSeverityKey()`) ------------------- */
+  "severity.low": { en: "Low", es: "Baja", fr: "Faible" },
+  "severity.medium": { en: "Medium", es: "Media", fr: "Moyenne" },
+  "severity.high": { en: "High", es: "Alta", fr: "Élevée" },
+  "severity.critical": { en: "Critical", es: "Crítica", fr: "Critique" },
+
+  /* ---- §30 honest labels ------------------------------------------------
+   * The six the directive quotes verbatim, plus D-6's free-text label. Every
+   * one of them exists to stop the page over-claiming: none says "live", none
+   * says "AI", and `last_updated_by_dispatch` says out loud that a human typed
+   * the last update. */
+  "label.last_updated_by_dispatch": { en: "Last updated by dispatch", es: "Última actualización de dispatch", fr: "Dernière mise à jour par la régulation" },
+  "label.milestone_tracking": { en: "Milestone tracking", es: "Seguimiento por hitos", fr: "Suivi par étapes" },
+  "label.live_location_available": { en: "Live location available", es: "Ubicación en vivo disponible", fr: "Position en direct disponible" },
+  "label.location_unavailable": { en: "Location temporarily unavailable", es: "Ubicación no disponible temporalmente", fr: "Position temporairement indisponible" },
+  "label.eta_by_dispatcher": { en: "ETA provided by dispatcher", es: "Hora estimada proporcionada por el dispatcher", fr: "Heure estimée fournie par le régulateur" },
+  "label.tracking_link_expired": { en: "Tracking link expired", es: "El enlace de seguimiento ha caducado", fr: "Lien de suivi expiré" },
+  "label.dispatch_written": { en: "Written by dispatch, in English", es: "Escrito por dispatch, en inglés", fr: "Rédigé par la régulation, en anglais" },
+
+  /* ---- D-6 curated phrase library --------------------------------------
+   * Keys mirror `PUBLIC_PHRASES` in src/lib/shipments/phrases.ts exactly;
+   * tests/unit/shipment-phrases.test.ts fails if the two ever diverge. */
+  "phrase.update.carrier_assigned": { en: "A carrier has been assigned to this shipment.", es: "Se ha asignado un transportista a este envío.", fr: "Un transporteur a été assigné à cette expédition." },
+  "phrase.update.dispatched": { en: "The truck is on its way to the pickup location.", es: "El camión va en camino al lugar de recogida.", fr: "Le camion est en route vers le lieu de chargement." },
+  "phrase.update.arrived_at_pickup": { en: "The truck has arrived at the pickup location.", es: "El camión ha llegado al lugar de recogida.", fr: "Le camion est arrivé au lieu de chargement." },
+  "phrase.update.picked_up": { en: "The freight has been picked up.", es: "La carga ha sido recogida.", fr: "La marchandise a été chargée." },
+  "phrase.update.in_transit": { en: "The shipment is in transit.", es: "El envío está en tránsito.", fr: "L'expédition est en transit." },
+  "phrase.update.arrived_at_delivery": { en: "The truck has arrived at the delivery location.", es: "El camión ha llegado al lugar de entrega.", fr: "Le camion est arrivé au lieu de livraison." },
+  "phrase.update.delivered": { en: "The shipment has been delivered.", es: "El envío ha sido entregado.", fr: "L'expédition a été livrée." },
+  "phrase.update.pod_requested": { en: "Dispatch has requested proof of delivery.", es: "Dispatch ha solicitado la prueba de entrega.", fr: "La régulation a demandé la preuve de livraison." },
+  "phrase.update.eta_updated": { en: "The estimated delivery time has been updated.", es: "La hora estimada de entrega ha sido actualizada.", fr: "L'heure de livraison estimée a été mise à jour." },
+  "phrase.delay.traffic": { en: "Traffic is slowing the truck down.", es: "El tráfico está retrasando al camión.", fr: "La circulation ralentit le camion." },
+  "phrase.delay.weather": { en: "Weather is slowing the truck down.", es: "El clima está retrasando al camión.", fr: "La météo ralentit le camion." },
+  "phrase.delay.facility": { en: "The truck is waiting at the facility.", es: "El camión está esperando en las instalaciones.", fr: "Le camion attend sur le site." },
+  "phrase.delay.mechanical": { en: "The truck needs a repair before it can continue.", es: "El camión necesita una reparación antes de continuar.", fr: "Le camion doit être réparé avant de repartir." },
+  "phrase.delay.appointment": { en: "The truck is waiting for its appointment time.", es: "El camión está esperando su hora de cita.", fr: "Le camion attend l'heure de son rendez-vous." },
+  "phrase.delay.previous_stop": { en: "The truck is running late from an earlier stop.", es: "El camión viene retrasado de una parada anterior.", fr: "Le camion a pris du retard à un arrêt précédent." },
+  "phrase.delay.paperwork": { en: "Paperwork is being completed at the facility.", es: "Se está completando el papeleo en las instalaciones.", fr: "Les documents sont en cours de finalisation sur le site." },
+  "phrase.delay.driver_hours": { en: "The driver is taking a required rest break.", es: "El conductor está tomando un descanso obligatorio.", fr: "Le chauffeur prend une pause obligatoire." },
+  "phrase.exception.pickup_delay": { en: "Pickup is running later than scheduled. Dispatch is confirming a new time.", es: "La recogida va más tarde de lo previsto. Dispatch está confirmando una nueva hora.", fr: "Le chargement a du retard. La régulation confirme un nouvel horaire." },
+  "phrase.exception.delivery_delay": { en: "Delivery is running later than scheduled. Dispatch is confirming a new time.", es: "La entrega va más tarde de lo previsto. Dispatch está confirmando una nueva hora.", fr: "La livraison a du retard. La régulation confirme un nouvel horaire." },
+  "phrase.exception.mechanical_issue": { en: "The truck needs a repair. Dispatch is arranging the fix or a replacement truck.", es: "El camión necesita una reparación. Dispatch está gestionando el arreglo o un camión de reemplazo.", fr: "Le camion doit être réparé. La régulation organise la réparation ou un camion de remplacement." },
+  "phrase.exception.weather": { en: "Weather is affecting this route. Dispatch is monitoring conditions.", es: "El clima está afectando esta ruta. Dispatch está vigilando las condiciones.", fr: "La météo affecte cet itinéraire. La régulation surveille les conditions." },
+  "phrase.exception.traffic": { en: "Traffic is affecting this route. Dispatch is monitoring the delay.", es: "El tráfico está afectando esta ruta. Dispatch está vigilando el retraso.", fr: "La circulation affecte cet itinéraire. La régulation surveille le retard." },
+  "phrase.exception.facility_delay": { en: "The facility is taking longer than expected. Dispatch is in contact with them.", es: "Las instalaciones están tardando más de lo esperado. Dispatch está en contacto con ellas.", fr: "Le site prend plus de temps que prévu. La régulation est en contact avec lui." },
+  "phrase.exception.rejected_freight": { en: "The receiver did not accept part of this shipment. Dispatch is working on next steps.", es: "El destinatario no aceptó parte de este envío. Dispatch está trabajando en los siguientes pasos.", fr: "Le destinataire n'a pas accepté une partie de cette expédition. La régulation travaille sur la suite." },
+  "phrase.exception.damaged_freight": { en: "Damage was reported on this shipment. Dispatch is documenting it with the carrier.", es: "Se reportó un daño en este envío. Dispatch lo está documentando con el transportista.", fr: "Un dommage a été signalé sur cette expédition. La régulation le documente avec le transporteur." },
+  "phrase.exception.missing_appointment": { en: "An appointment time still needs to be confirmed. Dispatch is arranging it.", es: "Aún falta confirmar una hora de cita. Dispatch la está gestionando.", fr: "Un horaire de rendez-vous reste à confirmer. La régulation s'en occupe." },
+  "phrase.exception.driver_unavailable": { en: "The assigned driver is unavailable. Dispatch is arranging coverage.", es: "El conductor asignado no está disponible. Dispatch está organizando la cobertura.", fr: "Le chauffeur assigné est indisponible. La régulation organise un remplacement." },
+  "phrase.exception.carrier_cancellation": { en: "The assigned carrier can no longer run this load. Dispatch is sourcing another truck.", es: "El transportista asignado ya no puede llevar esta carga. Dispatch está buscando otro camión.", fr: "Le transporteur assigné ne peut plus assurer ce chargement. La régulation cherche un autre camion." },
+  "phrase.exception.documentation_issue": { en: "A document for this shipment needs correcting. Dispatch is handling it.", es: "Un documento de este envío necesita corrección. Dispatch se está encargando.", fr: "Un document de cette expédition doit être corrigé. La régulation s'en charge." },
+
+  /* ---- page copy -------------------------------------------------------- */
+  "page.eyebrow": { en: "Shipment tracking", es: "Seguimiento de envíos", fr: "Suivi d'expédition" },
+  "page.title": { en: "Track a shipment", es: "Rastrea un envío", fr: "Suivre une expédition" },
+  "page.intro": { en: "Enter your PickLoads tracking number and the delivery ZIP code — or the access code from your confirmation — to see where your freight is.", es: "Introduce tu número de seguimiento de PickLoads y el código postal de entrega — o el código de acceso de tu confirmación — para ver dónde está tu carga.", fr: "Saisissez votre numéro de suivi PickLoads et le code postal de livraison — ou le code d'accès de votre confirmation — pour voir où se trouve votre marchandise." },
+  "page.meta_title": { en: "Track a Shipment — PickLoads", es: "Rastrea un envío — PickLoads", fr: "Suivre une expédition — PickLoads" },
+  "page.meta_description": { en: "Track a PickLoads shipment with your tracking number and delivery ZIP code. Milestone updates entered by our dispatch team — no account needed.", es: "Rastrea un envío de PickLoads con tu número de seguimiento y el código postal de entrega. Actualizaciones por hitos ingresadas por nuestro equipo de dispatch — sin cuenta.", fr: "Suivez une expédition PickLoads avec votre numéro de suivi et le code postal de livraison. Mises à jour par étapes saisies par notre équipe de régulation — sans compte." },
+  "page.gate_notice": { en: "PickLoads brokerage shipments begin once our FMCSA broker authority and BMC-84 bond are active. If you are a dispatch customer, your loads are tracked inside the Carrier Portal.", es: "Los envíos de brokerage de PickLoads comenzarán cuando nuestra autoridad de broker FMCSA y la fianza BMC-84 estén activas. Si eres cliente de dispatch, tus cargas se siguen dentro del Portal del Carrier.", fr: "Les expéditions de courtage PickLoads débuteront dès l'activation de notre autorité de courtier FMCSA et de notre caution BMC-84. Si vous êtes client dispatch, vos chargements sont suivis dans le Portail Transporteur." },
+  "page.help_title": { en: "Can't find your shipment?", es: "¿No encuentras tu envío?", fr: "Vous ne trouvez pas votre expédition ?" },
+  "page.help_body": { en: "Your tracking number is on your confirmation email and on the bill of lading. If the delivery ZIP code doesn't work, try the access code from the same email. Still stuck? Call (908) 404-5373 — a dispatcher answers 24/7.", es: "Tu número de seguimiento está en tu correo de confirmación y en el conocimiento de embarque. Si el código postal de entrega no funciona, prueba con el código de acceso del mismo correo. ¿Sigues atascado? Llama al (908) 404-5373 — un dispatcher responde 24/7.", fr: "Votre numéro de suivi figure dans votre e-mail de confirmation et sur la lettre de voiture. Si le code postal de livraison ne fonctionne pas, essayez le code d'accès du même e-mail. Toujours bloqué ? Appelez le (908) 404-5373 — un régulateur répond 24h/24." },
+  "page.privacy_note": { en: "We ask for two pieces of information because a tracking number on its own is not a password. We log every lookup attempt.", es: "Pedimos dos datos porque un número de seguimiento por sí solo no es una contraseña. Registramos cada intento de consulta.", fr: "Nous demandons deux informations car un numéro de suivi seul n'est pas un mot de passe. Chaque tentative de consultation est enregistrée." },
+
+  /* ---- lookup form ------------------------------------------------------ */
+  "form.legend": { en: "Shipment lookup", es: "Consulta de envío", fr: "Recherche d'expédition" },
+  "form.tracking_number": { en: "Tracking number", es: "Número de seguimiento", fr: "Numéro de suivi" },
+  "form.tracking_number_hint": { en: "Format: PL-2026-000458", es: "Formato: PL-2026-000458", fr: "Format : PL-2026-000458" },
+  "form.secondary": { en: "Delivery ZIP code or access code", es: "Código postal de entrega o código de acceso", fr: "Code postal de livraison ou code d'accès" },
+  "form.secondary_hint": { en: "The ZIP code of the delivery address, or the access code on your confirmation email.", es: "El código postal de la dirección de entrega, o el código de acceso de tu correo de confirmación.", fr: "Le code postal de l'adresse de livraison, ou le code d'accès de votre e-mail de confirmation." },
+  "form.submit": { en: "Track shipment", es: "Rastrear envío", fr: "Suivre l'expédition" },
+  "form.submitting": { en: "Checking…", es: "Consultando…", fr: "Vérification…" },
+
+  /* ---- result view ------------------------------------------------------ */
+  "result.tracking_number": { en: "Tracking number", es: "Número de seguimiento", fr: "Numéro de suivi" },
+  "result.current_status": { en: "Current status", es: "Estado actual", fr: "Statut actuel" },
+  "result.shipment_type": { en: "Shipment type", es: "Tipo de envío", fr: "Type d'expédition" },
+  "result.origin": { en: "Origin", es: "Origen", fr: "Origine" },
+  "result.destination": { en: "Destination", es: "Destino", fr: "Destination" },
+  "result.estimated_delivery": { en: "Estimated delivery", es: "Entrega estimada", fr: "Livraison estimée" },
+  "result.last_update": { en: "Last update", es: "Última actualización", fr: "Dernière mise à jour" },
+  "result.timeline_title": { en: "Progress", es: "Progreso", fr: "Progression" },
+  "result.summary_title": { en: "Shipment summary", es: "Resumen del envío", fr: "Récapitulatif de l'expédition" },
+  "result.contact_title": { en: "Questions about this shipment?", es: "¿Preguntas sobre este envío?", fr: "Des questions sur cette expédition ?" },
+  "result.contact_body": { en: "Our dispatch team answers 24/7, including holidays.", es: "Nuestro equipo de dispatch responde 24/7, incluidos los días festivos.", fr: "Notre équipe de régulation répond 24h/24 et 7j/7, jours fériés compris." },
+  "result.pickup_appointment": { en: "Pickup appointment", es: "Cita de recogida", fr: "Rendez-vous de chargement" },
+  "result.delivery_appointment": { en: "Delivery appointment", es: "Cita de entrega", fr: "Rendez-vous de livraison" },
+  "result.equipment": { en: "Equipment", es: "Equipo", fr: "Équipement" },
+  "result.commodity": { en: "Commodity", es: "Mercancía", fr: "Marchandise" },
+  "result.weight": { en: "Weight", es: "Peso", fr: "Poids" },
+  "result.pallets": { en: "Pallets", es: "Palés", fr: "Palettes" },
+  "result.reference": { en: "Your reference", es: "Tu referencia", fr: "Votre référence" },
+  "result.po_number": { en: "PO number", es: "Número de orden de compra", fr: "Numéro de commande" },
+  "result.carrier": { en: "Carrier", es: "Transportista", fr: "Transporteur" },
+  "result.carrier_assigned": { en: "Assigned", es: "Asignado", fr: "Assigné" },
+  "result.carrier_pending": { en: "Not yet assigned", es: "Aún no asignado", fr: "Pas encore assigné" },
+  "result.not_provided": { en: "Not provided", es: "No indicado", fr: "Non renseigné" },
+  "result.weight_unit": { en: "lbs", es: "lb", fr: "lb" },
+  "result.timeline_truncated": { en: "Showing the most recent updates only.", es: "Mostrando solo las actualizaciones más recientes.", fr: "Seules les mises à jour les plus récentes sont affichées." },
+  "result.timeline_empty": { en: "No public updates have been recorded for this shipment yet.", es: "Todavía no se han registrado actualizaciones públicas para este envío.", fr: "Aucune mise à jour publique n'a encore été enregistrée pour cette expédition." },
+  "result.delay_title": { en: "This shipment is running late", es: "Este envío va con retraso", fr: "Cette expédition a du retard" },
+  "result.delay_minutes": { en: "Running about {minutes} minutes behind schedule.", es: "Aproximadamente {minutes} minutos de retraso.", fr: "Environ {minutes} minutes de retard." },
+  "result.exception_title": { en: "There is an issue with this shipment", es: "Hay una incidencia con este envío", fr: "Il y a un problème avec cette expédition" },
+  "result.cancelled_title": { en: "This shipment was cancelled", es: "Este envío fue cancelado", fr: "Cette expédition a été annulée" },
+  "result.cancelled_body": { en: "Call (908) 404-5373 if you were expecting this freight.", es: "Llama al (908) 404-5373 si esperabas esta carga.", fr: "Appelez le (908) 404-5373 si vous attendiez cette marchandise." },
+  "result.search_again": { en: "Track another shipment", es: "Rastrear otro envío", fr: "Suivre une autre expédition" },
+  "result.updates_are_manual": { en: "Updates are entered by our dispatch team as milestones are confirmed. This page does not show a live GPS position.", es: "Las actualizaciones las introduce nuestro equipo de dispatch a medida que se confirman los hitos. Esta página no muestra una posición GPS en vivo.", fr: "Les mises à jour sont saisies par notre équipe de régulation à mesure que les étapes sont confirmées. Cette page n'affiche pas de position GPS en direct." },
+
+  /* ---- support message (§8 button, reusing the contact write path) ------ */
+  "support.button": { en: "Message support about this shipment", es: "Escribir a soporte sobre este envío", fr: "Écrire au support à propos de cette expédition" },
+  "support.title": { en: "Message PickLoads support", es: "Escribir a soporte de PickLoads", fr: "Écrire au support PickLoads" },
+  "support.intro": { en: "We reply within one business day — usually much faster. Urgent? Call (908) 404-5373.", es: "Respondemos en un día hábil — normalmente mucho antes. ¿Urgente? Llama al (908) 404-5373.", fr: "Nous répondons sous un jour ouvré — généralement bien plus vite. Urgent ? Appelez le (908) 404-5373." },
+  "support.email": { en: "Your email", es: "Tu correo electrónico", fr: "Votre e-mail" },
+  "support.name": { en: "Your name", es: "Tu nombre", fr: "Votre nom" },
+  "support.message": { en: "Message", es: "Mensaje", fr: "Message" },
+  "support.message_placeholder": { en: "What would you like to know about this shipment?", es: "¿Qué te gustaría saber sobre este envío?", fr: "Que souhaitez-vous savoir sur cette expédition ?" },
+  "support.send": { en: "Send message", es: "Enviar mensaje", fr: "Envoyer le message" },
+  "support.sending": { en: "Sending…", es: "Enviando…", fr: "Envoi…" },
+  "support.sent": { en: "Sent — we'll reply to the email address you gave us. Urgent? Call (908) 404-5373.", es: "Enviado — responderemos al correo que nos diste. ¿Urgente? Llama al (908) 404-5373.", fr: "Envoyé — nous répondrons à l'adresse e-mail indiquée. Urgent ? Appelez le (908) 404-5373." },
+  "support.close": { en: "Close", es: "Cerrar", fr: "Fermer" },
+
+  /* ---- accessibility (§23) --------------------------------------------- */
+  "a11y.timeline_label": { en: "Shipment progress", es: "Progreso del envío", fr: "Progression de l'expédition" },
+  "a11y.timeline_summary": { en: "{completed} of {total} steps complete. Current step: {current}.", es: "{completed} de {total} pasos completados. Paso actual: {current}.", fr: "{completed} étapes sur {total} terminées. Étape actuelle : {current}." },
+  "a11y.timeline_summary_exception": { en: "{completed} of {total} steps complete. Current step: {current}, which needs attention.", es: "{completed} de {total} pasos completados. Paso actual: {current}, que requiere atención.", fr: "{completed} étapes sur {total} terminées. Étape actuelle : {current}, qui nécessite une attention." },
+  "a11y.timeline_summary_cancelled": { en: "This shipment was cancelled after {completed} of {total} steps.", es: "Este envío fue cancelado tras {completed} de {total} pasos.", fr: "Cette expédition a été annulée après {completed} étapes sur {total}." },
+  "a11y.timeline_summary_not_started": { en: "No tracking steps have been recorded for this shipment yet.", es: "Aún no se ha registrado ningún paso de seguimiento para este envío.", fr: "Aucune étape de suivi n'a encore été enregistrée pour cette expédition." },
+  "a11y.step_complete": { en: "Completed", es: "Completado", fr: "Terminé" },
+  "a11y.step_current": { en: "Current step", es: "Paso actual", fr: "Étape actuelle" },
+  "a11y.step_exception": { en: "Current step, needs attention", es: "Paso actual, requiere atención", fr: "Étape actuelle, nécessite une attention" },
+  "a11y.step_upcoming": { en: "Not started", es: "No iniciado", fr: "Non commencé" },
+  "a11y.status_region": { en: "Shipment tracking result", es: "Resultado del seguimiento del envío", fr: "Résultat du suivi d'expédition" },
+  "a11y.event_list": { en: "Update history", es: "Historial de actualizaciones", fr: "Historique des mises à jour" },
+
+  /* ---- errors (§19 — ONE refusal, whatever went wrong) ------------------ */
+  "error.refused": { en: "We couldn't match that tracking number and verification value. Check both and try again, or call (908) 404-5373.", es: "No pudimos encontrar esa combinación de número de seguimiento y valor de verificación. Revisa ambos e inténtalo de nuevo, o llama al (908) 404-5373.", fr: "Nous n'avons pas pu faire correspondre ce numéro de suivi et cette valeur de vérification. Vérifiez les deux et réessayez, ou appelez le (908) 404-5373." },
+  "error.rate_limited": { en: "Too many tracking attempts from your network. Please wait a few minutes and try again — or call (908) 404-5373.", es: "Demasiados intentos de seguimiento desde tu red. Espera unos minutos e inténtalo de nuevo — o llama al (908) 404-5373.", fr: "Trop de tentatives de suivi depuis votre réseau. Attendez quelques minutes et réessayez — ou appelez le (908) 404-5373." },
+  "error.turnstile": { en: "We couldn't verify your submission. Please refresh the page and try again.", es: "No pudimos verificar tu envío. Actualiza la página e inténtalo de nuevo.", fr: "Nous n'avons pas pu vérifier votre envoi. Actualisez la page et réessayez." },
+  "error.unavailable": { en: "Tracking is temporarily unavailable. Please try again shortly, or call (908) 404-5373.", es: "El seguimiento no está disponible temporalmente. Inténtalo de nuevo en breve, o llama al (908) 404-5373.", fr: "Le suivi est temporairement indisponible. Réessayez sous peu, ou appelez le (908) 404-5373." },
+  "error.invalid": { en: "Enter your tracking number and the delivery ZIP or access code.", es: "Introduce tu número de seguimiento y el código postal de entrega o el código de acceso.", fr: "Saisissez votre numéro de suivi et le code postal de livraison ou le code d'accès." },
+};
+
+const ALL_LOCALES = ["en", ...LOCALES];
+const shipmentCatalogs = Object.fromEntries(ALL_LOCALES.map((l) => [l, {}]));
+
+function setNested(target, path, value) {
+  const parts = path.split(".");
+  let node = target;
+  for (let i = 0; i < parts.length - 1; i++) {
+    node[parts[i]] ??= {};
+    node = node[parts[i]];
+  }
+  node[parts[parts.length - 1]] = value;
+}
+
+let shipmentMirrored = 0;
+for (const [path, tr] of Object.entries(SHIPMENT)) {
+  if (!tr.en) throw new Error(`shipment catalogue: missing English for ${path}`);
+  for (const l of ALL_LOCALES) {
+    const value = tr[l];
+    if (l !== "en" && value === undefined) shipmentMirrored++;
+    setNested(shipmentCatalogs[l], path, value ?? tr.en);
+  }
+}
+
 mkdirSync("messages", { recursive: true });
 for (const [l, cat] of Object.entries(catalogs)) {
   const sorted = Object.fromEntries(Object.entries(cat).sort(([a], [b]) => a.localeCompare(b)));
-  writeFileSync(`messages/${l}.json`, JSON.stringify({ v4: sorted }, null, 2) + "\n");
+  writeFileSync(
+    `messages/${l}.json`,
+    JSON.stringify({ v4: sorted, shipment: shipmentCatalogs[l] }, null, 2) + "\n",
+  );
 }
 writeFileSync("messages/_key-index.json", JSON.stringify(keyIndex, null, 2) + "\n");
 console.log(`extracted ${Object.keys(catalogs.en).length} strings × ${1 + LOCALES.length} locales`);
+console.log(
+  `shipment namespace: ${Object.keys(SHIPMENT).length} keys × ${ALL_LOCALES.length} locales ` +
+    `(${shipmentMirrored} locale slots mirror English pending native review — see docs/LAUNCH-RUNBOOK.md)`,
+);

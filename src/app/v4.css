@@ -477,3 +477,100 @@ details .a{padding:0 22px 20px;font-size:.93rem;color:#4a545b}
   .btn:hover,.eq-card:hover,.post:hover{transform:none}
   .board-label i{animation:none}
 }
+
+/* ---- M-73 net-new: public tracking page (/track) --------------------------
+ * Token-only, NO new colors. Every value below is either an existing
+ * @theme token, a shade already present in this file (the .form-err light
+ * pair #7a2a2a / rgba(122,42,42,…) and the .compare success pair
+ * rgba(14,90,60,.06)), white, or a geometry value.
+ *
+ * §23 is the reason the state classes exist at all: a timeline step's state
+ * is carried by VISIBLE TEXT inside the step ("Completed" / "Current step" /
+ * "Not started"), and these rules only add a second, redundant signal in
+ * colour and shape. Removing the stylesheet entirely leaves the page fully
+ * legible, which is the test that matters.
+ *
+ * §22: the header summary and the shipment summary are auto-fit grids rather
+ * than fixed columns, so they reflow from six columns to one between 1920px
+ * and 320px without a single breakpoint of their own. */
+
+/* The one utility this repo was missing — §23's text equivalents need it. */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+
+.track-result{border:1px solid var(--line-dark);border-radius:12px;background:#fff;padding:34px 32px;margin-top:32px}
+.track-kicker{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--color-slate-aa);display:block;margin-bottom:6px}
+.track-number{font-family:var(--font-mono);font-size:1.34rem;font-weight:700;color:var(--ink);letter-spacing:.02em;margin-bottom:22px}
+
+/* §22 mobile priority order — status and ETA are the first two cells, so the
+   single-column stack at 320px reads status → ETA → route → the rest. */
+.track-head{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:20px 26px;border-top:1px solid var(--line-dark);border-bottom:1px solid var(--line-dark);padding:22px 0;margin-bottom:26px}
+.track-head .k{font-family:var(--font-mono);font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--color-slate-aa);display:block;margin-bottom:6px}
+.track-head .v{font-weight:800;font-size:1.02rem;color:var(--ink);overflow-wrap:anywhere}
+
+.track-status{display:inline-block;font-family:var(--font-mono);font-size:.8rem;font-weight:700;padding:5px 12px;border-radius:4px;border:1px solid var(--green);color:var(--green);background:rgba(14,90,60,.07)}
+.track-status.is-exception{border-color:rgba(122,42,42,.55);color:#7a2a2a;background:rgba(122,42,42,.07)}
+.track-status.is-cancelled{border-color:var(--line-dark);color:var(--color-slate-aa);background:rgba(18,22,26,.05)}
+
+/* §30's honest labels render here — mono, small, never styled as a badge that
+   could read as a live-data indicator. */
+.track-note{font-family:var(--font-mono);font-size:.72rem;color:var(--color-slate-aa);display:block;margin-top:10px;line-height:1.5}
+
+.track-banner{border:1px solid rgba(122,42,42,.35);background:rgba(122,42,42,.07);color:#7a2a2a;border-radius:8px;padding:16px 18px;margin-bottom:24px}
+.track-banner h3{font-size:1.02rem;font-weight:800;margin-bottom:6px}
+.track-banner p{font-size:.93rem;line-height:1.55}
+.track-banner.is-neutral{border-color:var(--line-dark);background:rgba(18,22,26,.04);color:var(--color-slate-body)}
+
+.track-section{margin-top:34px}
+.track-section h2{font-size:1.22rem;font-weight:900;margin-bottom:16px;color:var(--ink)}
+
+.track-timeline{list-style:none;margin:0;padding:0}
+.track-step{position:relative;padding:0 0 24px 34px;border-left:2px solid var(--line-dark);margin-left:8px}
+.track-step:last-child{border-left-color:transparent;padding-bottom:0}
+.track-step::before{content:"";position:absolute;left:-9px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;border:2px solid var(--line-dark);box-sizing:border-box}
+.track-step.is-complete::before{background:var(--green);border-color:var(--green)}
+.track-step.is-current::before{background:var(--amber);border-color:var(--color-amber-aa)}
+.track-step.is-exception::before{background:#fff;border-color:rgba(122,42,42,.55)}
+.track-step .lbl{display:block;font-weight:800;font-size:1rem;color:var(--ink)}
+.track-step.is-upcoming .lbl{color:var(--color-slate-aa);font-weight:600}
+.track-step .st{display:inline-block;font-family:var(--font-mono);font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--color-slate-aa);margin-top:5px}
+.track-step.is-complete .st{color:var(--green)}
+.track-step.is-current .st{color:var(--color-amber-aa)}
+.track-step.is-exception .st{color:#7a2a2a}
+.track-step time{display:block;font-family:var(--font-mono);font-size:.76rem;color:var(--color-slate-mid);margin-top:3px}
+
+.track-events{list-style:none;margin:0;padding:0;border-top:1px solid var(--line-dark)}
+.track-events li{padding:14px 0;border-bottom:1px solid var(--line-dark)}
+.track-events li:last-child{border-bottom:none}
+.track-events .ev{font-weight:700;font-size:.95rem;color:var(--ink)}
+.track-events .msg{font-size:.93rem;color:var(--color-slate-body);margin-top:5px;line-height:1.55}
+.track-events .meta{font-family:var(--font-mono);font-size:.74rem;color:var(--color-slate-mid);margin-top:4px;display:block}
+/* D-6: the honest label on dispatcher free text that is NOT in the curated
+   phrase library. It is deliberately as prominent as the text it labels. */
+.track-freetext{display:block;font-family:var(--font-mono);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--color-slate-aa);margin-top:5px}
+
+.track-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(186px,1fr));gap:18px 26px;margin:0}
+.track-summary dt{font-family:var(--font-mono);font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--color-slate-aa);margin-bottom:5px}
+.track-summary dd{margin:0;font-size:.97rem;font-weight:600;color:var(--ink);overflow-wrap:anywhere}
+
+.track-contact{display:flex;flex-wrap:wrap;gap:14px 30px;align-items:center}
+.track-contact a{font-family:var(--font-mono);font-size:.92rem;color:var(--green);font-weight:700;padding:8px 0;display:inline-block}
+.track-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
+
+/* §22: a <details> disclosure, not a modal — "no mobile modal exceeding
+   screen" is impossible to violate with markup that never leaves the flow. */
+.track-support{border:1px solid var(--line-dark);border-radius:10px;margin-top:22px;background:rgba(18,22,26,.02)}
+.track-support>summary{cursor:pointer;padding:16px 20px;font-weight:800;font-size:.98rem;color:var(--ink);list-style:none}
+.track-support>summary::-webkit-details-marker{display:none}
+.track-support>summary::after{content:" +";font-family:var(--font-mono);color:var(--color-amber-aa)}
+.track-support[open]>summary::after{content:" –"}
+.track-support>summary:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.track-support .track-support-body{padding:0 20px 20px}
+
+@media(max-width:640px){
+  .track-result{padding:24px 18px}
+  .track-head{grid-template-columns:1fr;gap:16px}
+  .track-number{font-size:1.1rem}
+}
+@media(prefers-reduced-motion:reduce){
+  .track-support,.track-step::before{transition:none}
+}

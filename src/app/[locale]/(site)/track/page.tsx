@@ -1,0 +1,99 @@
+import type { Metadata } from "next";
+import { getTranslations, setRequestLocale } from "next-intl/server";
+import { PageHero } from "@/components/ui/PageHero";
+import { TrackingLookup } from "@/components/tracking/TrackingLookup";
+import { getBooleanSetting } from "@/lib/company-settings";
+import { pageMetadata } from "@/lib/seo";
+
+/**
+ * M-73 — the public secure tracking page (`docs/DIRECTIVE-tracking.md` §4,
+ * §8, §19, §25, §30).
+ *
+ * ── WHAT THIS SERVER COMPONENT DOES AND DOES NOT DO ───────────────────────
+ *
+ * It renders a FORM. It reads no shipment, holds no service-role client and
+ * takes no search parameter. Every byte of shipment data on this route arrives
+ * through a POST server action after two factors, a rate limit and a Turnstile
+ * challenge (`src/app/actions/public-tracking.ts`).
+ *
+ * That is what makes §25's "never cache private shipment data publicly" true
+ * BY CONSTRUCTION rather than by configuration. The plan flagged `/blog`'s ISR
+ * as the pattern to avoid leaking here; there is nothing to leak, because the
+ * cacheable artifact — this prerendered shell — contains no shipment. No
+ * `revalidate`, no `unstable_cache` over shipment data, no `force-dynamic`
+ * needed either: a static shell plus an uncacheable POST is strictly safer
+ * than a dynamic page that renders data into HTML.
+ *
+ * ── SEO / PRIVACY ─────────────────────────────────────────────────────────
+ *
+ * `/track` itself is a legitimate public landing page and IS indexable and IS
+ * in the sitemap (`PUBLIC_ROUTES` in `src/lib/seo.ts`). Individual RESULTS are
+ * neither, twice over: they have no URL at all, and `TrackingResult` renders a
+ * `noindex, nofollow` robots meta while it is on screen.
+ *
+ * ── §2 HONEST STATE ───────────────────────────────────────────────────────
+ *
+ * While `company_settings.brokerage_active` is false, migration 0017's gate
+ * trigger refuses to create a shipment at all, so every lookup would honestly
+ * return "no match". Saying nothing would leave a visitor to conclude they
+ * typed something wrong. The notice says what is actually true — brokerage
+ * shipments start when the MC authority and BMC-84 bond are active, and
+ * dispatch customers track loads in the Carrier Portal — without claiming
+ * brokerage is live, which §2 forbids. `getBooleanSetting` fails CLOSED, so an
+ * unreachable switchboard shows the honest waitlist wording rather than
+ * implying an active brokerage.
+ */
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "shipment" });
+  return pageMetadata({
+    locale,
+    href: "/track",
+    title: t("page.meta_title"),
+    description: t("page.meta_description"),
+  });
+}
+
+export default async function TrackPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+  const t = await getTranslations({ locale, namespace: "shipment" });
+  const brokerageActive = await getBooleanSetting("brokerage_active");
+
+  return (
+    <main id="main">
+      <PageHero eyebrow={t("page.eyebrow")} title={t("page.title")}>
+        {t("page.intro")}
+      </PageHero>
+
+      <section className="light">
+        <div className="wrap">
+          {brokerageActive ? null : (
+            <div className="track-banner is-neutral" role="note">
+              <h3>{t("page.title")}</h3>
+              <p>{t("page.gate_notice")}</p>
+            </div>
+          )}
+
+          <TrackingLookup />
+
+          <section className="track-section" aria-labelledby="track-help">
+            <h2 id="track-help">{t("page.help_title")}</h2>
+            <p className="sub" style={{ maxWidth: 760 }}>
+              {t("page.help_body")}
+            </p>
+          </section>
+        </div>
+      </section>
+    </main>
+  );
+}
