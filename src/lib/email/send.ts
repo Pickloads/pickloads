@@ -25,6 +25,13 @@ export interface SendEmailArgs {
   replyTo?: string;
   leadId?: string;
   quoteId?: string;
+  /**
+   * M-69/P-1: extra SMTP headers. Used for the RFC 8058 pair
+   * (`List-Unsubscribe` + `List-Unsubscribe-Post`) on MARKETING-class sends —
+   * build them with marketingUnsubscribeHeaders() in src/lib/newsletter.ts,
+   * never by hand, and never on transactional mail.
+   */
+  headers?: Record<string, string>;
 }
 
 export const EMAIL_FROM =
@@ -51,6 +58,7 @@ export async function sendEmail(args: SendEmailArgs): Promise<void> {
         subject: args.subject,
         react: args.react,
         ...(args.replyTo ? { replyTo: args.replyTo } : {}),
+        ...(args.headers ? { headers: args.headers } : {}),
       });
       if (error) {
         status = "failed";

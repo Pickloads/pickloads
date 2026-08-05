@@ -3,6 +3,7 @@ import { setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { PageHero } from "@/components/ui/PageHero";
 import { CtaBand } from "@/components/sections/CtaBand";
+import { getBooleanSetting } from "@/lib/company-settings";
 import { getV4 } from "@/i18n/v4-server";
 import { pageMetadata } from "@/lib/seo";
 import { STATE_CONTENT, STATE_SLUGS } from "@/content/states";
@@ -35,6 +36,9 @@ export default async function TruckDispatchIndexPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
+  // M-69/P-2: the CtaBand referral promise renders only when the
+  // referral programme actually exists (company_settings gate).
+  const referralActive = await getBooleanSetting("referral_program_active");
   const tv = await getV4(locale);
 
   return (
@@ -80,7 +84,7 @@ export default async function TruckDispatchIndexPage({
         </div>
       </section>
 
-      <CtaBand />
+      <CtaBand referralActive={referralActive} />
     </main>
   );
 }

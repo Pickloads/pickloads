@@ -16,15 +16,21 @@ import { ShippersTeaser } from "@/components/sections/ShippersTeaser";
 import { Pricing } from "@/components/sections/Pricing";
 import { NewAuthority } from "@/components/sections/NewAuthority";
 import { Compliance } from "@/components/sections/Compliance";
-import { Packet } from "@/components/sections/Packet";
+import { PacketSection } from "@/components/sections/PacketSection";
+import { TestimonialsSection } from "@/components/sections/TestimonialsSection";
 import { CtaBand } from "@/components/sections/CtaBand";
+import { getBooleanSetting } from "@/lib/company-settings";
 
 /*
  * Home page — V4 section order preserved exactly; the reconstructed Pricing
  * section (F-01/Q2) sits between WhyStats and the shippers teaser per the V4
- * stylesheet order. Testimonials are omitted at launch per the prototype's own
- * note + arch §9 (audit F-13) — the component returns with M-14's
- * company_settings gate once verified reviews exist.
+ * stylesheet order.
+ *
+ * M-69/P-6: the testimonials band is back in its V4 position (between the
+ * carrier packet and the CTA band), now behind the REAL
+ * company_settings.testimonials_visible gate the arch §9 / audit F-13 note
+ * always promised. It renders nothing until that flag is on and M-87
+ * supplies approved reviews — never the prototype's sample quotes.
  * NOTE: moves to src/app/[locale]/page.tsx in M-13.
  */
 export async function generateMetadata({
@@ -49,6 +55,9 @@ export default async function HomePage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
+  // M-69/P-2: the CtaBand referral promise renders only when the
+  // referral programme actually exists (company_settings gate).
+  const referralActive = await getBooleanSetting("referral_program_active");
 
   return (
     <main id="main">
@@ -67,8 +76,11 @@ export default async function HomePage({
         <ShippersTeaser />
         <NewAuthority />
         <Compliance />
-        <Packet />
-        <CtaBand />
+        <PacketSection />
+        {/* M-69/P-6: testimonials_visible is a real gate again. Renders
+            nothing until the flag is on AND M-87 supplies approved rows. */}
+        <TestimonialsSection />
+        <CtaBand referralActive={referralActive} />
     </main>
   );
 }

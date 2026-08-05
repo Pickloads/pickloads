@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { tryCreateAdminClient } from "@/lib/supabase/admin";
+import { recordAuditEvent } from "@/lib/audit";
 import { getMyCarrierId } from "@/lib/memberships";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { field } from "@/lib/forms/guard";
@@ -165,19 +166,14 @@ export async function submitChangeRequest(
   }
 
   // Audit trail (service-role-only table; best-effort, loud on failure).
-  const admin = tryCreateAdminClient();
-  if (admin) {
-    const { error: auditError } = await admin.from("audit_events").insert({
-      actor_id: user.id,
-      action: "carrier.change_request",
-      target_table: "carriers",
-      target_id: carrierId,
-      detail: { field: parsed.data.field, thread_id: thread.id },
-    });
-    if (auditError) {
-      console.error("[carrier-portal] audit insert failed", auditError.message);
-    }
-  }
+  // M-69/P-4: routed through the single writer in src/lib/audit.ts.
+  await recordAuditEvent({
+    actorId: user.id,
+    action: "carrier.change_request",
+    targetTable: "carriers",
+    targetId: carrierId,
+    detail: { field: parsed.data.field, thread_id: thread.id },
+  });
 
   await sendEmail({
     to: EMAIL_INTERNAL_TO,
@@ -272,16 +268,13 @@ export async function requestAgreementResend(): Promise<FormState> {
 
   const admin = tryCreateAdminClient();
   if (admin) {
-    const { error: auditError } = await admin.from("audit_events").insert({
-      actor_id: user.id,
+    await recordAuditEvent({
+      actorId: user.id,
       action: "agreement.resend_requested",
-      target_table: "carriers",
-      target_id: carrier.id,
+      targetTable: "carriers",
+      targetId: carrier.id,
       detail: { signature_request_id: result.signatureRequestId },
     });
-    if (auditError) {
-      console.error("[carrier-portal] audit insert failed", auditError.message);
-    }
     // M-60: confirmation email + portal notification in the user's language.
     const recipient = await getRecipientByProfile(admin, user.id);
     if (recipient) {

@@ -1,12 +1,20 @@
-# Module Index — M-00 … M-43 · Upgrade M-50 … M-62
+# Module Index — M-00 … M-43 · Upgrade M-50 … M-62 · M-69 →
 
 One row per shipped module. Every module passed the full gate (functionality
 · responsiveness · WCAG AA · SEO · security · typecheck · lint · build; test
 suites from M-40 on). Details live in each module's doc.
 
-**Project status: complete.** M-62 is the final module. Release-commit
-totals: **337 pages** built · **168** unit tests · **145** e2e tests ·
-**165** RLS isolation assertions. Directive acceptance:
+**Project status: RESUMED past M-62.** M-62 closed the upgrade directive and
+was the final module *of that cycle*; work has since restarted against
+[`docs/FINAL-IMPLEMENTATION-PLAN.md`](../FINAL-IMPLEMENTATION-PLAN.md),
+which scopes M-69 … M-101 across three build cycles. **M-69 (Production
+Integrity Pack) is the first module of the new programme** — Phase A, a
+prerequisite that repairs seven live defects (§3, P-1…P-7) before any new
+feature is built on them.
+
+Current totals: **343 pages** built · **191** unit tests · **160** e2e tests ·
+**173** RLS isolation assertions. M-62-era baseline for comparison: 337 pages
+· 168 · 145 · 165. Upgrade-directive acceptance is unchanged:
 [`docs/UPGRADE-ACCEPTANCE.md`](../UPGRADE-ACCEPTANCE.md) — 17 ✅, 8 ⚠️
 (live-environment dependencies, all listed in the runbook's post-cutover
 checklist), 0 ❌.
@@ -54,5 +62,8 @@ checklist), 0 ❌.
 | M-61 | U | [M-61-security.md](M-61-security.md) | Security audit: staff TOTP MFA (`/portal/admin/mfa`, admin hard / dispatcher 14-day grace, central gate in `requireStaff`/`requireAdmin`), 165-assertion RLS isolation suite (`npm run test:rls`) that caught + fixed a live anon-grant defect (0013), audit_events gaps closed, secret/TTL/error-leak sweep, [SECURITY-REVIEW.md](../SECURITY-REVIEW.md) |
 | M-62 | U | [M-62-qa-finalization.md](M-62-qa-finalization.md) | **Final module.** Responsive suite (`tests/e2e/responsive.spec.ts`, 108 tests: 21 routes × 375/390/768/1024/1440 with full-page screenshots + 320/1920 endpoint sweep; no-overflow and nav clip/overlap assertions, injected-regression validated; baseline PNGs deliberately not committed — 33 MB, decision documented); [UPGRADE-ACCEPTANCE.md](../UPGRADE-ACCEPTANCE.md) walking all 25 directive §24 criteria (17 ✅ / 8 ⚠️ live-env / 0 ❌); runbook rewritten for M-50…M-61 (migrations 0005–0013 order + per-migration rollback, audited env table incl. 3 declared-but-unused vars, Supabase auth email templates, staff MFA + two-admin rule, in-app invite flow, 9 `company_settings` keys, `npm run test:rls` as a release gate, post-cutover checklist); INDEX + README |
 
+| M-69 | A | [M-69-production-integrity.md](M-69-production-integrity.md) | **First module past M-62.** Production Integrity Pack — the seven live defects in `FINAL-IMPLEMENTATION-PLAN` §3: tokenized `/newsletter/unsubscribe` (5 locales, GET-renders/POST-acts, idempotent, rate-limited) + RFC 8058 one-click endpoint and `List-Unsubscribe` header pair, closing the CAN-SPAM gap the confirmation email promised (P-1, migration 0014 — dedicated `unsubscribe_token`, rationale documented); the sitewide referral-bonus promise gated behind a new `referral_program_active` key with the approved copy and all five translations kept intact (P-2, 0015 + seed); the ungated "Freight Brokerage" footer label gated on `brokerage_active` with the already-approved "For Shippers" fallback (P-3); all 10 direct `audit_events` inserts across 4 action files routed through `src/lib/audit.ts` with unchanged semantics, plus an ESLint `no-restricted-syntax` rule (injection-validated) that keeps it that way (P-4); `document.download` journalled on the carrier path — actor/document/carrier, never the signed URL (P-5); `packet_downloads_live` and `testimonials_visible` wired from dead config to real behaviour through a new fail-closed `company-settings` accessor, with the V4 testimonial markup restored behind a double lock and zero sample content (P-6); `formatRpm` → `formatLoadedRpm` with every label corrected, new `formatTrueRpm` and nullable `loads.deadhead_miles` + capture field — no displayed value silently changed (P-7, 0016) |
+
 Phases: 0 = foundations · 1 = public site · 2 = onboarding/CRM · 3 =
-loads/billing/content · H = hardening · U = upgrade directive (M-50a audit).
+loads/billing/content · H = hardening · U = upgrade directive (M-50a audit) ·
+A = integrity prerequisite (FINAL-IMPLEMENTATION-PLAN phase A).

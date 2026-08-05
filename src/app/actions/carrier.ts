@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { SIGNED_URL_TTL_SECONDS } from "@/lib/uploads";
+import { recordAuditEvent } from "@/lib/audit";
 
 /**
  * M-25 carrier portal server actions. Everything runs on the cookie-bound
@@ -26,7 +27,7 @@ export async function getMyDocumentSignedUrl(
   // RLS returns the row only when it belongs to this carrier's folder.
   const { data: doc } = await supabase
     .from("documents")
-    .select("storage_path")
+    .select("storage_path, carrier_id")
     .eq("id", id.data)
     .maybeSingle();
   if (!doc) return { ok: false, error: "Document not found." };
@@ -40,5 +41,26 @@ export async function getMyDocumentSignedUrl(
     console.error("[carrier] signed url failed", error?.message);
     return { ok: false, error: "Couldn't generate a download link." };
   }
+
+  /*
+   * M-69 / P-5 — journal the ACCESS on the carrier path.
+   *
+   * actions/admin.ts has audited `document.download` since M-61, but this
+   * action — the one a carrier uses to pull their own W-9, COI or voided
+   * check — minted signed URLs with no event at all, so the "document-access
+   * history" the tracking directive §15 claims was only half true.
+   *
+   * Same helper, same action string and same shape as the staff path, so the
+   * admin security log renders both without a special case. Recorded: who,
+   * which document, which carrier, the URL lifetime. NEVER the signed URL
+   * itself (that is a live credential) and never file contents.
+   */
+  await recordAuditEvent({
+    actorId: user.id,
+    action: "document.download",
+    targetTable: "documents",
+    targetId: id.data,
+    detail: { carrier_id: doc.carrier_id, ttl_seconds: SIGNED_URL_TTL_SECONDS },
+  });
   return { ok: true, url: data.signedUrl };
 }

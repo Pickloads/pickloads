@@ -448,3 +448,50 @@ select rls_test.denied($$insert into audit_events (actor_id, action) values ('00
 
 reset role;
 set request.jwt.claim.sub = '';
+
+-- ---------------------------------------------------------------------------
+-- M-69 — Production Integrity Pack (migrations 0014–0016)
+--
+-- 0014/0016 add columns, 0015 adds a switchboard row; none of them touch a
+-- policy. These assertions prove exactly that: the new unsubscribe credential
+-- inherits `subscribers`' zero-anon-grant posture, the new referral gate is
+-- readable by anon (the public site reads it with the anon key) but not
+-- writable, and the new deadhead column stays inside `loads`' existing
+-- tenant isolation.
+-- ---------------------------------------------------------------------------
+set role anon;
+set request.jwt.claim.sub = '';
+
+-- P-1: the unsubscribe token is a credential printed in every marketing
+-- send. The anon key must never be able to enumerate them (the endpoints run
+-- service-side, decision Q3).
+select rls_test.reads_nothing('subscribers',
+  'anon cannot read subscribers.unsubscribe_token (M-69/P-1)');
+select rls_test.writes_nothing($$update subscribers set unsubscribed_at = now()$$,
+  'anon cannot unsubscribe anyone directly (M-69/P-1)');
+
+-- P-2: the gate itself is public (the anon-key site read) but immutable.
+select rls_test.eq((select count(*) from company_settings where key = 'referral_program_active'), 1,
+  'referral_program_active is seeded and anon-readable (M-69/P-2)');
+select rls_test.ok(
+  (select value = 'false'::jsonb from company_settings where key = 'referral_program_active'),
+  'referral_program_active defaults to FALSE — the promise stays dark (M-69/P-2)');
+select rls_test.writes_nothing(
+  $$update company_settings set value = 'true'::jsonb where key = 'referral_program_active'$$,
+  'anon cannot switch the referral promise on (M-69/P-2)');
+
+-- P-7: deadhead miles are load data, not public data. (reads_nothing, not a
+-- bare count: `loads` policies call my_carrier_ids(), which anon may not
+-- EXECUTE — a 42501 here is a PASS, exactly as for every other tenant table.)
+select rls_test.reads_nothing('loads', 'anon reads no loads.deadhead_miles (M-69/P-7)');
+
+-- Cross-tenant: carrierA still sees only its own loads, new column included.
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';
+select rls_test.eq((select count(*) from loads where carrier_id <> '11111111-1111-1111-1111-11111111aaaa'), 0,
+  'carrierA sees no other tenant loads/deadhead data (M-69/P-7)');
+select rls_test.eq((select count(*) from subscribers), 0,
+  'carrierA still cannot read subscribers after 0014 (M-69/P-1)');
+
+reset role;
+set request.jwt.claim.sub = '';

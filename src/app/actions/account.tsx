@@ -13,6 +13,7 @@ import {
 } from "@/lib/validation/account";
 import { firstIssueMessage } from "@/lib/validation/shared";
 import { tryCreateAdminClient } from "@/lib/supabase/admin";
+import { recordAuditEvent } from "@/lib/audit";
 import { createClient } from "@/lib/supabase/server";
 import { EMAIL_INTERNAL_TO, sendEmail } from "@/lib/email/send";
 import { AccountSignupEmail } from "@/emails/AccountSignupEmail";
@@ -128,7 +129,9 @@ export async function createCarrierAccount(
     };
   }
 
-  const { ip, origin } = await requestMeta();
+  // M-69/P-4: `ip` is no longer read here - recordAuditEvent() derives it
+  // from the same request headers, so the journalled value is unchanged.
+  const { origin } = await requestMeta();
 
   let userId: string;
   let verification: "sent" | "none";
@@ -231,18 +234,21 @@ export async function createCarrierAccount(
     });
     if (leadError) console.error("[account] lead insert failed", leadError.message);
 
-    const { error: auditError } = await admin.from("audit_events").insert({
+    // M-69/P-4: routed through the single writer in src/lib/audit.ts. Same
+    // row as before - actor_id stays NULL (a signup is not yet an
+    // authenticated actor) and the IP is derived from the same request
+    // headers inside the helper.
+    await recordAuditEvent({
+      actorId: null,
       action: "account.signup",
-      target_table: "profiles",
-      target_id: userId,
+      targetTable: "profiles",
+      targetId: userId,
       detail: {
         kind: "carrier",
         authority_status: input.authority_status,
         routed: routing.next,
       },
-      ip: ip !== "unknown" ? ip : null,
     });
-    if (auditError) console.error("[account] audit insert failed", auditError.message);
   } catch (err) {
     console.error("[account] carrier signup post-processing failed", err);
     return { status: "error", message: SERVER_ERROR_MESSAGE };
@@ -320,7 +326,9 @@ export async function createShipperAccount(
     return { status: "success", verification: "unconfigured" };
   }
 
-  const { ip, origin } = await requestMeta();
+  // M-69/P-4: `ip` is no longer read here - recordAuditEvent() derives it
+  // from the same request headers, so the journalled value is unchanged.
+  const { origin } = await requestMeta();
 
   let userId: string;
   let verification: "sent" | "none";
@@ -386,18 +394,18 @@ export async function createShipperAccount(
       .insert({ shipper_id: shipper.id, profile_id: userId, role: "owner" });
     if (membershipError) throw new Error(membershipError.message);
 
-    const { error: auditError } = await admin.from("audit_events").insert({
+    // M-69/P-4: routed through the single writer in src/lib/audit.ts.
+    await recordAuditEvent({
+      actorId: null,
       action: "account.signup",
-      target_table: "profiles",
-      target_id: userId,
+      targetTable: "profiles",
+      targetId: userId,
       detail: {
         kind: "shipper",
         industry: input.industry,
         shipping_frequency: input.shipping_frequency,
       },
-      ip: ip !== "unknown" ? ip : null,
     });
-    if (auditError) console.error("[account] audit insert failed", auditError.message);
   } catch (err) {
     console.error("[account] shipper signup post-processing failed", err);
     return { status: "error", message: SERVER_ERROR_MESSAGE };

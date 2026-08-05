@@ -16,11 +16,22 @@ import { emailColors as c, emailFonts as f } from "./theme";
 /**
  * Double-opt-in confirmation (audit S-05: CAN-SPAM hygiene + deliverability).
  * Sent to the subscriber; the button hits /api/newsletter/confirm.
+ *
+ * M-69/P-1: this template promises "unsubscribe anytime" in its body. Until
+ * M-69 there was no unsubscribe route at all, so the promise was unbacked —
+ * a CAN-SPAM exposure on the first marketing send. `unsubscribeUrl` is now
+ * rendered as a real footer link (and the same token is carried in the RFC
+ * 8058 List-Unsubscribe headers by the sending action). `null` only in a
+ * secretless environment where no subscriber row — and therefore no token —
+ * exists; the honest fallback names the support mailbox instead of printing
+ * a dead link.
  */
 export function NewsletterConfirmationEmail({
   confirmUrl,
+  unsubscribeUrl = null,
 }: {
   confirmUrl: string;
+  unsubscribeUrl?: string | null;
 }) {
   return (
     <Html lang="en">
@@ -151,6 +162,26 @@ export function NewsletterConfirmationEmail({
           >
             PickLoads Logistics Group LLC · 50 Union Ave, Suite 805-A,
             Irvington, NJ 07111
+          </Text>
+          <Text
+            style={{
+              fontFamily: f.mono,
+              fontSize: "10px",
+              color: c.steel,
+              textAlign: "center" as const,
+              margin: "8px 0 0",
+            }}
+          >
+            {unsubscribeUrl ? (
+              <Link
+                href={unsubscribeUrl}
+                style={{ color: c.steel, textDecoration: "underline" }}
+              >
+                Unsubscribe from Freight Insights
+              </Link>
+            ) : (
+              "To unsubscribe, email support@pickloads.com."
+            )}
           </Text>
         </Container>
       </Body>

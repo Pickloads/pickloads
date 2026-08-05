@@ -8,7 +8,7 @@ import {
   LOAD_STATUS_LABELS,
   formatLane,
   formatMoney,
-  formatRpm,
+  formatLoadedRpm,
 } from "@/lib/loads";
 
 export const dynamic = "force-dynamic";
@@ -116,7 +116,8 @@ export default async function CarrierLoadsPage({
                     <th>{tv("Broker")}</th>
                     <th>{tv("Equipment")}</th>
                     <th>{tv("Gross")}</th>
-                    <th>{tv("RPM")}</th>
+                    {/* M-69/P-7: this is gross / LOADED miles - say so. */}
+                    <th>{tv("Loaded RPM")}</th>
                     <th>{tv("Dispatch fee")}</th>
                     <th>{tv("Status")}</th>
                   </tr>
@@ -129,7 +130,7 @@ export default async function CarrierLoadsPage({
                       <td data-th={tv("Broker")}>{l.broker_name ?? "—"}</td>
                       <td data-th={tv("Equipment")}>{l.equipment ?? "—"}</td>
                       <td data-th={tv("Gross")}>{formatMoney(l.gross_rate)}</td>
-                      <td data-th={tv("RPM")}>{formatRpm(l.gross_rate, l.miles)}</td>
+                      <td data-th={tv("Loaded RPM")}>{formatLoadedRpm(l.gross_rate, l.miles)}</td>
                       <td data-th={tv("Dispatch fee")}>
                         {formatMoney(l.dispatch_fee)}{" "}
                         <span

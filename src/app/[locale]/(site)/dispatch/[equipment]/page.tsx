@@ -5,6 +5,7 @@ import { routing } from "@/i18n/routing";
 import { getV4 } from "@/i18n/v4-server";
 import { PageHero } from "@/components/ui/PageHero";
 import { CtaBand } from "@/components/sections/CtaBand";
+import { getBooleanSetting } from "@/lib/company-settings";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { pageMetadata } from "@/lib/seo";
 import { equipmentServiceJsonLd } from "@/lib/jsonld";
@@ -51,6 +52,9 @@ export default async function EquipmentPage({ params }: { params: Params }) {
   const content = getEquipmentContent(equipment);
   if (!content) notFound();
   setRequestLocale(locale);
+  // M-69/P-2: the CtaBand referral promise renders only when the
+  // referral programme actually exists (company_settings gate).
+  const referralActive = await getBooleanSetting("referral_program_active");
   const tv = await getV4(locale);
 
   return (
@@ -137,7 +141,7 @@ export default async function EquipmentPage({ params }: { params: Params }) {
         </div>
       </section>
 
-      <CtaBand />
+      <CtaBand referralActive={referralActive} />
     </main>
   );
 }

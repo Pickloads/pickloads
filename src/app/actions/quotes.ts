@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { tryCreateAdminClient } from "@/lib/supabase/admin";
+import { recordAuditEvent } from "@/lib/audit";
 import { isStaffRole } from "@/lib/auth";
 import { field } from "@/lib/forms/guard";
 import { QUOTE_STAGE_MAP as STAGE_MAP, updateQuoteSchema } from "@/lib/validation/quotes";
@@ -72,22 +73,18 @@ export async function updateFreightQuote(
   }
 
   const admin = tryCreateAdminClient();
-  if (admin) {
-    const { error: auditError } = await admin.from("audit_events").insert({
-      actor_id: user.id,
-      action: "quote.status_change",
-      target_table: "freight_quotes",
-      target_id: before.id,
-      detail: {
-        old_status: before.status,
-        new_status: parsed.data.status,
-        quoted_rate: parsed.data.quoted_rate,
-      },
-    });
-    if (auditError) {
-      console.error("[quotes] audit insert failed", auditError.message);
-    }
-  }
+  // M-69/P-4: routed through the single writer in src/lib/audit.ts.
+  await recordAuditEvent({
+    actorId: user.id,
+    action: "quote.status_change",
+    targetTable: "freight_quotes",
+    targetId: before.id,
+    detail: {
+      old_status: before.status,
+      new_status: parsed.data.status,
+      quoted_rate: parsed.data.quoted_rate,
+    },
+  });
 
   const oldStage = STAGE_MAP[before.status];
   const newStage = STAGE_MAP[parsed.data.status];

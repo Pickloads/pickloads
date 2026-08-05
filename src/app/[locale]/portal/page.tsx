@@ -8,6 +8,7 @@ import { Topbar } from "@/components/layout/Topbar";
 import { SiteNav } from "@/components/layout/SiteNav";
 import { Footer } from "@/components/layout/Footer";
 import { PageHero } from "@/components/ui/PageHero";
+import { getBooleanSetting } from "@/lib/company-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,8 @@ export default async function PortalSelectPage({
     redirect(getPathname({ href: portalHomeFor(session.role), locale }));
   }
   const tv = await getV4(locale);
+  // M-69/P-3: same brokerage-gated footer label as the public site.
+  const brokerageActive = await getBooleanSetting("brokerage_active");
 
   return (
     <>
@@ -109,7 +112,7 @@ export default async function PortalSelectPage({
           </div>
         </section>
       </main>
-      <Footer />
+      <Footer brokerageActive={brokerageActive} />
     </>
   );
 }

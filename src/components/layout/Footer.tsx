@@ -27,7 +27,25 @@ const STATE_LINKS = [
   ["illinois", "Illinois Truck Dispatch"],
 ] as const;
 
-export function Footer() {
+/**
+ * M-69 / P-3 — the `/shippers` label in the Services column is gated.
+ *
+ * The footer labelled it "Freight Brokerage" on every page of the site while
+ * `company_settings.brokerage_active` is false and the FMCSA authority /
+ * BMC-84 bond are still pending — the same honest-states standard the
+ * shipper portal, ServicesSplit and the hero note already meet.
+ *
+ * The LINK is untouched (no dead nav), and no new marketing copy is
+ * invented: the fallback is "For Shippers", an already-approved V4 dictionary
+ * string used elsewhere in this same footer and in the top nav. The
+ * "Freight Brokerage" string stays in the codebase and the catalogues and
+ * returns the moment the flag flips.
+ */
+export function Footer({
+  brokerageActive = false,
+}: {
+  brokerageActive?: boolean;
+}) {
   const tv = useV4();
   return (
     <footer id="contact-foot">
@@ -51,7 +69,9 @@ export function Footer() {
           <div>
             <h4>{tv("Services")}</h4>
             <Link href="/#dispatch">{tv("Truck Dispatching")}</Link>
-            <Link href="/shippers">{tv("Freight Brokerage")}</Link>
+            <Link href="/shippers">
+              {brokerageActive ? tv("Freight Brokerage") : tv("For Shippers")}
+            </Link>
             <Link href="/#pricing">{tv("Pricing")}</Link>
             <Link href="/#packet">{tv("Carrier Packet")}</Link>
             <Link href="/#compliance">{tv("Compliance")}</Link>

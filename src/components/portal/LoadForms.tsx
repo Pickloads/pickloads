@@ -114,10 +114,29 @@ export function LoadCreateForm({ carriers }: { carriers: CarrierOption[] }) {
           <input id="ld-gross" name="gross_rate" type="number" step="0.01" min="0" placeholder="2450.00" />
         </div>
         <div className="field">
-          <label htmlFor="ld-miles">Miles</label>
+          <label htmlFor="ld-miles">Loaded miles</label>
           <input id="ld-miles" name="miles" type="number" step="1" min="1" placeholder="860" />
         </div>
+        {/* M-69/P-7: optional on purpose. Blank = not captured, and true RPM
+            renders "-" rather than pretending deadhead was zero. */}
+        <div className="field">
+          <label htmlFor="ld-deadhead">Deadhead miles (optional)</label>
+          <input
+            id="ld-deadhead"
+            name="deadhead_miles"
+            type="number"
+            step="1"
+            min="0"
+            placeholder="120"
+            aria-describedby="ld-deadhead-help"
+          />
+        </div>
       </div>
+      <p id="ld-deadhead-help" className="pempty" style={{ padding: "0 0 6px" }}>
+        Loaded RPM is gross &divide; loaded miles. True RPM adds the deadhead
+        leg &mdash; leave it blank if you don&apos;t know it and the board
+        shows &ldquo;&mdash;&rdquo; instead of an inflated number.
+      </p>
       <p className="pempty" style={{ padding: "0 0 14px" }}>
         {/* F-03 */}
         Dispatcher = you. Fee % is snapshotted from the carrier&apos;s current

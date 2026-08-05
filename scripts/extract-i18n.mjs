@@ -926,6 +926,77 @@ const SUPPLEMENTAL = {
     es: "si la pediste con otra dirección, llama al (908) 404-5373 y la vinculamos.",
     fr: "si vous l'avez demandée avec une autre adresse, appelez le (908) 404-5373 et nous la lierons.",
   },
+  /* ---- M-69 (P-1): newsletter unsubscribe page. Public-facing and legally
+     load-bearing (CAN-SPAM), so es/fr are authored here; ru/ht mirror
+     English pending native review, flagged in docs/LAUNCH-RUNBOOK.md exactly
+     like the M-42/M-55 precedent. ---- */
+  "Unsubscribe": {
+    es: "Cancelar suscripción",
+    fr: "Se désabonner",
+  },
+  "Marketing emails only. Account, document and load notifications you asked for are separate and keep working.":
+    {
+      es: "Solo correos de marketing. Las notificaciones de cuenta, documentos y cargas que pediste son aparte y siguen funcionando.",
+      fr: "E-mails marketing uniquement. Les notifications de compte, de documents et de chargements que vous avez demandées sont distinctes et continuent de fonctionner.",
+    },
+  "This unsubscribe link isn't complete or is no longer valid. Email support@pickloads.com and we'll take you off the list by hand — no account needed.":
+    {
+      es: "Este enlace para cancelar la suscripción está incompleto o ya no es válido. Escribe a support@pickloads.com y te quitamos de la lista manualmente — sin necesidad de cuenta.",
+      fr: "Ce lien de désabonnement est incomplet ou n'est plus valide. Écrivez à support@pickloads.com et nous vous retirerons de la liste manuellement — aucun compte requis.",
+    },
+  "We can't reach the subscriber list right now, so nothing was changed. Try again in a few minutes, or email support@pickloads.com and we'll remove you.":
+    {
+      es: "Ahora mismo no podemos acceder a la lista de suscriptores, así que no se cambió nada. Inténtalo en unos minutos o escribe a support@pickloads.com y te damos de baja.",
+      fr: "Nous ne pouvons pas accéder à la liste d'abonnés pour le moment, rien n'a donc été modifié. Réessayez dans quelques minutes ou écrivez à support@pickloads.com et nous vous retirerons.",
+    },
+  "This address is already off the Freight Insights list — nothing more to do.":
+    {
+      es: "Esta dirección ya está fuera de la lista de Freight Insights — no hay nada más que hacer.",
+      fr: "Cette adresse est déjà retirée de la liste Freight Insights — rien de plus à faire.",
+    },
+  "Confirm below and we'll stop sending Freight Insights to this address. This takes effect immediately.":
+    {
+      es: "Confirma abajo y dejaremos de enviar Freight Insights a esta dirección. Surte efecto de inmediato.",
+      fr: "Confirmez ci-dessous et nous cesserons d'envoyer Freight Insights à cette adresse. L'effet est immédiat.",
+    },
+  "Yes, unsubscribe me": {
+    es: "Sí, cancelar mi suscripción",
+    fr: "Oui, désabonnez-moi",
+  },
+  "Removing you…": {
+    es: "Dándote de baja…",
+    fr: "Désabonnement en cours…",
+  },
+  "✓ UNSUBSCRIBED — You're off the Freight Insights list. You may still receive account and load emails you asked for.":
+    {
+      es: "✓ BAJA CONFIRMADA — Ya no estás en la lista de Freight Insights. Puedes seguir recibiendo los correos de cuenta y cargas que pediste.",
+      fr: "✓ DÉSABONNEMENT CONFIRMÉ — Vous n'êtes plus sur la liste Freight Insights. Vous pouvez toujours recevoir les e-mails de compte et de chargements que vous avez demandés.",
+    },
+  "Too many requests from your network. Wait a few minutes, or email support@pickloads.com and we'll remove you.":
+    {
+      es: "Demasiadas solicitudes desde tu red. Espera unos minutos o escribe a support@pickloads.com y te damos de baja.",
+      fr: "Trop de requêtes depuis votre réseau. Attendez quelques minutes ou écrivez à support@pickloads.com et nous vous retirerons.",
+    },
+  "This unsubscribe link is no longer valid. Email support@pickloads.com and we'll remove you by hand.":
+    {
+      es: "Este enlace para cancelar la suscripción ya no es válido. Escribe a support@pickloads.com y te damos de baja manualmente.",
+      fr: "Ce lien de désabonnement n'est plus valide. Écrivez à support@pickloads.com et nous vous retirerons manuellement.",
+    },
+  "We couldn't reach the subscriber list just now — nothing was changed. Try again, or email support@pickloads.com.":
+    {
+      es: "No pudimos acceder a la lista de suscriptores — no se cambió nada. Inténtalo de nuevo o escribe a support@pickloads.com.",
+      fr: "Nous n'avons pas pu accéder à la liste d'abonnés — rien n'a été modifié. Réessayez ou écrivez à support@pickloads.com.",
+    },
+  /* ---- M-69 (P-6): the restored testimonials band reuses the V4
+     prototype's own eyebrow ("What carriers say") and heading ("Word of
+     mouth is our load board.") — both are already in the extracted V4
+     dictionary in all five locales, so they are deliberately NOT re-declared
+     here. Re-declaring them would overwrite the prototype's ru/ht wording. --- */
+  /* ---- M-69 (P-7): honest RPM label on the carrier loads table. ---- */
+  "Loaded RPM": {
+    es: "RPM cargado",
+    fr: "RPM chargé",
+  },
 };
 for (const [en, tr] of Object.entries(SUPPLEMENTAL)) addEntry(en, tr, false);
 // RICH entries are keyed by data-i18n id (hero.title etc.) with per-locale HTML;

@@ -3,7 +3,8 @@ import type { LoadStatus } from "@/lib/supabase/database.types";
 import {
   formatLane,
   formatMoney,
-  formatRpm,
+  formatLoadedRpm,
+  formatTrueRpm,
   LOAD_STATUSES,
   LOAD_TRANSITIONS,
 } from "@/lib/loads";
@@ -61,11 +62,33 @@ describe("display helpers", () => {
     expect(formatMoney(null)).toBe("—");
   });
 
-  it("formatRpm divides gross by miles, guarding zero/null", () => {
-    expect(formatRpm(2450, 1000)).toBe("$2.45/mi");
-    expect(formatRpm(2450, 0)).toBe("—");
-    expect(formatRpm(null, 1000)).toBe("—");
-    expect(formatRpm(2450, null)).toBe("—");
+  /*
+   * M-69/P-7. The RENAME is the fix: the value is unchanged (M-69 relabels,
+   * it never silently moves a number under an operator), but the name now
+   * says which miles it divides by.
+   */
+  it("formatLoadedRpm divides gross by LOADED miles, guarding zero/null", () => {
+    expect(formatLoadedRpm(2450, 1000)).toBe("$2.45/mi");
+    expect(formatLoadedRpm(2450, 0)).toBe("—");
+    expect(formatLoadedRpm(null, 1000)).toBe("—");
+    expect(formatLoadedRpm(2450, null)).toBe("—");
+  });
+
+  it("formatTrueRpm divides gross by deadhead + loaded miles", () => {
+    // 2450 / (1000 + 225) = 2.0 — materially below the 2.45 "RPM" the
+    // board showed before M-69. That gap is the whole defect.
+    expect(formatTrueRpm(2450, 1000, 225)).toBe("$2.00/mi");
+    // Zero deadhead is a real answer (truck was already there), not "unknown".
+    expect(formatTrueRpm(2450, 1000, 0)).toBe("$2.45/mi");
+  });
+
+  it("formatTrueRpm renders — when deadhead was never captured", () => {
+    // Critically: it must NOT fall back to the loaded figure, which would
+    // re-create the exact mislabel P-7 fixes.
+    expect(formatTrueRpm(2450, 1000, null)).toBe("—");
+    expect(formatTrueRpm(null, 1000, 100)).toBe("—");
+    expect(formatTrueRpm(2450, null, 100)).toBe("—");
+    expect(formatTrueRpm(2450, 0, 0)).toBe("—");
   });
 
   it("formatLane joins city/state pairs with fallbacks", () => {

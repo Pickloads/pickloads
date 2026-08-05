@@ -21,6 +21,7 @@ import { z } from "zod";
 import { StaffInviteEmail } from "@/emails/StaffInviteEmail";
 import { InternalNotification } from "@/emails/InternalNotification";
 import type { FormState } from "@/lib/form-state";
+import { recordAuditEvent } from "@/lib/audit";
 
 /**
  * M-58 — admin account management. Every mutation: explicit ADMIN gate
@@ -122,16 +123,13 @@ export async function setAccountStatus(
   if (historyError) {
     console.error("[staff] history insert failed", historyError.message);
   }
-  const { error: auditError } = await admin.from("audit_events").insert({
-    actor_id: session.userId,
+  await recordAuditEvent({
+    actorId: session.userId,
     action: parsed.data.action === "suspend" ? "user.suspend" : "user.activate",
-    target_table: "profiles",
-    target_id: target.id,
+    targetTable: "profiles",
+    targetId: target.id,
     detail: { reason: parsed.data.reason, old_status: target.status },
   });
-  if (auditError) {
-    console.error("[staff] audit insert failed", auditError.message);
-  }
 
   // In-portal notification (visible next sign-in when reactivated).
   const { error: notifyError } = await admin.from("notifications").insert({
@@ -214,16 +212,13 @@ export async function setCarrierActive(
     return { status: "error", message: "Carrier is already in that state." };
   }
 
-  const { error: auditError } = await admin.from("audit_events").insert({
-    actor_id: session.userId,
+  await recordAuditEvent({
+    actorId: session.userId,
     action: makeActive ? "carrier.activate" : "carrier.deactivate",
-    target_table: "carriers",
-    target_id: carrier.id,
+    targetTable: "carriers",
+    targetId: carrier.id,
     detail: { company_name: carrier.company_name },
   });
-  if (auditError) {
-    console.error("[staff] audit insert failed", auditError.message);
-  }
 
   if (makeActive) {
     const recipient = await getCarrierOwnerRecipient(admin, carrier.id);
@@ -281,19 +276,13 @@ export async function assignDispatcher(
     return { status: "error", message: "Couldn't save the assignment. Retry." };
   }
 
-  const admin = tryCreateAdminClient();
-  if (admin) {
-    const { error: auditError } = await admin.from("audit_events").insert({
-      actor_id: session.userId,
-      action: "carrier.assign_dispatcher",
-      target_table: "carriers",
-      target_id: parsed.data.carrier_id,
-      detail: { dispatcher_id: parsed.data.dispatcher_id },
-    });
-    if (auditError) {
-      console.error("[staff] audit insert failed", auditError.message);
-    }
-  }
+  await recordAuditEvent({
+    actorId: session.userId,
+    action: "carrier.assign_dispatcher",
+    targetTable: "carriers",
+    targetId: parsed.data.carrier_id,
+    detail: { dispatcher_id: parsed.data.dispatcher_id },
+  });
   return { status: "success" };
 }
 
@@ -347,15 +336,12 @@ export async function createStaffInvite(
     }),
   });
 
-  const { error: auditError } = await admin.from("audit_events").insert({
-    actor_id: session.userId,
+  await recordAuditEvent({
+    actorId: session.userId,
     action: "staff.invite",
-    target_table: "staff_invites",
+    targetTable: "staff_invites",
     detail: { email: parsed.data.email, role: parsed.data.role },
   });
-  if (auditError) {
-    console.error("[staff] audit insert failed", auditError.message);
-  }
   return { status: "success" };
 }
 
@@ -446,17 +432,16 @@ export async function acceptStaffInvite(
     console.error("[staff] invite consume failed", usedError.message);
   }
 
-  const { error: auditError } = await admin.from("audit_events").insert({
-    actor_id: created.user.id,
+  // M-69/P-4: `ip` is no longer passed explicitly — recordAuditEvent()
+  // derives it from the same x-forwarded-for/x-real-ip headers in the same
+  // request, so the stored value is unchanged.
+  await recordAuditEvent({
+    actorId: created.user.id,
     action: "staff.invite_accepted",
-    target_table: "staff_invites",
-    target_id: invite.id,
+    targetTable: "staff_invites",
+    targetId: invite.id,
     detail: { role: invite.role },
-    ip: ip !== "unknown" ? ip : null,
   });
-  if (auditError) {
-    console.error("[staff] audit insert failed", auditError.message);
-  }
 
   await sendEmail({
     to: EMAIL_INTERNAL_TO,

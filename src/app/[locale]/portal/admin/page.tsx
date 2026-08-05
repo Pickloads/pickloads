@@ -29,7 +29,7 @@ const FUNNEL: ReadonlyArray<{ status: string; label: string }> = [
 
 /**
  * M-24 — admin dashboard, Sales + Operations modules (arch §7).
- * M-34 — Dispatch (loads/revenue/RPM/per-dispatcher), Marketing (lead
+ * M-34 — Dispatch (loads/revenue/loaded RPM/per-dispatcher), Marketing (lead
  * sources, subscribers, honest GA4/GSC placeholders per O-07) and
  * Notifications (email_log + failed webhook_events) modules.
  * Aggregates are computed in the server component over RLS-scoped reads
@@ -416,8 +416,13 @@ export default async function AdminDashboardPage({
         </div>
         <div className="ptile">
           <b>{avgRpm === null ? "—" : `$${avgRpm.toFixed(2)}`}</b>
-          <span>Avg RPM (all loads)</span>
-          <span className="sub">gross ÷ miles, cancelled excluded</span>
+          {/* M-69/P-7: this aggregate divides by LOADED miles only, so it
+              is Avg LOADED RPM. True RPM (deadhead + loaded) becomes an
+              aggregate once loads.deadhead_miles (0016) is populated. */}
+          <span>Avg Loaded RPM (all loads)</span>
+          <span className="sub">
+            gross ÷ loaded miles, cancelled excluded — deadhead not included
+          </span>
         </div>
       </div>
 
@@ -474,7 +479,7 @@ export default async function AdminDashboardPage({
                   <th>Loads</th>
                   <th>Gross</th>
                   <th>Fees</th>
-                  <th>Avg RPM</th>
+                  <th>Avg Loaded RPM</th>
                 </tr>
               </thead>
               <tbody>

@@ -14,5 +14,6 @@ insert into company_settings (key, value, description) values
   ('stats',                '{"fee":"5%","avg_rate":null,"support":"24/7","states":"48"}', 'Home stats tiles; null values render as hidden until real figures exist'),
   ('packet_downloads_live','false',                              'Carrier packet download buttons — off until lawyer-approved PDFs are uploaded'),
   ('load_ticker_mode',     '"sample"',                           'Home load board ticker: sample | live (Phase 3)'),
-  ('shipper_signup_enabled','true',                              'Decision D1: public shipper self-signup (quote-request wording only, no brokerage claims). Legal can flip off without a deploy.')
+  ('shipper_signup_enabled','true',                              'Decision D1: public shipper self-signup (quote-request wording only, no brokerage claims). Legal can flip off without a deploy.'),
+  ('referral_program_active','false',                            'M-69/P-2: gates the CtaBand referral-bonus line sitewide. Approved V4 copy stays in the codebase and the 5 i18n catalogues; it renders only when this is true. Flip to true the day the referral programme (directive §32 J) actually pays out.')
 on conflict (key) do nothing;

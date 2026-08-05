@@ -135,6 +135,16 @@ const createLoadSchema = z.object({
     .union([z.literal(""), z.coerce.number().int().min(1).max(20_000)])
     .optional()
     .transform((v) => (typeof v === "number" ? v : null)),
+  /*
+   * M-69/P-7 (migration 0016). Empty miles to the pickup. min(0) — not
+   * min(1) — because zero deadhead is a real answer (the truck was already
+   * there), while BLANK stays null and means "not captured": true RPM then
+   * renders "—" instead of silently equalling loaded RPM.
+   */
+  deadhead_miles: z
+    .union([z.literal(""), z.coerce.number().int().min(0).max(20_000)])
+    .optional()
+    .transform((v) => (typeof v === "number" ? v : null)),
 });
 
 export async function createLoad(
@@ -155,6 +165,7 @@ export async function createLoad(
     "equipment",
     "gross_rate",
     "miles",
+    "deadhead_miles",
   ]) {
     const value = formData.get(key);
     raw[key] = typeof value === "string" ? value : "";
@@ -187,6 +198,7 @@ export async function createLoad(
     equipment: load.equipment,
     gross_rate: load.gross_rate,
     miles: load.miles,
+    deadhead_miles: load.deadhead_miles,
   });
   if (error) {
     console.error("[loads] insert failed", error.message);

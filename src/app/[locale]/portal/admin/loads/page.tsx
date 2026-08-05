@@ -12,7 +12,8 @@ import {
   LOAD_STATUS_LABELS,
   formatLane,
   formatMoney,
-  formatRpm,
+  formatLoadedRpm,
+  formatTrueRpm,
 } from "@/lib/loads";
 import type { LoadStatus } from "@/lib/supabase/database.types";
 
@@ -61,7 +62,7 @@ export default async function AdminLoadsPage({
   let query = supabase
     .from("loads")
     .select(
-      "id, carrier_id, dispatcher_id, broker_name, origin_city, origin_state, dest_city, dest_state, pickup_date, delivery_date, equipment, gross_rate, miles, fee_pct_applied, dispatch_fee, status, created_at",
+      "id, carrier_id, dispatcher_id, broker_name, origin_city, origin_state, dest_city, dest_state, pickup_date, delivery_date, equipment, gross_rate, miles, deadhead_miles, fee_pct_applied, dispatch_fee, status, created_at",
     )
     .order("created_at", { ascending: false })
     .limit(200);
@@ -209,7 +210,11 @@ export default async function AdminLoadsPage({
                 <th>Pickup</th>
                 <th>Equip</th>
                 <th>Gross</th>
-                <th>RPM</th>
+                {/* M-69/P-7: "RPM" was gross / LOADED miles only. Labelled
+                    honestly now, with true RPM (deadhead + loaded) beside
+                    it — "—" until deadhead_miles is captured (0016). */}
+                <th>Loaded RPM</th>
+                <th>True RPM</th>
                 <th>Fee</th>
                 <th>Dispatcher</th>
                 <th>Status</th>
@@ -224,7 +229,8 @@ export default async function AdminLoadsPage({
                   <td>{l.pickup_date ?? "—"}</td>
                   <td>{l.equipment ?? "—"}</td>
                   <td>{formatMoney(l.gross_rate)}</td>
-                  <td>{formatRpm(l.gross_rate, l.miles)}</td>
+                  <td>{formatLoadedRpm(l.gross_rate, l.miles)}</td>
+                  <td>{formatTrueRpm(l.gross_rate, l.miles, l.deadhead_miles)}</td>
                   <td>
                     {formatMoney(l.dispatch_fee)}
                     <span

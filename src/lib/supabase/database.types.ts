@@ -154,6 +154,12 @@ type SubscriberRow = {
   email: string;
   locale: string;
   confirm_token: string;
+  /**
+   * M-69/P-1 (0014): single-purpose unsubscribe credential. Deliberately
+   * separate from confirm_token — this value is printed in every marketing
+   * send and handed to mailbox providers via List-Unsubscribe.
+   */
+  unsubscribe_token: string;
   confirmed_at: string | null;
   unsubscribed_at: string | null;
   created_at: string;
@@ -264,7 +270,14 @@ type LoadRow = {
   delivery_date: string | null;
   equipment: string | null;
   gross_rate: number | null;
+  /** LOADED miles (pickup → delivery). See deadhead_miles for the empty leg. */
   miles: number | null;
+  /**
+   * M-69/P-7 (0016): empty miles driven to the pickup. NULL = not captured
+   * (renders "—"), never 0-by-default — true RPM is
+   * gross_rate / (deadhead_miles + miles).
+   */
+  deadhead_miles: number | null;
   /**
    * F-03: snapshotted from carriers.dispatch_fee_pct by the BEFORE INSERT
    * trigger when omitted. Nullable in DDL (trigger fills it), always set
