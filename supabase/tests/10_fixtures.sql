@@ -247,3 +247,67 @@ insert into shipment_assignments (id, shipment_id, carrier_id, driver_id, truck_
    '11111111-1111-1111-1111-11111111bbbb', '66666666-6666-6666-6666-66666666bbbb',
    '55555555-5555-5555-5555-55555555bbbb', '00000000-0000-0000-0000-0000000000e1',
    '00000000-0000-0000-0000-0000000000e1');
+
+-- ===========================================================================
+-- M-72 — shipment_events fixtures (migration 0019)
+--
+-- Five events on shipment A, ONE PER §7 VISIBILITY BAND. That shape is the
+-- whole point: with a single event per shipment, "shipper A sees 1 row" would
+-- be true whether the band filter worked or not. With all five present, every
+-- audience assertion is a statement about the band list in its policy.
+--
+-- Shipment B carries a public and a staff_only event so the cross-tenant
+-- assertions ("carrier A sees nothing of shipment B") are also non-vacuous.
+--
+-- Inserted directly, as the table owner: trg_shipment_events_append_only
+-- refuses UPDATE and DELETE, never INSERT. The suite proves that separately.
+-- ===========================================================================
+
+insert into shipment_events (
+  id, shipment_id, event_type, status, event_time, source, created_by,
+  city, state, public_message, internal_message, visibility, metadata,
+  external_event_id, idempotency_key
+) values
+  -- public — what an unauthenticated /track visitor may eventually see (M-73).
+  ('ecececec-ecec-ecec-ecec-ecececec0a01', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'status_change', 'in_transit', now() - interval '6 hours', 'dispatcher',
+   '00000000-0000-0000-0000-0000000000e1', 'Newark', 'NJ',
+   'Picked up and on the way', null, 'public', '{}'::jsonb, null, null),
+
+  -- shipper — the customer's own logistics.
+  ('ecececec-ecec-ecec-ecec-ecececec0a02', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'appointment_rescheduled', null, now() - interval '5 hours', 'dispatcher',
+   '00000000-0000-0000-0000-0000000000e1', null, null,
+   'Delivery appointment moved to Thursday 09:00', null, 'shipper',
+   '{"appointment_kind":"delivery"}'::jsonb, null, null),
+
+  -- carrier — their own contractual correspondence, not the shipper's.
+  ('ecececec-ecec-ecec-ecec-ecececec0a03', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'email_logged', null, now() - interval '4 hours', 'dispatcher',
+   '00000000-0000-0000-0000-0000000000e1', null, null,
+   null, 'Rate confirmation emailed to the carrier', 'carrier', '{}'::jsonb,
+   null, null),
+
+  -- broker — §12's "BOL, when authorized" band.
+  ('ecececec-ecec-ecec-ecec-ecececec0a04', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'document_approved', null, now() - interval '3 hours', 'admin',
+   '00000000-0000-0000-0000-0000000000f1', null, null,
+   'BOL released to the broker partner', null, 'broker', '{}'::jsonb, null, null),
+
+  -- staff_only — §7's absolute rule. Must reach NO customer audience.
+  ('ecececec-ecec-ecec-ecec-ecececec0a05', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'internal_note', null, now() - interval '2 hours', 'dispatcher',
+   '00000000-0000-0000-0000-0000000000e1', null, null,
+   null, 'Margin is thin on this lane; do not re-quote below 2400', 'staff_only',
+   '{"margin_note":true}'::jsonb, 'prov-evt-a-1', 'idem-a-1'),
+
+  -- shipment B, for the cross-tenant assertions.
+  ('ecececec-ecec-ecec-ecec-ecececec0b01', 'ffffffff-ffff-ffff-ffff-ffffffff0b01',
+   'status_change', 'picked_up', now() - interval '8 hours', 'dispatcher',
+   '00000000-0000-0000-0000-0000000000e1', 'Chicago', 'IL',
+   'Loaded and rolling', null, 'public', '{}'::jsonb, null, null),
+  ('ecececec-ecec-ecec-ecec-ecececec0b02', 'ffffffff-ffff-ffff-ffff-ffffffff0b01',
+   'internal_note', null, now() - interval '7 hours', 'dispatcher',
+   '00000000-0000-0000-0000-0000000000e1', null, null,
+   null, 'Shipper B disputes detention on the last three loads', 'staff_only',
+   '{}'::jsonb, null, null);

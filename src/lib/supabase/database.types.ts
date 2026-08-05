@@ -480,6 +480,12 @@ import type {
   ShipmentRow,
   ShipmentPartyRow,
   ShipmentAssignmentRow,
+  ShipmentEventRow,
+  ShipmentEventSource,
+  ShipmentEventType,
+  ShipmentEventVisibility,
+  ShipmentStatus,
+  EtaKind,
 } from "@/lib/shipments/types";
 
 /**
@@ -720,6 +726,23 @@ export type Database = {
         Update: Partial<AsRow<ShipmentAssignmentRow>>;
         Relationships: [];
       };
+      /* ---------- M-72 (0019) ----------
+       *
+       * `Insert` and `Update` are declared for shape completeness only.
+       * NOTHING in `src/` writes this table directly: 0019 grants no customer
+       * write policy and an append-only trigger refuses every UPDATE and
+       * DELETE, for every role including the service role. Writes go through
+       * the five SECURITY DEFINER functions below, called from
+       * `src/lib/shipments/apply-transition.ts`. */
+      shipment_events: {
+        Row: AsRow<ShipmentEventRow>;
+        Insert: Insertable<
+          AsRow<ShipmentEventRow>,
+          "shipment_id" | "event_type" | "source"
+        >;
+        Update: Partial<AsRow<ShipmentEventRow>>;
+        Relationships: [];
+      };
       broker_partners: {
         Row: BrokerPartnerRow;
         Insert: Insertable<BrokerPartnerRow, "company_name">;
@@ -745,6 +768,94 @@ export type Database = {
       /** M-71 (0018) — active-filtered, so an unapproved broker org yields
        * nothing (§12). */
       my_broker_partner_ids: { Args: Record<string, never>; Returns: string[] };
+
+      /* ---------- M-72 (0019) — the shipment write path ----------
+       *
+       * All five are SECURITY DEFINER with EXECUTE granted to `service_role`
+       * ONLY, so they are reachable exclusively from server code holding the
+       * service-role key (`src/lib/shipments/apply-transition.ts`). Every
+       * `Returns` is `unknown` for the same reason `webhook_events.payload`
+       * is: the function returns `jsonb`, and a hand-written interface here
+       * would be a second contract to keep in step with the SQL. The caller
+       * narrows once, in one file. */
+      shipment_transition_facts: {
+        Args: { p_shipment_id: string };
+        Returns: unknown;
+      };
+      apply_shipment_transition: {
+        Args: {
+          p_shipment_id: string;
+          p_expected_status: ShipmentStatus;
+          p_new_status: ShipmentStatus;
+          p_source: ShipmentEventSource;
+          p_actor?: string | null;
+          p_visibility?: ShipmentEventVisibility;
+          p_event_time?: string;
+          p_public_message?: string | null;
+          p_internal_message?: string | null;
+          p_city?: string | null;
+          p_state?: string | null;
+          p_latitude?: number | null;
+          p_longitude?: number | null;
+          p_metadata?: unknown;
+          p_external_event_id?: string | null;
+          p_idempotency_key?: string | null;
+          p_cancellation_reason?: string | null;
+          p_event_type?: ShipmentEventType;
+        };
+        Returns: unknown;
+      };
+      append_shipment_event: {
+        Args: {
+          p_shipment_id: string;
+          p_event_type: ShipmentEventType;
+          p_source: ShipmentEventSource;
+          p_actor?: string | null;
+          p_visibility?: ShipmentEventVisibility;
+          p_event_time?: string;
+          p_public_message?: string | null;
+          p_internal_message?: string | null;
+          p_city?: string | null;
+          p_state?: string | null;
+          p_latitude?: number | null;
+          p_longitude?: number | null;
+          p_metadata?: unknown;
+          p_external_event_id?: string | null;
+          p_idempotency_key?: string | null;
+          p_status?: ShipmentStatus | null;
+        };
+        Returns: unknown;
+      };
+      set_shipment_appointment: {
+        Args: {
+          p_shipment_id: string;
+          p_kind: EtaKind;
+          p_new_at: string | null;
+          p_source: ShipmentEventSource;
+          p_actor?: string | null;
+          p_visibility?: ShipmentEventVisibility;
+          p_reason?: string | null;
+          p_public_message?: string | null;
+          p_internal_message?: string | null;
+          p_idempotency_key?: string | null;
+        };
+        Returns: unknown;
+      };
+      apply_shipment_correction: {
+        Args: {
+          p_shipment_id: string;
+          p_expected_status: ShipmentStatus;
+          p_corrected_status: ShipmentStatus;
+          p_reason: string;
+          p_actor?: string | null;
+          p_visibility?: ShipmentEventVisibility;
+          p_public_message?: string | null;
+          p_event_time?: string;
+          p_metadata?: unknown;
+          p_idempotency_key?: string | null;
+        };
+        Returns: unknown;
+      };
     };
   };
 }

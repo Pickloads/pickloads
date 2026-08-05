@@ -6,9 +6,11 @@ degrades gracefully when a secret is missing (dev warnings, honest pending
 states) — so a partial deploy never crashes, it just quietly disables the
 affected integration. **Production must have every var set.**
 
-*Last revised for M-71 (shipment schema): migrations 0014–0018 added to the
-order-and-rollback table, the `0001 → 0018` chain and the 280-assertion RLS
-gate. Previously revised for M-62 (final QA), covering the account-system
+*Last revised for M-72 (status-transition engine): migration 0019 added to the
+order-and-rollback table, the `0001 → 0019` chain, the 339-assertion RLS gate
+and a **new release gate — `npm run test:integration`** (the §27 tier
+`FINAL-IMPLEMENTATION-PLAN` §4 restores). Previously revised for M-71 (shipment
+schema): migrations 0014–0018 and the `0001 → 0018` chain. Previously revised for M-62 (final QA), covering the account-system
 upgrade M-50…M-61: migrations 0005–0013 with per-migration rollback notes, the
 Supabase auth email templates, staff TOTP MFA + first-admin enrollment, the
 in-app staff invite flow, the `shipper_signup_enabled` switch, and
@@ -56,11 +58,12 @@ region `us-east-1` (closest to NJ ops). For **each** project, in order:
    | 0016 | `0016_loads_deadhead_miles.sql` | `loads.deadhead_miles` (+ non-negative CHECK) | `alter table loads drop column if exists deadhead_miles;` Dump captured values first (`select id, deadhead_miles from loads where deadhead_miles is not null`); "True RPM" reverts to "—". |
    | 0017 | `0017_shipment_schema.sql` | **M-71.** 17 shipment enum types; `broker_partners`, `broker_partner_memberships`, `shipments`, `shipment_parties`, `shipment_assignments`; 17 indexes; `set_updated_at` triggers; `trg_shipments_tracking_number_immutable` (§5); `trg_shipments_brokerage_gate` (§2 — refuses INSERT while `brokerage_active` is false, fail-closed) | Full script in [`docs/modules/M-71-shipment-schema.md`](modules/M-71-shipment-schema.md) §DB changes. Drop the 4 triggers, the 2 trigger functions, the 5 tables `cascade`, then the 17 types. **Destructive** — dump the 5 tables first. Run **after** 0018's rollback. Also roll back `src/lib/supabase/database.types.ts` in the same deploy. |
    | 0018 | `0018_shipment_rls.sql` | **M-71.** `my_broker_partner_ids()` (active-filtered per §12); RLS on the 5 tables from 0017; 15 policies; **no anon policy by design** (§19 forbids anonymous shipment SELECT) | Full script in the M-71 doc. Drop the 15 policies, `disable row level security` on the 5 tables, drop the helper. **Dangerous in isolation** — this leaves five populated tables with no tenant isolation. Only ever run it immediately before rolling back 0017 too. |
+   | 0019 | `0019_shipment_events.sql` | **M-72.** `shipment_events` (all 18 §7 fields; globally unique `idempotency_key`, per-shipment unique `external_event_id`); 6 indexes; `trg_shipment_events_append_only` (refuses UPDATE/DELETE for **every** role, service role included); RLS + 4 policies mirroring `AUDIENCE_EVENT_VISIBILITY`, **no anon policy**; 5 `security definer` functions (`shipment_transition_facts`, `apply_shipment_transition`, `append_shipment_event`, `set_shipment_appointment`, `apply_shipment_correction`) with **EXECUTE granted to `service_role` only** | Full script in [`docs/modules/M-72-transition-engine.md`](modules/M-72-transition-engine.md) §DB changes. Drop the 4 policies, disable RLS, drop the 5 functions (full signatures in the doc), drop the trigger **before** the table, then the trigger function, then `shipment_events cascade`. **Destructive** — dump `shipment_events` first; it is the entire timeline of every shipment. Roll back `src/lib/supabase/database.types.ts` and delete `src/lib/shipments/apply-transition.ts` in the same deploy. `shipments`/`shipment_parties`/`shipment_assignments` are untouched and keep working — statuses simply stop being writable through the engine. |
 
    After applying, sanity-check the chain the same way CI does:
 
    ```bash
-   npm run test:rls     # rebuilds a throwaway DB from 0001→0018 + seed + fixtures
+   npm run test:rls     # rebuilds a throwaway DB from 0001→0019 + seed + fixtures
    ```
 
 2. **Seed** — run `supabase/seed.sql` (idempotent, `on conflict do nothing`).
@@ -227,13 +230,14 @@ sets them expecting an effect:
 
 ```bash
 npm run typecheck && npm run lint && npm run build   # module gate (CLAUDE.md)
-npm test            # 268 unit assertions
-npm run test:rls    # 280 RLS isolation assertions — see below
-npm run test:e2e    # 160 chromium tests against the production build
+npm test                 # 353 unit assertions
+npm run test:rls         # 339 RLS isolation assertions — see below
+npm run test:integration # 33 integration tests against local PG16 — see below
+npm run test:e2e         # 160 chromium tests against the production build
 ```
 
 **`npm run test:rls` is a release gate, not an optional extra.** It rebuilds
-a throwaway database from `0001 → 0018` + seed + two/three-tenant fixtures and
+a throwaway database from `0001 → 0019` + seed + two/three-tenant fixtures and
 asserts that carrier A cannot reach carrier B, shipper A cannot reach shipper
 B (including *unclaimed* public quotes), anon reaches nothing but
 `company_settings` and published posts, and no session — staff or admin — can
@@ -242,8 +246,11 @@ the shipment cluster: shipper/carrier/**broker** A cannot reach B's shipment,
 an unapproved broker organization grants nothing, anon reads nothing from any
 shipment table, no customer session can write a shipment at all, and the
 tracking-number immutability trigger and the `brokerage_active` gate reject
-even the table owner. It needs a local PostgreSQL
-16; it is deliberately **not** part of `npm test`, because vitest runs on
+even the table owner. Since M-72 it also asserts the timeline bands: a shipper
+never reads a `staff_only` event, a carrier never reads a shipper-band event, a
+broker reads only its own band, anon reads nothing, the append-only trigger
+refuses even staff, and **even an admin session is refused EXECUTE** on the five
+write functions. It needs a local PostgreSQL 16; it is deliberately **not** part of `npm test`, because vitest runs on
 placeholder env with no database and that property is load-bearing for CI.
 
 ```bash
@@ -252,6 +259,26 @@ pg_ctl -D /tmp/pgdata -l /tmp/pg16.log \
   -o "-k /tmp/pgsock -p 5433 -c listen_addresses=" start
 npm run test:rls        # PGHOST / PGPORT / PGUSER / RLS_TEST_DB override defaults
 ```
+
+**`npm run test:integration` is the second database gate, new in M-72.** It is
+the tracking directive's §27 integration tier, which
+[`docs/FINAL-IMPLEMENTATION-PLAN.md`](FINAL-IMPLEMENTATION-PLAN.md) §4 records
+as *"diagnosed absent, then dropped entirely"* by the extension audit and
+restores as M-83b; M-72 ships the lane plus the four tests it can prove today.
+It builds its own throwaway database (`0001 → 0019` + seed, **not** the RLS
+fixtures — it creates shipments through the engine) and then runs vitest
+against it, so the real TypeScript transition engine drives the real SQL write
+path: create → assign carrier → create event → update status, idempotent
+replay, provider dedupe, compare-and-swap conflict, event-sourced appointments,
+the §20 correction flow and the append-only refusal.
+
+```bash
+npm run test:integration   # PGHOST / PGPORT / PGUSER / INTEGRATION_TEST_DB override defaults
+```
+
+Same PG16 prerequisite as the RLS suite, and deliberately **not** part of
+`npm test` for the same reason. M-83b extends it with §27's remaining seven
+tests as M-73…M-79 land — the runner, harness and npm script already exist.
 
 It has already earned its keep once: it found the `is_staff()` anon-grant
 defect that would have silently emptied the public blog and sitemap in
@@ -378,7 +405,8 @@ effect site-wide immediately — **no deploy**.
 
 **Technical smoke (after DNS cutover)**
 - [ ] Full pre-deploy gate green on the release commit (typecheck · lint ·
-      build · `npm test` · `npm run test:rls` · `npm run test:e2e`).
+      build · `npm test` · `npm run test:rls` · `npm run test:integration` ·
+      `npm run test:e2e`).
 - [ ] Quick-quote submits → row in `carrier_leads` + notification email at
       `EMAIL_INTERNAL_TO` + `email_log` row.
 - [ ] Full onboarding walkthrough on staging: wizard → uploads → e-sign
@@ -419,6 +447,10 @@ allows, but can only be *finished* against live services. Source of truth:
 - [ ] **Staff invite round trip** — invite → email → `/invite/<token>` →
       account created with the right role → invite marked accepted → the
       link is dead on reuse and after 7 days.
+- [ ] **`npm run test:integration` on the release commit** — the §27 tier
+      restored in M-72. It needs only a local PG16, so unlike the items in
+      this section it is *not* blocked on live services; it is listed with the
+      gates above and repeated here so a post-cutover re-run is not forgotten.
 - [ ] **`npm run test:rls` against the staging database** (closes R-6/R-7);
       add object-level storage assertions for R-8 (carrier A must not fetch a
       signed URL for carrier B's object path).

@@ -820,3 +820,217 @@ insert into company_settings (key, value, description) values
 
 reset role;
 set request.jwt.claim.sub = '';
+
+-- ===========================================================================
+-- 8 · M-72 — shipment_events (migration 0019)
+--
+-- §7's visibility bands, proved per audience. The fixtures put ONE event of
+-- each of the five bands on shipment A, so every count below is a statement
+-- about the band list in that audience's policy rather than about how many
+-- rows happen to exist. Every zero is paired with a positive control.
+--
+-- §7's one absolute sentence — "a staff-only note must never appear in the
+-- customer timeline" — is asserted four times: once per customer audience,
+-- plus anon.
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- 8a · Shipper A — bands ['public', 'shipper']
+-- ---------------------------------------------------------------------------
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1';
+
+select rls_test.eq((select count(*) from shipment_events), 2,
+  'shipperA sees exactly 2 events — the public and shipper bands, out of 7 rows');
+select rls_test.eq((select count(*) from shipment_events where visibility = 'public'), 1,
+  'shipperA sees the public band (positive control — the 2 above is not an empty table)');
+select rls_test.eq((select count(*) from shipment_events where visibility = 'shipper'), 1,
+  'shipperA sees its own shipper band');
+select rls_test.eq((select count(*) from shipment_events where visibility = 'staff_only'), 0,
+  'shipperA CANNOT read a staff_only event (§7: a staff-only note must never appear in a customer timeline)');
+select rls_test.eq((select count(*) from shipment_events where visibility = 'carrier'), 0,
+  'shipperA cannot read the carrier band (the counterparty''s correspondence about their own load)');
+select rls_test.eq((select count(*) from shipment_events where visibility = 'broker'), 0,
+  'shipperA cannot read the broker band');
+select rls_test.eq((select count(*) from shipment_events
+                    where shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'), 0,
+  'shipperA sees no event of shipperB''s shipment, not even its public one');
+select rls_test.eq((select count(*) from shipment_events
+                    where internal_message is not null), 0,
+  'no row shipperA can read carries an internal_message');
+select rls_test.writes_nothing($$insert into shipment_events (shipment_id, event_type, source, visibility) values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','internal_note','shipper','public')$$,
+  'shipperA cannot insert an event (no customer write policy exists)');
+select rls_test.writes_nothing($$update shipment_events set public_message = 'edited' where id = 'ecececec-ecec-ecec-ecec-ecececec0a01'$$,
+  'shipperA cannot edit an event it can read');
+select rls_test.writes_nothing($$delete from shipment_events where id = 'ecececec-ecec-ecec-ecec-ecececec0a01'$$,
+  'shipperA cannot delete an event it can read (§7: do not delete event history)');
+
+-- Shipper B sees only its own shipment's public event.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c2';
+select rls_test.eq((select count(*) from shipment_events), 1,
+  'shipperB sees exactly 1 event — the public one on its OWN shipment');
+select rls_test.eq((select count(*) from shipment_events
+                    where shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'), 0,
+  'shipperB sees nothing of shipperA''s timeline');
+select rls_test.eq((select count(*) from shipment_events where visibility = 'staff_only'), 0,
+  'shipperB cannot read the staff_only note about its own detention dispute');
+
+-- ---------------------------------------------------------------------------
+-- 8b · Carrier A — bands ['public', 'carrier']
+-- ---------------------------------------------------------------------------
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';
+
+select rls_test.eq((select count(*) from shipment_events), 2,
+  'carrierA sees exactly 2 events — the public and carrier bands');
+select rls_test.eq((select count(*) from shipment_events where visibility = 'carrier'), 1,
+  'carrierA sees its own carrier band (positive control)');
+select rls_test.eq((select count(*) from shipment_events where visibility = 'shipper'), 0,
+  'carrierA CANNOT read a shipper-band event (§7 bands do not nest)');
+select rls_test.eq((select count(*) from shipment_events where visibility = 'staff_only'), 0,
+  'carrierA cannot read a staff_only event');
+select rls_test.eq((select count(*) from shipment_events where visibility = 'broker'), 0,
+  'carrierA cannot read the broker band');
+select rls_test.writes_nothing($$insert into shipment_events (shipment_id, event_type, status, source, visibility) values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','status_change','delivered','carrier','public')$$,
+  'carrierA cannot insert a status_change event directly (§20: transitions go through the engine, not the table)');
+
+-- A carrier A MEMBER (not the owner) reaches the same rows through membership.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a2';
+select rls_test.eq((select count(*) from shipment_events), 2,
+  'a carrierA member sees the same 2 events (membership, not ownership — M-57)');
+
+-- Carrier B is assigned a different shipment and sees only its own.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000b1';
+select rls_test.eq((select count(*) from shipment_events
+                    where shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'), 0,
+  'carrierB sees no event of carrierA''s shipment');
+select rls_test.eq((select count(*) from shipment_events), 1,
+  'carrierB sees exactly the public event on its OWN shipment (positive control)');
+
+-- ---------------------------------------------------------------------------
+-- 8c · Broker A — bands ['public', 'broker']
+-- ---------------------------------------------------------------------------
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab01';
+
+select rls_test.eq((select count(*) from shipment_events), 2,
+  'brokerA sees exactly 2 events — the public and broker bands (§12: status and timeline)');
+select rls_test.eq((select count(*) from shipment_events where visibility = 'broker'), 1,
+  'brokerA sees its own broker band (positive control)');
+select rls_test.eq((select count(*) from shipment_events where visibility = 'shipper'), 0,
+  'brokerA cannot read the shipper band (§12: no shipper billing or commercial correspondence)');
+select rls_test.eq((select count(*) from shipment_events where visibility = 'carrier'), 0,
+  'brokerA cannot read the carrier band (§12: the carrier''s private packet is on the must-not-see list)');
+select rls_test.eq((select count(*) from shipment_events where visibility = 'staff_only'), 0,
+  'brokerA cannot read a staff_only event (§12: no internal margin)');
+select rls_test.writes_nothing($$insert into shipment_events (shipment_id, event_type, source, visibility) values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','public_update','dispatcher','public')$$,
+  'brokerA cannot insert an event');
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab02';
+select rls_test.eq((select count(*) from shipment_events
+                    where shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'), 0,
+  'brokerB sees no event of brokerA''s linked shipment');
+select rls_test.eq((select count(*) from shipment_events), 1,
+  'brokerB sees exactly the public event on its OWN linked shipment (positive control)');
+
+-- Broker C's organization is invited but NOT admin-approved (§12).
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab03';
+select rls_test.eq((select count(*) from shipment_events), 0,
+  'a member of an UNAPPROVED broker organization reads no event at all (my_broker_partner_ids filters on active)');
+
+-- ---------------------------------------------------------------------------
+-- 8d · Non-member and anon
+-- ---------------------------------------------------------------------------
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000d1';
+select rls_test.reads_nothing('shipment_events',
+  'an authenticated non-member reads no shipment event');
+select rls_test.writes_nothing($$insert into shipment_events (shipment_id, event_type, source) values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','internal_note','shipper')$$,
+  'a non-member cannot insert an event');
+
+set role anon;
+set request.jwt.claim.sub = '';
+select rls_test.reads_nothing('shipment_events',
+  'anon reads NO shipment event — §19 forbids anonymous shipment SELECT; M-73 goes through the service role');
+select rls_test.rejects_with($$insert into shipment_events (shipment_id, event_type, source) values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','public_update','dispatcher')$$,
+  '42501', 'anon cannot insert a shipment event');
+
+-- ---------------------------------------------------------------------------
+-- 8e · Staff — the control that makes every zero above a policy result
+-- ---------------------------------------------------------------------------
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000e1';
+select rls_test.eq((select count(*) from shipment_events), 7,
+  'the dispatcher reads all 7 events across both shipments (so the counts above are policy, not an empty table)');
+select rls_test.eq((select count(*) from shipment_events where visibility = 'staff_only'), 2,
+  'the dispatcher reads both staff_only notes');
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000f1';
+select rls_test.eq((select count(*) from shipment_events), 7,
+  'the admin reads all 7 events');
+select rls_test.affects($$insert into shipment_events (id, shipment_id, event_type, source, visibility, internal_message) values ('ecececec-ecec-ecec-ecec-ecececec0a06','ffffffff-ffff-ffff-ffff-ffffffff0a01','internal_note','admin','staff_only','staff can append')$$,
+  1, 'staff CAN append an event (non-vacuous: the customer refusals above are not a missing grant)');
+select rls_test.writes_nothing($$update shipment_events set internal_message = 'edited by staff' where id = 'ecececec-ecec-ecec-ecec-ecececec0a06'$$,
+  'even STAFF cannot edit an event — the append-only trigger is not an RLS policy');
+
+-- ---------------------------------------------------------------------------
+-- 8f · Table guarantees, asserted as the TABLE OWNER with RLS bypassed.
+--
+-- Anything that still fails here can only be a CHECK, a unique index or a
+-- trigger — the guarantees that survive the service role, not just the browser
+-- session (BYPASSRLS is not BYPASSTRIGGER, and disabling a trigger needs table
+-- ownership, which the API role does not have).
+-- ---------------------------------------------------------------------------
+reset role;
+set request.jwt.claim.sub = '';
+
+-- §7: "Do not delete event history silently."
+select rls_test.rejects_with($$update shipment_events set public_message = 'rewritten' where id = 'ecececec-ecec-ecec-ecec-ecececec0a01'$$,
+  'P0001', 'an event UPDATE is refused by trg_shipment_events_append_only — as the TABLE OWNER, with RLS bypassed');
+select rls_test.rejects_with($$delete from shipment_events where id = 'ecececec-ecec-ecec-ecec-ecececec0a01'$$,
+  'P0001', 'an event DELETE is refused by the same trigger');
+select rls_test.rejects_with($$delete from shipment_events$$,
+  'P0001', 'a bulk delete is refused too (row-level trigger, no set-level escape)');
+select rls_test.rejects_with($$delete from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
+  'P0001', 'a shipment with events cannot be deleted — the ON DELETE CASCADE fires the append-only trigger (documented consequence, not an accident)');
+select rls_test.eq((select count(*) from shipment_events), 8,
+  'every row survives every deletion attempt');
+
+-- Idempotency: a retried write cannot double-append.
+select rls_test.rejects_with($$insert into shipment_events (shipment_id, event_type, source, idempotency_key) values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','internal_note','dispatcher','idem-a-1')$$,
+  '23505', 'a duplicate idempotency_key is rejected by shipment_events_idempotency_key');
+select rls_test.rejects_with($$insert into shipment_events (shipment_id, event_type, source, idempotency_key) values ('ffffffff-ffff-ffff-ffff-ffffffff0b01','internal_note','dispatcher','idem-a-1')$$,
+  '23505', 'the idempotency key is GLOBAL — the same key on another shipment is still a replay, not a new event');
+select rls_test.affects($$insert into shipment_events (shipment_id, event_type, source, idempotency_key) values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','internal_note','dispatcher','idem-a-2')$$,
+  1, 'a DIFFERENT idempotency key inserts normally (non-vacuous)');
+select rls_test.affects($$insert into shipment_events (shipment_id, event_type, source) values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','internal_note','dispatcher')$$,
+  1, 'many events may carry a NULL idempotency key — the index is partial');
+
+-- Provider dedupe (§9 Mode C): unique per shipment, not globally.
+select rls_test.rejects_with($$insert into shipment_events (shipment_id, event_type, source, external_event_id) values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','location_update','eld','prov-evt-a-1')$$,
+  '23505', 'a duplicate provider event id on the SAME shipment is rejected (§9: prevent duplicate provider events)');
+select rls_test.affects($$insert into shipment_events (shipment_id, event_type, source, external_event_id) values ('ffffffff-ffff-ffff-ffff-ffffffff0b01','location_update','eld','prov-evt-a-1')$$,
+  1, 'the same provider event id on a DIFFERENT shipment is allowed — provider ids are unique within a stream');
+
+-- Shape CHECKs.
+select rls_test.rejects_with($$insert into shipment_events (shipment_id, event_type, source) values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','status_change','dispatcher')$$,
+  '23514', 'a status_change with no status is rejected by shipment_events_status_change_has_status');
+select rls_test.rejects_with($$insert into shipment_events (shipment_id, event_type, status, source) values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','correction','delivered','admin')$$,
+  '23514', 'a correction with no reason is rejected by shipment_events_correction_has_reason (§20: mandatory reason)');
+select rls_test.affects($$insert into shipment_events (shipment_id, event_type, status, source, internal_message) values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','correction','delivered','admin','keyed against the wrong shipment')$$,
+  1, 'a correction WITH a reason is accepted (non-vacuous)');
+
+-- The write functions are not reachable from a browser session.
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000f1';
+select rls_test.rejects_with($$select apply_shipment_transition('ffffffff-ffff-ffff-ffff-ffffffff0a01','in_transit','arrived_at_delivery','dispatcher')$$,
+  '42501', 'even an ADMIN session cannot call apply_shipment_transition — EXECUTE is granted to service_role only');
+select rls_test.rejects_with($$select apply_shipment_correction('ffffffff-ffff-ffff-ffff-ffffffff0a01','in_transit','picked_up','typo')$$,
+  '42501', 'nor apply_shipment_correction');
+select rls_test.rejects_with($$select shipment_transition_facts('ffffffff-ffff-ffff-ffff-ffffffff0a01')$$,
+  '42501', 'nor even the SECURITY DEFINER facts read');
+
+set role anon;
+set request.jwt.claim.sub = '';
+select rls_test.rejects_with($$select append_shipment_event('ffffffff-ffff-ffff-ffff-ffffffff0a01','public_update','dispatcher')$$,
+  '42501', 'anon cannot call append_shipment_event');
+
+reset role;
+set request.jwt.claim.sub = '';

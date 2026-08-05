@@ -14,7 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:rls": "bash scripts/run-rls-tests.sh"
+    "test:rls": "bash scripts/run-rls-tests.sh",
+    "test:integration": "bash scripts/run-integration-tests.sh"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
