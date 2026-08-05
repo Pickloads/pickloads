@@ -1,0 +1,781 @@
+/**
+ * M-70 — shipment domain types. The single source of truth for the tracking
+ * system's vocabulary (`docs/DIRECTIVE-tracking.md` §§5–10, 16, 18, 21).
+ *
+ * WHY THIS FILE EXISTS FIRST. `docs/FINAL-IMPLEMENTATION-PLAN.md` §1 settles
+ * the architecture: brokerage shipments get a NEW `shipments` table rather
+ * than an extension of `loads` (whose `carrier_id` is NOT NULL and whose
+ * F-03 fee trigger three modules depend on cannot survive a shipper-centric
+ * lifecycle that begins with no carrier at all). `loads` is untouched and
+ * remains the dispatch system of record.
+ *
+ * M-71 writes the DDL. It writes it to match THIS FILE — every enum below is
+ * the exact value list its Postgres enum must carry, and every `*Row` type is
+ * the exact column list its table must expose. Nothing here reads or writes a
+ * database; nothing here is a state machine (M-72 owns transitions).
+ *
+ * Plain module by design (no `server-only`): the public `/track` form in
+ * M-73 needs the same status vocabulary the server uses, and a second copy
+ * of it in client code is exactly the drift this module exists to prevent.
+ *
+ * i18n: nothing customer-facing is spelled in English anywhere in this
+ * module. Enum members are stable machine identifiers; the human strings are
+ * message KEYS (`statusKey()` and friends) whose catalogue entries land with
+ * the UI in M-73, across all five locales (§24).
+ */
+
+/* ------------------------------------------------------------------ *
+ * §6 — shipment status
+ * ------------------------------------------------------------------ */
+
+/**
+ * The 18 statuses of §6, named exactly as the directive names them.
+ *
+ * Not every shipment uses every status (§6). The first four
+ * (`quote_requested` … `carrier_search`) have no carrier at all, which is
+ * the structural reason this lifecycle cannot live on `loads`.
+ */
+export type ShipmentStatus =
+  | "quote_requested"
+  | "quote_sent"
+  | "quote_accepted"
+  | "carrier_search"
+  | "carrier_assigned"
+  | "dispatched"
+  | "en_route_to_pickup"
+  | "arrived_at_pickup"
+  | "loading"
+  | "picked_up"
+  | "in_transit"
+  | "delayed"
+  | "arrived_at_delivery"
+  | "unloading"
+  | "delivered"
+  | "pod_uploaded"
+  | "completed"
+  | "cancelled";
+
+/**
+ * §6 lifecycle order — the directive's own numbering, 1…18.
+ *
+ * This is a DECLARATION order (used for stable sorting, enum creation and
+ * timeline rendering), NOT a transition graph. Which status may follow which,
+ * and under what preconditions, is M-72's status-transition engine (§20).
+ * Reading progress out of an index would be wrong for `delayed` and
+ * `cancelled`, which are lifecycle states rather than milestones.
+ */
+export const SHIPMENT_STATUSES = [
+  "quote_requested",
+  "quote_sent",
+  "quote_accepted",
+  "carrier_search",
+  "carrier_assigned",
+  "dispatched",
+  "en_route_to_pickup",
+  "arrived_at_pickup",
+  "loading",
+  "picked_up",
+  "in_transit",
+  "delayed",
+  "arrived_at_delivery",
+  "unloading",
+  "delivered",
+  "pod_uploaded",
+  "completed",
+  "cancelled",
+] as const satisfies readonly ShipmentStatus[];
+
+/* ------------------------------------------------------------------ *
+ * §7 — timeline events
+ * ------------------------------------------------------------------ */
+
+/**
+ * `shipment_events.event_type`. §6 is explicit that statuses must not be free
+ * text; the same discipline applies to the event kinds around them, so every
+ * dispatcher action §14 names has an identifier here rather than a string
+ * typed into a form.
+ */
+export type ShipmentEventType =
+  | "shipment_created"
+  | "status_change"
+  | "location_update"
+  | "eta_update"
+  | "appointment_set"
+  | "appointment_rescheduled"
+  | "assignment_created"
+  | "assignment_released"
+  | "document_uploaded"
+  | "document_approved"
+  | "pod_requested"
+  | "exception_opened"
+  | "exception_resolved"
+  | "public_update"
+  | "internal_note"
+  | "call_logged"
+  | "email_logged"
+  | "notification_sent"
+  | "correction"
+  | "cancellation";
+
+export const SHIPMENT_EVENT_TYPES = [
+  "shipment_created",
+  "status_change",
+  "location_update",
+  "eta_update",
+  "appointment_set",
+  "appointment_rescheduled",
+  "assignment_created",
+  "assignment_released",
+  "document_uploaded",
+  "document_approved",
+  "pod_requested",
+  "exception_opened",
+  "exception_resolved",
+  "public_update",
+  "internal_note",
+  "call_logged",
+  "email_logged",
+  "notification_sent",
+  "correction",
+  "cancellation",
+] as const satisfies readonly ShipmentEventType[];
+
+/** §7 event sources, in the directive's order. */
+export type ShipmentEventSource =
+  | "dispatcher"
+  | "carrier"
+  | "driver"
+  | "eld"
+  | "gps"
+  | "system"
+  | "admin"
+  | "shipper";
+
+export const SHIPMENT_EVENT_SOURCES = [
+  "dispatcher",
+  "carrier",
+  "driver",
+  "eld",
+  "gps",
+  "system",
+  "admin",
+  "shipper",
+] as const satisfies readonly ShipmentEventSource[];
+
+/**
+ * §7 visibility levels — plus `broker`.
+ *
+ * §7 lists four (public / shipper / carrier / staff_only). `broker` is a
+ * DELIBERATE ADDITION, and it is the same lesson `FINAL-IMPLEMENTATION-PLAN`
+ * §4 records against `doc_visibility`: §12 requires broker partners to see an
+ * approved subset ("BOL, when authorized") while never seeing internal margin
+ * or unrelated commentary, and an enum with no broker value leaves only two
+ * bad options — show brokers the `shipper` band (which carries the shipper's
+ * commercial correspondence) or show them nothing (which makes §12
+ * unimplementable). A distinct band is the only way to write the rule down.
+ *
+ * `staff_only` is absolute: §7 says a staff-only note must never appear in a
+ * customer timeline, and `src/lib/shipments/dto.ts` is where that is enforced
+ * by construction rather than by convention.
+ */
+export type ShipmentEventVisibility =
+  "public" | "shipper" | "carrier" | "broker" | "staff_only";
+
+export const SHIPMENT_EVENT_VISIBILITIES = [
+  "public",
+  "shipper",
+  "carrier",
+  "broker",
+  "staff_only",
+] as const satisfies readonly ShipmentEventVisibility[];
+
+/* ------------------------------------------------------------------ *
+ * §9 — tracking mode, location privacy, providers
+ * ------------------------------------------------------------------ */
+
+/**
+ * §9 tracking modes. `manual` (Mode A) is the only one required for launch
+ * and must work with no GPS integration at all; `link` (Mode B) and `eld`
+ * (Mode C) are modelled now so M-80 can add providers without a migration
+ * that rewrites shipments.
+ */
+export type ShipmentTrackingMode = "manual" | "link" | "eld";
+
+export const SHIPMENT_TRACKING_MODES = [
+  "manual",
+  "link",
+  "eld",
+] as const satisfies readonly ShipmentTrackingMode[];
+
+/**
+ * §9 privacy rules — the four configurable location-visibility levels,
+ * ordered most to least revealing.
+ *
+ * `exact` never means "exact for everyone": §9 forbids permanently exposing a
+ * live truck position to every public visitor, so the public audience is
+ * capped at city/state even at this level (see `dto.ts`).
+ */
+export type ShipmentLocationVisibility =
+  "exact" | "approximate" | "milestone_only" | "hidden";
+
+export const SHIPMENT_LOCATION_VISIBILITIES = [
+  "exact",
+  "approximate",
+  "milestone_only",
+  "hidden",
+] as const satisfies readonly ShipmentLocationVisibility[];
+
+/** §9 Mode C telematics providers. No connection is implemented in M-70. */
+export type TrackingProvider =
+  "motive" | "samsara" | "geotab" | "verizon_connect" | "other";
+
+export const TRACKING_PROVIDERS = [
+  "motive",
+  "samsara",
+  "geotab",
+  "verizon_connect",
+  "other",
+] as const satisfies readonly TrackingProvider[];
+
+/** §9/§13 — driver consent state for location sharing. */
+export type TrackingConsentStatus =
+  "not_required" | "pending" | "granted" | "denied" | "revoked" | "expired";
+
+export const TRACKING_CONSENT_STATUSES = [
+  "not_required",
+  "pending",
+  "granted",
+  "denied",
+  "revoked",
+  "expired",
+] as const satisfies readonly TrackingConsentStatus[];
+
+/* ------------------------------------------------------------------ *
+ * §10 — ETA
+ * ------------------------------------------------------------------ */
+
+/**
+ * §10 ETA provenance. This enum is the mechanism behind §30's honest-label
+ * rule: an ETA the dispatcher typed must be labelled as such and must never
+ * be presented as live or predictive.
+ */
+export type EtaSource =
+  "manual" | "calculated" | "provider" | "dispatcher_adjusted";
+
+export const ETA_SOURCES = [
+  "manual",
+  "calculated",
+  "provider",
+  "dispatcher_adjusted",
+] as const satisfies readonly EtaSource[];
+
+/**
+ * §10 `eta_confidence`. The directive names the field but not its domain;
+ * three bands is the smallest honest set — anything finer would imply a
+ * precision manual ETAs do not have (§30).
+ */
+export type EtaConfidence = "high" | "medium" | "low";
+
+export const ETA_CONFIDENCES = [
+  "high",
+  "medium",
+  "low",
+] as const satisfies readonly EtaConfidence[];
+
+/** Which appointment an ETA row refers to (§10 keeps both). */
+export type EtaKind = "pickup" | "delivery";
+
+export const ETA_KINDS = [
+  "pickup",
+  "delivery",
+] as const satisfies readonly EtaKind[];
+
+/* ------------------------------------------------------------------ *
+ * §16 — documents
+ * ------------------------------------------------------------------ */
+
+/** §16 document types, in the directive's order. */
+export type ShipmentDocumentType =
+  | "quote"
+  | "shipper_confirmation"
+  | "rate_confirmation"
+  | "bol"
+  | "lumper_receipt"
+  | "detention_documentation"
+  | "delivery_receipt"
+  | "pod"
+  | "invoice"
+  | "claim"
+  | "other";
+
+export const SHIPMENT_DOCUMENT_TYPES = [
+  "quote",
+  "shipper_confirmation",
+  "rate_confirmation",
+  "bol",
+  "lumper_receipt",
+  "detention_documentation",
+  "delivery_receipt",
+  "pod",
+  "invoice",
+  "claim",
+  "other",
+] as const satisfies readonly ShipmentDocumentType[];
+
+/**
+ * §16 document visibility — carrying the same `broker` value as the event
+ * enum above, and for the same reason: `FINAL-IMPLEMENTATION-PLAN` §4 records
+ * that a `doc_visibility` without a broker band makes §12's "BOL, when
+ * authorized" unimplementable.
+ *
+ * M-77 owns the document-type → audience MATRIX. M-70 owns only the
+ * vocabulary it is written in.
+ */
+export type ShipmentDocumentVisibility =
+  "public" | "shipper" | "carrier" | "broker" | "staff_only";
+
+export const SHIPMENT_DOCUMENT_VISIBILITIES = [
+  "public",
+  "shipper",
+  "carrier",
+  "broker",
+  "staff_only",
+] as const satisfies readonly ShipmentDocumentVisibility[];
+
+/* ------------------------------------------------------------------ *
+ * §21 — exceptions
+ * ------------------------------------------------------------------ */
+
+/** The 13 exception types of §21, in the directive's order. */
+export type ShipmentExceptionType =
+  | "pickup_delay"
+  | "delivery_delay"
+  | "mechanical_issue"
+  | "weather"
+  | "traffic"
+  | "facility_delay"
+  | "rejected_freight"
+  | "damaged_freight"
+  | "missing_appointment"
+  | "driver_unavailable"
+  | "carrier_cancellation"
+  | "documentation_issue"
+  | "other";
+
+export const SHIPMENT_EXCEPTION_TYPES = [
+  "pickup_delay",
+  "delivery_delay",
+  "mechanical_issue",
+  "weather",
+  "traffic",
+  "facility_delay",
+  "rejected_freight",
+  "damaged_freight",
+  "missing_appointment",
+  "driver_unavailable",
+  "carrier_cancellation",
+  "documentation_issue",
+  "other",
+] as const satisfies readonly ShipmentExceptionType[];
+
+/**
+ * §21 severity. Ordered low → critical; the carrier-management playbook's
+ * escalation triggers (insurance lapse, unreachable driver in transit) map
+ * onto `critical` when M-79 wires notification timing.
+ */
+export type ShipmentExceptionSeverity = "low" | "medium" | "high" | "critical";
+
+export const SHIPMENT_EXCEPTION_SEVERITIES = [
+  "low",
+  "medium",
+  "high",
+  "critical",
+] as const satisfies readonly ShipmentExceptionSeverity[];
+
+/* ------------------------------------------------------------------ *
+ * §18 — parties and assignments
+ * ------------------------------------------------------------------ */
+
+/** Roles a party may hold on a shipment (§8 contact block, §18 parties). */
+export type ShipmentPartyRole =
+  | "shipper"
+  | "consignee"
+  | "broker_partner"
+  | "carrier"
+  | "billing"
+  | "third_party";
+
+export const SHIPMENT_PARTY_ROLES = [
+  "shipper",
+  "consignee",
+  "broker_partner",
+  "carrier",
+  "billing",
+  "third_party",
+] as const satisfies readonly ShipmentPartyRole[];
+
+/** Outcome of a public tracking attempt (§19 access logging). */
+export type TrackingAccessOutcome =
+  | "granted"
+  | "not_found"
+  | "bad_secondary"
+  | "rate_limited"
+  | "tracking_disabled";
+
+export const TRACKING_ACCESS_OUTCOMES = [
+  "granted",
+  "not_found",
+  "bad_secondary",
+  "rate_limited",
+  "tracking_disabled",
+] as const satisfies readonly TrackingAccessOutcome[];
+
+/* ------------------------------------------------------------------ *
+ * i18n keys (§24, §30)
+ * ------------------------------------------------------------------ */
+
+/**
+ * next-intl namespace for the tracking system.
+ *
+ * The catalogues today carry exactly one namespace (`v4`, generated from the
+ * prototype by `scripts/extract-i18n.mjs`). M-73 introduces `shipment` and
+ * authors its entries in all five locales alongside the UI that renders them
+ * — this module deliberately adds NO catalogue entries, because a key with no
+ * translation is worse than a key that does not exist yet.
+ */
+export const SHIPMENT_I18N_NAMESPACE = "shipment";
+
+/** Message key for a status label, e.g. `shipment.status.in_transit`. */
+export function statusKey(status: ShipmentStatus): string {
+  return `${SHIPMENT_I18N_NAMESPACE}.status.${status}`;
+}
+
+/** Message key for a timeline event label. */
+export function eventTypeKey(eventType: ShipmentEventType): string {
+  return `${SHIPMENT_I18N_NAMESPACE}.event.${eventType}`;
+}
+
+/** Message key for an exception label. */
+export function exceptionTypeKey(type: ShipmentExceptionType): string {
+  return `${SHIPMENT_I18N_NAMESPACE}.exception.${type}`;
+}
+
+/** Message key for an exception severity label. */
+export function exceptionSeverityKey(
+  severity: ShipmentExceptionSeverity,
+): string {
+  return `${SHIPMENT_I18N_NAMESPACE}.severity.${severity}`;
+}
+
+/* ------------------------------------------------------------------ *
+ * Row types — the shape M-71's DDL must produce
+ * ------------------------------------------------------------------ *
+ *
+ * Conventions copied from `src/lib/supabase/database.types.ts`, which these
+ * types join when M-71 registers the tables on `Database["public"]`:
+ *   * timestamps are ISO strings (PostgREST renders `timestamptz` as text);
+ *   * `jsonb` is `unknown` (as `webhook_events.payload` and
+ *     `audit_events.detail` already are) — never `any`;
+ *   * money is `number` (numeric), matching `loads.gross_amount`.
+ */
+
+/**
+ * `shipments` — §18's recommended field list, expanded where the directive
+ * wrote a category rather than a column ("origin fields", "destination
+ * fields", "current ETA", "reference numbers").
+ *
+ * Two additions beyond §18's list, both mandated elsewhere in the directive
+ * and both needed by M-71's DDL:
+ *   * `location_visibility` — §9's four privacy levels are per-shipment
+ *     configuration and have nowhere else to live;
+ *   * `cancellation_reason` — §20 requires `cancelled` to record one, which
+ *     M-72 cannot enforce against a column that does not exist.
+ *
+ * `load_id` is the plan §1 bridge: nullable, set when a brokered shipment is
+ * covered by a dispatched truck. It never makes `loads` a dependency.
+ */
+export interface ShipmentRow {
+  id: string;
+  /** `PL-YYYY-######`. Server-generated, unique, immutable — see
+   * `src/lib/shipments/tracking-number.ts`. */
+  tracking_number: string;
+  shipper_id: string;
+  /** Null through the first four statuses — no carrier exists yet (§6). */
+  carrier_id: string | null;
+  dispatcher_id: string | null;
+  quote_id: string | null;
+  broker_partner_id: string | null;
+  /** Plan §1 — set when this brokerage shipment is covered by a dispatch load. */
+  load_id: string | null;
+  status: ShipmentStatus;
+
+  origin_company: string | null;
+  origin_address: string | null;
+  origin_city: string;
+  origin_state: string;
+  origin_zip: string | null;
+
+  destination_company: string | null;
+  destination_address: string | null;
+  destination_city: string;
+  destination_state: string;
+  destination_zip: string | null;
+
+  pickup_appointment_at: string | null;
+  delivery_appointment_at: string | null;
+
+  equipment: string;
+  commodity_category: string | null;
+  weight_lbs: number | null;
+  pallets: number | null;
+  distance_miles: number | null;
+
+  /**
+   * @staffOnly §18 — gross amount billed to the shipper. Never leaves a staff
+   * surface: excluded from every customer DTO in `dto.ts` and pinned by
+   * `tests/unit/shipment-dto.test.ts`.
+   */
+  gross_shipper_amount: number | null;
+  /**
+   * @staffOnly §18 — what the carrier is paid. Visible to the carrier it
+   * belongs to (§16 makes their own rate confirmation carrier-visible) and to
+   * staff; never to public, shipper or broker audiences, since gross minus
+   * carrier pay is the margin §4 and §12 forbid disclosing.
+   */
+  carrier_pay: number | null;
+  /**
+   * @staffOnly §18 — PickLoads margin / dispatch fee. The single most
+   * dangerous column in the schema; §4 lists it first among the things a
+   * public tracking page must never show.
+   */
+  margin: number | null;
+
+  shipper_reference: string | null;
+  po_number: string | null;
+
+  public_tracking_enabled: boolean;
+  tracking_mode: ShipmentTrackingMode;
+  location_visibility: ShipmentLocationVisibility;
+  /**
+   * Hash of the §4 secondary verification value (access code / recipient
+   * ZIP). It is a CREDENTIAL, not data: no DTO in this module serializes it
+   * at any audience, including staff. M-73 verifies against it server-side.
+   */
+  public_access_hash: string | null;
+
+  current_latitude: number | null;
+  current_longitude: number | null;
+  current_city: string | null;
+  current_state: string | null;
+  last_location_at: string | null;
+
+  estimated_pickup_at: string | null;
+  estimated_delivery_at: string | null;
+  eta_source: EtaSource | null;
+  eta_confidence: EtaConfidence | null;
+  eta_updated_at: string | null;
+  delay_minutes: number | null;
+  /** Customer-safe delay wording (§21: calm, no blame, no legal conclusions). */
+  delay_reason_public: string | null;
+  /** Operational truth. Never crosses into a customer DTO. */
+  delay_reason_internal: string | null;
+
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  cancelled_at: string | null;
+  /** §20 — `cancelled` must record a reason. */
+  cancellation_reason: string | null;
+}
+
+/**
+ * `shipment_events` — all 18 fields §7 names, no more and no fewer.
+ *
+ * `idempotency_key` and `external_event_id` exist from the first migration
+ * rather than being retrofitted: §9's Mode C explicitly requires preventing
+ * duplicate provider events, and a dedupe key added later cannot deduplicate
+ * the history already stored.
+ */
+export interface ShipmentEventRow {
+  id: string;
+  shipment_id: string;
+  event_type: ShipmentEventType;
+  /** The status this event asserts, when it asserts one. */
+  status: ShipmentStatus | null;
+  /** When it happened in the world. */
+  event_time: string;
+  /** When PickLoads learned of it — §7 keeps both. */
+  recorded_at: string;
+  source: ShipmentEventSource;
+  created_by: string | null;
+  city: string | null;
+  state: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  public_message: string | null;
+  internal_message: string | null;
+  visibility: ShipmentEventVisibility;
+  /** Raw provider payload (§9) — `jsonb`. Staff surfaces only. */
+  metadata: unknown;
+  external_event_id: string | null;
+  idempotency_key: string | null;
+}
+
+/** `shipment_exceptions` — §21's 10 fields plus keys. */
+export interface ShipmentExceptionRow {
+  id: string;
+  shipment_id: string;
+  exception_type: ShipmentExceptionType;
+  severity: ShipmentExceptionSeverity;
+  /** Calm, blame-free wording. Null means "nothing honest to tell the
+   * customer yet" — such an exception is omitted from customer DTOs entirely
+   * rather than rendered as a blank alarm. */
+  public_description: string | null;
+  internal_description: string | null;
+  opened_at: string;
+  resolved_at: string | null;
+  opened_by: string | null;
+  assigned_to: string | null;
+  customer_notified_at: string | null;
+  resolution: string | null;
+}
+
+/** `shipment_eta_history` — §10's "preserve previous ETA values in history". */
+export interface ShipmentEtaHistoryRow {
+  id: string;
+  shipment_id: string;
+  eta_kind: EtaKind;
+  previous_eta_at: string | null;
+  new_eta_at: string | null;
+  eta_source: EtaSource;
+  eta_confidence: EtaConfidence | null;
+  delay_minutes: number | null;
+  reason_public: string | null;
+  reason_internal: string | null;
+  /** The §10 "create a shipment event" companion, when one was written. */
+  event_id: string | null;
+  changed_by: string | null;
+  changed_at: string;
+}
+
+/**
+ * `shipment_locations` — §9 position history.
+ *
+ * `retention_expires_at` is a stored column rather than a computed policy so
+ * the M-84b purger has something to select on: a retention rule with no
+ * executor is the exact gap `FINAL-IMPLEMENTATION-PLAN` §4 flagged.
+ */
+export interface ShipmentLocationRow {
+  id: string;
+  shipment_id: string;
+  recorded_at: string;
+  latitude: number | null;
+  longitude: number | null;
+  city: string | null;
+  state: string | null;
+  /** §9 Mode C "vehicle speed, if permitted". */
+  speed_mph: number | null;
+  heading_degrees: number | null;
+  source: ShipmentEventSource;
+  provider: TrackingProvider | null;
+  external_event_id: string | null;
+  /** Raw provider metadata, stored securely (§9) — `jsonb`, staff only. */
+  raw_metadata: unknown;
+  retention_expires_at: string | null;
+}
+
+/** `shipment_documents` — §16. Private bucket + signed URLs (M-77). */
+export interface ShipmentDocumentRow {
+  id: string;
+  shipment_id: string;
+  doc_type: ShipmentDocumentType;
+  visibility: ShipmentDocumentVisibility;
+  /** Path inside the PRIVATE bucket. Never a public URL. */
+  storage_path: string;
+  file_name: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  uploaded_by: string | null;
+  uploaded_at: string;
+  approved_by: string | null;
+  approved_at: string | null;
+}
+
+/** `shipment_parties` — §18. Contact channels per §8, permission-scoped. */
+export interface ShipmentPartyRow {
+  id: string;
+  shipment_id: string;
+  party_role: ShipmentPartyRole;
+  /** FK into the organization table matching `party_role` (shipper/carrier). */
+  organization_id: string | null;
+  company_name: string | null;
+  contact_name: string | null;
+  phone: string | null;
+  email: string | null;
+  /**
+   * Whether this contact may appear on the PUBLIC tracking page. Defaults
+   * false in M-71's DDL: §8 forbids exposing a driver's personal number by
+   * default, and §4 forbids private carrier contact outright.
+   */
+  public_contact: boolean;
+  created_at: string;
+}
+
+/** `shipment_assignments` — §18. Reassignment is a new row, never an edit. */
+export interface ShipmentAssignmentRow {
+  id: string;
+  shipment_id: string;
+  carrier_id: string;
+  driver_id: string | null;
+  truck_id: string | null;
+  dispatcher_id: string | null;
+  assigned_by: string | null;
+  assigned_at: string;
+  released_at: string | null;
+  release_reason: string | null;
+}
+
+/**
+ * `shipment_tracking_access` — §19's "logs access" and "prevents
+ * enumeration" requirements.
+ *
+ * The attempted tracking number is stored (it is the thing being guessed);
+ * the attempted secondary value never is, in any form — logging a hash of a
+ * recipient ZIP would build a rainbow-friendly ledger of exactly the
+ * credential §4 relies on.
+ */
+export interface ShipmentTrackingAccessRow {
+  id: string;
+  /** Null when the lookup matched nothing — the enumeration case. */
+  shipment_id: string | null;
+  tracking_number_attempted: string;
+  outcome: TrackingAccessOutcome;
+  ip: string | null;
+  user_agent: string | null;
+  /** Set when an authenticated portal user performed the lookup. */
+  profile_id: string | null;
+  accessed_at: string;
+}
+
+/**
+ * `tracking_provider_connections` — §9 Modes B and C.
+ *
+ * Credentials are NOT here: §15 requires integration credentials to live in
+ * environment variables, never database plaintext. This row holds the
+ * per-shipment link and its lifecycle only.
+ */
+export interface TrackingProviderConnectionRow {
+  id: string;
+  shipment_id: string;
+  provider: TrackingProvider;
+  external_tracking_id: string | null;
+  /** Mode B per-shipment driver-location link. */
+  tracking_url: string | null;
+  expires_at: string | null;
+  consent_status: TrackingConsentStatus;
+  active: boolean;
+  connected_by: string | null;
+  connected_at: string;
+  last_polled_at: string | null;
+  last_error: string | null;
+}

@@ -1,4 +1,4 @@
-# Module Index — M-00 … M-43 · Upgrade M-50 … M-62 · M-69 →
+# Module Index — M-00 … M-43 · Upgrade M-50 … M-62 · M-69 → M-70 →
 
 One row per shipped module. Every module passed the full gate (functionality
 · responsiveness · WCAG AA · SEO · security · typecheck · lint · build; test
@@ -12,7 +12,11 @@ Integrity Pack) is the first module of the new programme** — Phase A, a
 prerequisite that repairs seven live defects (§3, P-1…P-7) before any new
 feature is built on them.
 
-Current totals: **343 pages** built · **191** unit tests · **160** e2e tests ·
+**M-70 opens Phase B** — tracking core (M-70 … M-79). It ships the shipment
+domain layer only: types, DTO serializers and the tracking-number generator.
+The tables land in M-71 and the status-transition engine in M-72.
+
+Current totals: **343 pages** built · **268** unit tests · **160** e2e tests ·
 **173** RLS isolation assertions. M-62-era baseline for comparison: 337 pages
 · 168 · 145 · 165. Upgrade-directive acceptance is unchanged:
 [`docs/UPGRADE-ACCEPTANCE.md`](../UPGRADE-ACCEPTANCE.md) — 17 ✅, 8 ⚠️
@@ -63,7 +67,9 @@ checklist), 0 ❌.
 | M-62 | U | [M-62-qa-finalization.md](M-62-qa-finalization.md) | **Final module.** Responsive suite (`tests/e2e/responsive.spec.ts`, 108 tests: 21 routes × 375/390/768/1024/1440 with full-page screenshots + 320/1920 endpoint sweep; no-overflow and nav clip/overlap assertions, injected-regression validated; baseline PNGs deliberately not committed — 33 MB, decision documented); [UPGRADE-ACCEPTANCE.md](../UPGRADE-ACCEPTANCE.md) walking all 25 directive §24 criteria (17 ✅ / 8 ⚠️ live-env / 0 ❌); runbook rewritten for M-50…M-61 (migrations 0005–0013 order + per-migration rollback, audited env table incl. 3 declared-but-unused vars, Supabase auth email templates, staff MFA + two-admin rule, in-app invite flow, 9 `company_settings` keys, `npm run test:rls` as a release gate, post-cutover checklist); INDEX + README |
 
 | M-69 | A | [M-69-production-integrity.md](M-69-production-integrity.md) | **First module past M-62.** Production Integrity Pack — the seven live defects in `FINAL-IMPLEMENTATION-PLAN` §3: tokenized `/newsletter/unsubscribe` (5 locales, GET-renders/POST-acts, idempotent, rate-limited) + RFC 8058 one-click endpoint and `List-Unsubscribe` header pair, closing the CAN-SPAM gap the confirmation email promised (P-1, migration 0014 — dedicated `unsubscribe_token`, rationale documented); the sitewide referral-bonus promise gated behind a new `referral_program_active` key with the approved copy and all five translations kept intact (P-2, 0015 + seed); the ungated "Freight Brokerage" footer label gated on `brokerage_active` with the already-approved "For Shippers" fallback (P-3); all 10 direct `audit_events` inserts across 4 action files routed through `src/lib/audit.ts` with unchanged semantics, plus an ESLint `no-restricted-syntax` rule (injection-validated) that keeps it that way (P-4); `document.download` journalled on the carrier path — actor/document/carrier, never the signed URL (P-5); `packet_downloads_live` and `testimonials_visible` wired from dead config to real behaviour through a new fail-closed `company-settings` accessor, with the V4 testimonial markup restored behind a double lock and zero sample content (P-6); `formatRpm` → `formatLoadedRpm` with every label corrected, new `formatTrueRpm` and nullable `loads.deadhead_miles` + capture field — no displayed value silently changed (P-7, 0016) |
+| M-70 | B | [M-70-shipment-domain.md](M-70-shipment-domain.md) | **Opens Phase B.** Shipment domain foundation — no migrations, no routes, no UI: `src/lib/shipments/types.ts` (§6's 18 statuses in lifecycle order behind a `satisfies Record<ShipmentStatus, …>` guard; §7 event type/source/visibility with a **fifth `broker` band** added for the same reason `FINAL-IMPLEMENTATION-PLAN` §4 flags on `doc_visibility` — without it §12's "BOL, when authorized" is unimplementable; §9 tracking modes + the four location-visibility levels; §10 ETA source/confidence; §16 document types + visibility; §21's 13 exception types + severity; 10 row types M-71's DDL is written from, incl. `ShipmentRow` (§18 expanded, `@staffOnly` tags on `gross_shipper_amount`/`carrier_pay`/`margin`) and `ShipmentEventRow` with all 18 §7 fields incl. `idempotency_key`/`external_event_id`/`metadata`; `statusKey()` and siblings returning i18n KEYS — no catalogue entries, those land with M-73's UI in five locales); `tracking-number.ts` (`PL-YYYY-######` — CSPRNG sequence with rejection sampling, UTC year, tolerant normalisation ↔ canonical storage, strict rejection incl. adjacent-year and overflow, and the SQL pattern + unique-index + immutability-trigger names exported so M-71's DDL cannot drift; the guessing mitigation documented honestly — the number is an identifier, never a credential, per §5's own "secure secondary verification"); `dto.ts` (five audience serializers built by **explicit allow-list construction** — no spread, no `delete` — so a future column defaults to invisible; §4's forbidden list absolute for the public audience, `public_access_hash` serialized by nobody including staff, staff-only event bands unreachable from any customer timeline, §9's four privacy levels applied per audience with `exact` capped at city/state for public visitors). +77 unit (**268**) incl. key-set equality per audience, a sentinel sweep over serialized JSON, a `@staffOnly` static scan, a structural guard on `dto.ts` itself, and three anti-vacuity checks proving the safety assertions can fail. 173 RLS + 160 e2e unchanged (no schema, no surface) |
 
 Phases: 0 = foundations · 1 = public site · 2 = onboarding/CRM · 3 =
 loads/billing/content · H = hardening · U = upgrade directive (M-50a audit) ·
-A = integrity prerequisite (FINAL-IMPLEMENTATION-PLAN phase A).
+A = integrity prerequisite (FINAL-IMPLEMENTATION-PLAN phase A) · B = tracking
+core (FINAL-IMPLEMENTATION-PLAN phase B).

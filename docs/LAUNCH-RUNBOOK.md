@@ -53,7 +53,7 @@ region `us-east-1` (closest to NJ ops). For **each** project, in order:
    After applying, sanity-check the chain the same way CI does:
 
    ```bash
-   npm run test:rls     # rebuilds a throwaway DB from 0001→0013 + seed + fixtures
+   npm run test:rls     # rebuilds a throwaway DB from 0001→0016 + seed + fixtures
    ```
 
 2. **Seed** — run `supabase/seed.sql` (idempotent, `on conflict do nothing`).
@@ -220,13 +220,13 @@ sets them expecting an effect:
 
 ```bash
 npm run typecheck && npm run lint && npm run build   # module gate (CLAUDE.md)
-npm test            # 168 unit assertions
-npm run test:rls    # 165 RLS isolation assertions — see below
-npm run test:e2e    # 145 chromium tests against the production build
+npm test            # 268 unit assertions
+npm run test:rls    # 173 RLS isolation assertions — see below
+npm run test:e2e    # 160 chromium tests against the production build
 ```
 
 **`npm run test:rls` is a release gate, not an optional extra.** It rebuilds
-a throwaway database from `0001 → 0013` + seed + two-tenant fixtures and
+a throwaway database from `0001 → 0016` + seed + two-tenant fixtures and
 asserts that carrier A cannot reach carrier B, shipper A cannot reach shipper
 B (including *unclaimed* public quotes), anon reaches nothing but
 `company_settings` and published posts, and no session — staff or admin — can
