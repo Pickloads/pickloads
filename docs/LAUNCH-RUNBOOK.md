@@ -6,6 +6,14 @@ degrades gracefully when a secret is missing (dev warnings, honest pending
 states) — so a partial deploy never crashes, it just quietly disables the
 affected integration. **Production must have every var set.**
 
+*Last revised for M-62 (final QA), covering the full account-system upgrade
+M-50…M-61: migrations 0005–0013 with per-migration rollback notes, the
+Supabase auth email templates, staff TOTP MFA + first-admin enrollment, the
+in-app staff invite flow, the `shipper_signup_enabled` switch, and
+`npm run test:rls` as a pre-deploy gate. Acceptance status for every
+directive criterion lives in
+[`docs/UPGRADE-ACCEPTANCE.md`](UPGRADE-ACCEPTANCE.md).*
+
 ---
 
 ## 1. Supabase — staging + production projects
@@ -15,21 +23,74 @@ Create **two** projects at [supabase.com/dashboard](https://supabase.com/dashboa
 region `us-east-1` (closest to NJ ops). For **each** project, in order:
 
 1. **Apply migrations in order** — SQL Editor (or `supabase db push` with the
-   CLI linked to the project). Order matters:
-   1. `supabase/migrations/0001_types_and_tables.sql` (enums, 13 tables, triggers)
-   2. `supabase/migrations/0002_rls.sql` (RLS on all tables — no anon insert policies by design)
-   3. `supabase/migrations/0003_auth_and_journal.sql` (signup → profile trigger, CRM status journaling)
-   4. `supabase/migrations/0004_storage.sql` (private `carrier-docs` bucket + storage policies)
+   CLI linked to the project). **Order matters and is not negotiable**: 0009
+   depends on every table 0005–0008 creates, and 0008's `freight_quotes.
+   shipper_id` FK plus its 0009 policy must land *before* public shipper
+   signup is reachable (audit §6.3 sequencing constraint).
+
+   Migrations **0001–0004 are frozen** — never edit them. Everything from
+   0005 on is additive. Rollback notes are per-migration below; each one is
+   written to be run **in reverse numeric order** and each drops only what
+   its own migration created. `0001–0004` have no rollback: rolling those
+   back means dropping the product.
+
+   | # | File | Creates | Rollback |
+   |---|---|---|---|
+   | 0001 | `0001_types_and_tables.sql` | enums, 13 tables, `set_updated_at()` triggers | — (frozen; restore from backup) |
+   | 0002 | `0002_rls.sql` | RLS on all tables, `is_staff()`, `current_user_role()`, `guard_role_change` — **no anon insert policies by design** | — (frozen) |
+   | 0003 | `0003_auth_and_journal.sql` | `on_auth_user_created` → profile trigger, CRM status journaling | — (frozen) |
+   | 0004 | `0004_storage.sql` | private `carrier-docs` bucket + storage policies | — (frozen) |
+   | 0005 | `0005_accounts_memberships_audit.sql` | `shippers`, `carrier_memberships`, `shipper_memberships` (+ backfill from `carriers.profile_id`), `account_status_history`, `audit_events`, `user_preferences`; types `account_status`, `membership_role`; `profiles.status` column | `alter table profiles drop column status;` then `drop table user_preferences, audit_events, account_status_history, shipper_memberships, carrier_memberships, shippers cascade;` then `drop type account_status, membership_role;` **Destructive** — drops the audit ledger and every shipper company. Take a dump first. |
+   | 0006 | `0006_fleet.sql` | `trucks`, `drivers` (+ indexes, updated_at triggers) | `drop table drivers, trucks cascade;` Destructive — loses carrier fleet data. |
+   | 0007 | `0007_support_notifications.sql` | `support_threads`, `support_messages`, `notifications`; type `support_status` | `drop table notifications, support_messages, support_threads cascade; drop type support_status;` Destructive — loses support history. |
+   | 0008 | `0008_billing_quotes.sql` | `invoices` mirror; type `invoice_status`; 14 additive `freight_quotes` columns (`shipper_id` FK, hazmat, temp, dims, pickup/delivery address+city+state) + one-shot email backfill of `shipper_id` | `drop table invoices cascade; drop type invoice_status;` and `alter table freight_quotes drop column shipper_id, hazmat, temp_controlled, temp_min_f, temp_max_f, dims_l_in, dims_w_in, dims_h_in, pickup_address, pickup_city, pickup_state, delivery_address, delivery_city, delivery_state;` **Do not roll this back while shipper self-signup is enabled** — dropping `shipper_id` re-opens the §6.3 email-matching weakness. Stripe remains the system of record for money, so dropping `invoices` loses only the local mirror. |
+   | 0009 | `0009_rls_new_tables.sql` | RLS enabled on the 0005–0008 tables, 31 policies, `my_carrier_ids()` / `my_shipper_ids()` helpers | Reverse with `alter table <t> disable row level security;` for each 0005–0008 table and `drop function my_carrier_ids(), my_shipper_ids();`. **Rolling this back leaves the new tables with no tenant isolation** — only ever do it immediately before rolling back 0008–0005 too. |
+   | 0010 | `0010_carrier_portal.sql` | `carriers.preferred_lanes`, `.home_time_notes`, `.assigned_dispatcher_id` (+ index) | `alter table carriers drop column preferred_lanes, home_time_notes, assigned_dispatcher_id;` Loses dispatcher assignments and self-serve preferences only. |
+   | 0011 | `0011_quote_fields.sql` | `freight_quotes.pickup_company`, `.delivery_company`, `.delivery_deadline`, `.special_instructions`, `.contact_name` | `alter table freight_quotes drop column pickup_company, delivery_company, delivery_deadline, special_instructions, contact_name;` The in-portal quote form breaks until redeployed against the older schema. |
+   | 0012 | `0012_staff_invites.sql` | `staff_invites` (hash-only tokens, role CHECK admin/dispatcher, staff-read policy) | `drop table staff_invites cascade;` Safe — invites are transient; already-accepted staff keep their roles. |
+   | 0013 | `0013_public_read_grant_fix.sql` | `grant execute on function public.is_staff() to anon` | `revoke execute on function public.is_staff() from anon;` **Do not roll this back.** Revoking it re-breaks the public blog, every post page and `sitemap.xml` the moment one unpublished draft exists (SECURITY-REVIEW.md §3). |
+
+   After applying, sanity-check the chain the same way CI does:
+
+   ```bash
+   npm run test:rls     # rebuilds a throwaway DB from 0001→0013 + seed + fixtures
+   ```
+
 2. **Seed** — run `supabase/seed.sql` (idempotent, `on conflict do nothing`).
-   Seeds the 8 `company_settings` keys with launch-safe defaults: MC/USDOT
-   "pending", brokerage off, testimonials hidden, sample ticker, packet
-   downloads off.
+   Seeds the **9** `company_settings` keys with launch-safe defaults (see the
+   switchboard section in the go-live checklist): MC/USDOT "pending",
+   brokerage off, testimonials hidden, sample ticker, packet downloads off,
+   and `shipper_signup_enabled: true`.
 3. **Auth configuration** — Authentication → URL Configuration:
    - Site URL: `https://pickloads.com` (staging: the Vercel preview domain).
-   - Redirect URLs: `https://pickloads.com/**` — required for the M-42
-     password-recovery `redirectTo` (`/reset-password` and its locale
-     variants) to be honored.
-   - Email templates: brand the "Reset Password" template at minimum.
+   - Redirect URLs: `https://pickloads.com/**` — required for **both** the
+     M-42 password-recovery `redirectTo` (`/reset-password` + locale
+     variants) **and** the signup confirmation `redirectTo`
+     (`/login?verified=1` + locale variants, `src/app/actions/account.tsx`).
+     Without this, self-signup confirmation links dead-end.
+   - **Enable TOTP** (Authentication → Multi-Factor → Authenticator app).
+     Without it `mfa.enroll` fails and `/portal/admin/mfa` shows the
+     enrollment error — the app cannot flip that switch itself.
+
+   ### Supabase auth email templates (M-60 / M-62)
+
+   **Auth emails are sent by Supabase, not by this app.** The 15 React Email
+   templates in `src/emails/` cover the *product* lifecycle (welcome,
+   documents, agreements, invoices, quotes, support, account status). There
+   is deliberately **no app-side verify-email template** — branding the
+   confirmation mail means customizing the dashboard templates:
+
+   | Supabase template | Used by | Customize |
+   |---|---|---|
+   | **Confirm signup** | `/create-account/carrier` and `/create-account/shipper` (both use non-auto-confirmed `signUp`) | Required. Brand it and keep `{{ .ConfirmationURL }}` intact — the app appends `?verified=1`, which drives the "✓ Email verified" banner on `/login`. |
+   | **Reset password** | `/forgot-password` | Required (was already in the M-43 runbook). |
+   | Magic link / Change email / Reinvite | not used by the app today | Leave default. |
+
+   Localization note: Supabase sends **one** template per event, so these
+   emails are English-only regardless of the user's locale. Product emails
+   respect `profiles.preferred_language` (en/es/fr authored; ru/ht mirror
+   English pending native review). Do not claim localized auth mail.
+
 4. **Create the first admin** — Authentication → Users → *Add user* (enter
    email + strong password, check *Auto Confirm*). The `on_auth_user_created`
    trigger creates the `profiles` row (role defaults to `carrier`). Promote
@@ -41,9 +102,52 @@ region `us-east-1` (closest to NJ ops). For **each** project, in order:
    where id = (select id from auth.users where email = 'admin@pickloads.com');
    ```
 
-   Verify: sign in at `/login` → you should land in the admin dashboard.
-   All further staff (`dispatcher` role) are promoted the same way (invite-
-   only by design, audit S-04 — there is no self-serve staff signup).
+   Verify: sign in at `/login` → you land on `/portal/admin/mfa` (admins are
+   hard-gated from day one — see step 4b), and after enrolling, the admin
+   dashboard.
+
+   **Create the SECOND admin the same way, now.** MFA has no self-service
+   recovery: a lost authenticator requires another admin to delete the factor
+   in the Supabase dashboard. A single-admin project with MFA on is a lockout
+   waiting to happen (security review residual risk **R-5**).
+
+   All further staff are added through the **in-app invite flow** (step 4c),
+   not by hand.
+
+4b. **Enroll staff MFA (decision D3)** — sign in as each admin → you are
+   redirected to `/portal/admin/mfa` → scan the QR (or use the manual-entry
+   secret) in any TOTP app → enter the 6-digit code to verify the factor.
+   Enforcement, from `src/lib/mfa.ts` via `requireStaff`/`requireAdmin`:
+
+   | Role | Requirement |
+   |---|---|
+   | `admin` | **Hard from day one.** Every `/portal/admin/*` request redirects to `/portal/admin/mfa` until a factor is verified **and** the session is AAL2 (a verified factor alone is not enough — an AAL1 token is stepped up). |
+   | `dispatcher` | **14-day grace** from `profiles.created_at`, with a countdown banner in the portal shell, then identical hard redirect. A dispatcher with a null/unparseable `created_at` is hard-required (fail safe — never an unbounded exemption). |
+   | `carrier` / `shipper` | Never gated. |
+
+   `/portal/admin/mfa` is the one staff route exempt from the gate (or the
+   redirect would loop). Flip dispatchers to hard by enrolling them; no code
+   change is needed.
+
+   Known limit (**R-1**, security review §5): RLS is not AAL-aware. MFA gates
+   the application surface, not PostgREST — a stolen AAL1 staff token still
+   passes `is_staff()` against the database API. Closing it needs
+   `auth.jwt() ->> 'aal'` policies authored against the live project once the
+   JWT shape can be observed. Do not guess blind.
+
+4c. **Invite the rest of the staff (in-app, S-04)** — Admin →
+   **Users** → *Invite staff*: enter the email and the role (`admin` or
+   `dispatcher` only — customer roles are rejected by the schema). The app
+   stores **only a SHA-256 hash** of a 32-byte token (`staff_invites`, 0012);
+   the raw token exists once, in the email, in a single-use link that expires
+   after **7 days**. The invitee opens `/invite/<token>`, sets a name and
+   password, and the accept action creates the user **email-confirmed** (the
+   link already proved inbox control) and assigns the role **via the service
+   role** — `guard_role_change` still blocks any self-promotion attempt.
+   Pending / accepted / expired invites are listed on the Users page, and
+   every invite and acceptance is written to `audit_events` (viewable at
+   Admin → **Security**). There is no self-serve staff signup anywhere.
+
 5. **Regenerate DB types** (once, against either project — schemas are
    identical). Replaces the committed placeholder-typed file:
 
@@ -71,33 +175,78 @@ region `us-east-1` (closest to NJ ops). For **each** project, in order:
 
 ### Environment variable table
 
-| Name | Scope | Where to get it |
-|---|---|---|
-| `NEXT_PUBLIC_SITE_URL` | build/public | `https://pickloads.com` (prod) / preview URL (staging) — drives canonical URLs, sitemap, hreflang |
-| `NEXT_PUBLIC_SUPABASE_URL` | build/public | Supabase → Settings → API → Project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | build/public | Supabase → Settings → API → `anon` key |
-| `SUPABASE_SERVICE_ROLE_KEY` | server only | Supabase → Settings → API → `service_role` key |
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | build/public | Cloudflare → Turnstile → widget for `pickloads.com` |
-| `TURNSTILE_SECRET_KEY` | server only | same Turnstile widget |
-| `UPSTASH_REDIS_REST_URL` | server only | Upstash → Redis DB → REST API |
-| `UPSTASH_REDIS_REST_TOKEN` | server only | same |
-| `RESEND_API_KEY` | server only | Resend → API Keys (after domain verifies) |
-| `EMAIL_FROM` | server only | `PickLoads <notifications@pickloads.com>` |
-| `EMAIL_INTERNAL_TO` | server only | `support@pickloads.com` (lead/quote notifications) |
-| `PII_ENCRYPTION_KEY` | server only | generate: `openssl rand -base64 32` — **required before first real carrier: EINs are dropped, not stored, without it** |
-| `DROPBOX_SIGN_API_KEY` | server only | Dropbox Sign → Settings → API |
-| `DROPBOX_SIGN_WEBHOOK_SECRET` | server only | = API key unless a dedicated app secret is configured |
-| `DROPBOX_SIGN_TEMPLATE_ID` | server only | template created in step 7 |
-| `DROPBOX_SIGN_TEST_MODE` | server only | `true` on staging, **unset/`false` in production** |
-| `STRIPE_SECRET_KEY` | server only | Stripe → Developers → API keys (test key on staging, live on prod) |
-| `STRIPE_WEBHOOK_SECRET` | server only | signing secret from step 8 |
-| `CRON_SECRET` | server only | generate: `openssl rand -hex 32` — Vercel Cron sends it as the Bearer token automatically |
-| `NEXT_PUBLIC_GA4_MEASUREMENT_ID` | build/public | GA4 admin (step 10) — fires only after cookie consent (S-05) |
-| `NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY` | build/public | Google Cloud → Maps Embed API key, HTTP-referrer-restricted to pickloads.com |
-| `NEXT_PUBLIC_SENTRY_DSN` / `SENTRY_AUTH_TOKEN` | public / CI | Sentry project (optional at launch, decision Q8) |
+Audited against the code in M-62: every row below except the last three is
+actually read by `src/` (`grep -rhoE "process\.env\.[A-Z0-9_]+" src scripts`).
+**Degradation column** = what happens in production if the var is missing —
+the app never crashes, it disables the integration and shows an honest state,
+which is exactly why a half-configured deploy is dangerous rather than loud.
+
+| Name | Scope | Where to get it | Missing ⇒ |
+|---|---|---|---|
+| `NEXT_PUBLIC_SITE_URL` | build/public | `https://pickloads.com` (prod) / preview URL (staging) — drives canonical URLs, sitemap, hreflang | wrong canonical/hreflang URLs; **SEO damage** |
+| `NEXT_PUBLIC_SUPABASE_URL` | build/public | Supabase → Settings → API → Project URL | no auth, no portal, no signup — every account surface says "not configured" |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | build/public | Supabase → Settings → API → `anon` key | same as above |
+| `SUPABASE_SERVICE_ROLE_KEY` | server only | Supabase → Settings → API → `service_role` key | **all form writes silently no-op** — leads, quotes, signups, invites are lost |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | build/public | Cloudflare → Turnstile → widget for `pickloads.com` | widget not rendered |
+| `TURNSTILE_SECRET_KEY` | server only | same Turnstile widget | verification is a **no-op** — forms are unprotected from bots (verification fails *closed* only once the secret is set) |
+| `UPSTASH_REDIS_REST_URL` | server only | Upstash → Redis DB → REST API | rate limiting disabled (fails **open** by design) |
+| `UPSTASH_REDIS_REST_TOKEN` | server only | same | same |
+| `RESEND_API_KEY` | server only | Resend → API Keys (after domain verifies) | no email at all — all 15 customer templates + ops notices log-only |
+| `EMAIL_FROM` | server only | `PickLoads <notifications@pickloads.com>` | sends fail / land in spam |
+| `EMAIL_INTERNAL_TO` | server only | `support@pickloads.com` (lead/quote/ops notifications) | staff never hear about new leads |
+| `PII_ENCRYPTION_KEY` | server only | generate: `openssl rand -base64 32` | **EINs are dropped, not stored** (never plaintext). Set before the first real carrier. Rotation = decrypt/re-encrypt job. |
+| `DROPBOX_SIGN_API_KEY` | server only | Dropbox Sign → Settings → API | e-sign send refuses with an honest message; wizard still completes |
+| `DROPBOX_SIGN_WEBHOOK_SECRET` | server only | = API key unless a dedicated app secret is configured | webhook HMAC cannot be verified → signatures never recorded |
+| `DROPBOX_SIGN_TEMPLATE_ID` | server only | template created in step 7 (signer role **must** be named `Carrier`) | e-sign send refuses |
+| `DROPBOX_SIGN_TEST_MODE` | server only | `true` on staging, **unset/`false` in production** | live signatures on staging (or test-mode docs in prod — check this one) |
+| `STRIPE_SECRET_KEY` | server only | Stripe → Developers → API keys (test on staging, live on prod) | "Generate invoice" disabled with a tooltip naming the var |
+| `STRIPE_WEBHOOK_SECRET` | server only | signing secret from step 8 | payments never mark invoices paid; the `invoices` mirror stalls at `open` |
+| `CRON_SECRET` | server only | generate: `openssl rand -hex 32` — Vercel Cron sends it as the Bearer token automatically | `/api/cron/daily` refuses every call → **no insurance-expiry alerts, no callback digest** |
+| `NEXT_PUBLIC_GA4_MEASUREMENT_ID` | build/public | GA4 admin (step 10) — fires only after cookie consent (S-05) | no analytics; admin marketing tiles keep their honest placeholders |
+
+**Declared in `.env.example` but read by no code today** — listed so nobody
+sets them expecting an effect:
+
+| Name | Reality |
+|---|---|
+| `NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY` | The contact-page map is a **keyless** `https://www.google.com/maps?...&output=embed` iframe (`(site)/contact/page.tsx`). No key is used. Remove the var or keep it as a placeholder for a future Maps JS API upgrade. |
+| `NEXT_PUBLIC_SENTRY_DSN` / `SENTRY_AUTH_TOKEN` | Sentry was decision Q8 (optional at launch) and is **not wired in**. There is no Sentry SDK in `package.json`. Setting these does nothing until an error-reporting module ships. |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | No client-side Stripe surface exists (invoices are server-generated and paid on Stripe's hosted page). |
 
 > Build-time note: `NEXT_PUBLIC_*` values are inlined at build; changing them
 > requires a redeploy, not just a restart.
+
+### Pre-deploy gate (run on the release commit, in this order)
+
+```bash
+npm run typecheck && npm run lint && npm run build   # module gate (CLAUDE.md)
+npm test            # 168 unit assertions
+npm run test:rls    # 165 RLS isolation assertions — see below
+npm run test:e2e    # 145 chromium tests against the production build
+```
+
+**`npm run test:rls` is a release gate, not an optional extra.** It rebuilds
+a throwaway database from `0001 → 0013` + seed + two-tenant fixtures and
+asserts that carrier A cannot reach carrier B, shipper A cannot reach shipper
+B (including *unclaimed* public quotes), anon reaches nothing but
+`company_settings` and published posts, and no session — staff or admin — can
+forge an audit row, an invite or a role change. It needs a local PostgreSQL
+16; it is deliberately **not** part of `npm test`, because vitest runs on
+placeholder env with no database and that property is load-bearing for CI.
+
+```bash
+initdb -D /tmp/pgdata
+pg_ctl -D /tmp/pgdata -l /tmp/pg16.log \
+  -o "-k /tmp/pgsock -p 5433 -c listen_addresses=" start
+npm run test:rls        # PGHOST / PGPORT / PGUSER / RLS_TEST_DB override defaults
+```
+
+It has already earned its keep once: it found the `is_staff()` anon-grant
+defect that would have silently emptied the public blog and sitemap in
+production (fixed in `0013`; SECURITY-REVIEW.md §3). **Re-run it against the
+staging database after linking** — the local run uses a shim for Supabase's
+`auth`/`storage` schemas, so JWT claim shapes and storage-object policies are
+not yet covered (residual risks R-6/R-7/R-8).
 
 ## 3. DNS + domain
 
@@ -187,14 +336,25 @@ curl -H "Authorization: Bearer $CRON_SECRET" https://pickloads.com/api/cron/dail
 - [ ] ESIGN consent language reviewed (onboarding step 4 checkbox).
 
 **company_settings switchboard (admin → Settings, seeded pending-safe)**
-- [ ] `mc_number` / `usdot_number` — stay `pending` until FMCSA grants; see
-      the one-pager below.
-- [ ] `bond_status` — `in_process` until BMC-84 is filed.
-- [ ] `brokerage_active` — `false` until MC + bond are live (gates all
-      shipper "brokerage live" messaging).
-- [ ] `testimonials_visible` — `false` until 5+ verified reviews exist.
-- [ ] `stats` — replace nulls with real figures when available.
-- [ ] `load_ticker_mode` — `sample` until Phase 3 live data.
+
+All nine keys, their seeded value and what they gate. Every edit is journaled
+to `audit_events` as `settings.update` (key only, never the value) and takes
+effect site-wide immediately — **no deploy**.
+
+| Key | Seeded | Gates |
+|---|---|---|
+| `mc_number` | `{"status":"pending","value":null}` | Footer, compliance block, FAQ. Stays `pending` until FMCSA grants — see the one-pager below. |
+| `usdot_number` | `{"status":"pending","value":null}` | Footer, compliance block. |
+| `bond_status` | `{"status":"in_process","value":"BMC-84 $75K"}` | Surety-bond display. `in_process` until BMC-84 is actually filed. |
+| `brokerage_active` | `false` | Every "brokerage live" message: shipper pages drop "Launching Soon", and the **shipper portal's Shipments & Tracking** surface flips from the honest waitlist (D1/D6) to the first-shipment empty state. Flip only when the bond is effective and broker processes exist. |
+| `testimonials_visible` | `false` | V4 sample testimonials stay hidden until 5+ verified reviews exist. |
+| `stats` | `{"fee":"5%","avg_rate":null,"support":"24/7","states":"48"}` | Home stats tiles. **`null` renders hidden** — never invent a figure to fill it. |
+| `packet_downloads_live` | `false` | Carrier-packet download buttons — off until lawyer-approved PDFs are uploaded. |
+| `load_ticker_mode` | `"sample"` | Home load-board ticker: `sample` \| `live`. |
+| `shipper_signup_enabled` | `true` | **Decision D1** — public shipper self-signup at `/create-account/shipper`. When `false`, the shipper door on the `/create-account` chooser shows an honest invite-only state instead of the form. This exists so **legal can switch shipper self-registration off without a deploy**; the signup copy is deliberately scoped to "request quotes and coordinate freight with vetted carriers" and makes no brokerage claims. |
+
+- [ ] Reviewed all nine values against the business's actual status.
+- [ ] Confirmed `brokerage_active` and `shipper_signup_enabled` with counsel.
 
 **Content prerequisites**
 - [ ] Publish **2 blog articles** minimum via the admin blog editor (empty
@@ -205,7 +365,8 @@ curl -H "Authorization: Bearer $CRON_SECRET" https://pickloads.com/api/cron/dail
 - [ ] Founder photo (About page shows a monogram until the shoot).
 
 **Technical smoke (after DNS cutover)**
-- [ ] `npm test` + `npm run test:e2e` green on the release commit.
+- [ ] Full pre-deploy gate green on the release commit (typecheck · lint ·
+      build · `npm test` · `npm run test:rls` · `npm run test:e2e`).
 - [ ] Quick-quote submits → row in `carrier_leads` + notification email at
       `EMAIL_INTERNAL_TO` + `email_log` row.
 - [ ] Full onboarding walkthrough on staging: wizard → uploads → e-sign
@@ -215,6 +376,45 @@ curl -H "Authorization: Bearer $CRON_SECRET" https://pickloads.com/api/cron/dail
       [securityheaders.com](https://securityheaders.com)).
 - [ ] Stripe + Dropbox Sign webhook test deliveries show in
       `webhook_events`.
+
+### Post-cutover verification (the M-62 ⚠️ items)
+
+Everything below is built and tested as far as a secretless environment
+allows, but can only be *finished* against live services. Source of truth:
+[`docs/UPGRADE-ACCEPTANCE.md`](UPGRADE-ACCEPTANCE.md) — 17 ✅, 8 ⚠️, 0 ❌.
+
+- [ ] **Carrier signup** on staging → `auth.users` + `profiles` + `carriers`
+      + `carrier_memberships` rows exist. Exercise all four authority
+      branches (active / pending / needs-help / leased-on).
+- [ ] **Shipper signup** → role promoted to `shipper`, `shippers` +
+      `shipper_memberships` rows exist, and the post-verification
+      quote-claiming one-shot links the right historical quotes.
+- [ ] **Email verification round trip** — receive the real Supabase
+      confirmation mail, click through to `/login?verified=1`, see the
+      "✓ Email verified" banner, sign in. *(Needs the customized Confirm
+      Signup template and the redirect allow-list from step 1.3.)*
+- [ ] **Login + logout on every role** — each lands on its own portal home;
+      cross-role URLs bounce; a suspended account gets
+      `/login?error=suspended`.
+- [ ] **Password recovery** end to end.
+- [ ] **Portal responsiveness with a real session** — render every carrier,
+      shipper and admin page at 375 px and 1440 px. The automated suite
+      cannot reach these (they are session-gated, which the suite proves);
+      pay particular attention to the four staff tables that keep horizontal
+      scroll instead of the card transform.
+- [ ] **Staff MFA round trip** — enroll, verify, obtain AAL2, pass the gate;
+      confirm an AAL1 session is redirected. **Two admins enrolled** (R-5).
+- [ ] **Staff invite round trip** — invite → email → `/invite/<token>` →
+      account created with the right role → invite marked accepted → the
+      link is dead on reuse and after 7 days.
+- [ ] **`npm run test:rls` against the staging database** (closes R-6/R-7);
+      add object-level storage assertions for R-8 (carrier A must not fetch a
+      signed URL for carrier B's object path).
+- [ ] **0013 grant on real Supabase** — with one published post *and one
+      draft*, confirm `/blog`, the post page and `sitemap.xml` all serve.
+- [ ] **One real email per template family** delivered, with `email_log` rows.
+- [ ] **Stripe test invoice** → `invoices` mirror row flips to `paid` on the
+      webhook.
 
 ---
 

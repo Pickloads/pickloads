@@ -1,8 +1,15 @@
-# Module Index — M-00 … M-43 · Upgrade M-50+
+# Module Index — M-00 … M-43 · Upgrade M-50 … M-62
 
 One row per shipped module. Every module passed the full gate (functionality
 · responsiveness · WCAG AA · SEO · security · typecheck · lint · build; test
 suites from M-40 on). Details live in each module's doc.
+
+**Project status: complete.** M-62 is the final module. Release-commit
+totals: **337 pages** built · **168** unit tests · **145** e2e tests ·
+**165** RLS isolation assertions. Directive acceptance:
+[`docs/UPGRADE-ACCEPTANCE.md`](../UPGRADE-ACCEPTANCE.md) — 17 ✅, 8 ⚠️
+(live-environment dependencies, all listed in the runbook's post-cutover
+checklist), 0 ❌.
 
 | Module | Phase | Doc | Summary |
 |---|---|---|---|
@@ -45,6 +52,7 @@ suites from M-40 on). Details live in each module's doc.
 | M-59 | U | [M-59-responsive-a11y.md](M-59-responsive-a11y.md) | Responsive + WCAG 2.2 AA sweep: V4 media-block ordering root-cause fix, off-canvas portal drawer, table→card transform, skip links, contrast tokens, axe e2e scan over 16 pages |
 | M-60 | U | [M-60-email-suite.md](M-60-email-suite.md) | Customer email suite: 15 localized React Email builders on a shared CustomerEmail layout, `notify.ts` fan-out (notification + email + journal), wired across signup/onboarding/documents/agreements/billing/quotes/support; admin quotes desk + carrier activate toggle |
 | M-61 | U | [M-61-security.md](M-61-security.md) | Security audit: staff TOTP MFA (`/portal/admin/mfa`, admin hard / dispatcher 14-day grace, central gate in `requireStaff`/`requireAdmin`), 165-assertion RLS isolation suite (`npm run test:rls`) that caught + fixed a live anon-grant defect (0013), audit_events gaps closed, secret/TTL/error-leak sweep, [SECURITY-REVIEW.md](../SECURITY-REVIEW.md) |
+| M-62 | U | [M-62-qa-finalization.md](M-62-qa-finalization.md) | **Final module.** Responsive suite (`tests/e2e/responsive.spec.ts`, 108 tests: 21 routes × 375/390/768/1024/1440 with full-page screenshots + 320/1920 endpoint sweep; no-overflow and nav clip/overlap assertions, injected-regression validated; baseline PNGs deliberately not committed — 33 MB, decision documented); [UPGRADE-ACCEPTANCE.md](../UPGRADE-ACCEPTANCE.md) walking all 25 directive §24 criteria (17 ✅ / 8 ⚠️ live-env / 0 ❌); runbook rewritten for M-50…M-61 (migrations 0005–0013 order + per-migration rollback, audited env table incl. 3 declared-but-unused vars, Supabase auth email templates, staff MFA + two-admin rule, in-app invite flow, 9 `company_settings` keys, `npm run test:rls` as a release gate, post-cutover checklist); INDEX + README |
 
 Phases: 0 = foundations · 1 = public site · 2 = onboarding/CRM · 3 =
 loads/billing/content · H = hardening · U = upgrade directive (M-50a audit).
