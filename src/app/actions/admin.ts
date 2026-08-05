@@ -4,6 +4,8 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { tryCreateAdminClient } from "@/lib/supabase/admin";
 import { isStaffRole } from "@/lib/auth";
+import { recordAuditEvent } from "@/lib/audit";
+import { SIGNED_URL_TTL_SECONDS } from "@/lib/uploads";
 import { buildDocumentReviewedEmail } from "@/emails/customer-templates";
 import { getCarrierOwnerRecipient, notifyCustomer } from "@/lib/notify";
 import type { FormState } from "@/lib/form-state";
@@ -89,6 +91,22 @@ export async function reviewDocument(
     return { status: "error", message: "Couldn't save the review. Retry." };
   }
 
+  // M-61 (audit §6.2): document review is a named sensitive staff action but
+  // was journaled nowhere. It approves/rejects regulated compliance paperwork
+  // — it belongs in the security log.
+  await recordAuditEvent({
+    actorId: session.userId,
+    action: "document.review",
+    targetTable: "documents",
+    targetId: parsed.data.document_id,
+    detail: {
+      decision: parsed.data.decision,
+      doc_type: reviewed?.type ?? null,
+      carrier_id: reviewed?.carrier_id ?? null,
+      has_note: parsed.data.note !== null,
+    },
+  });
+
   // M-60: notify the carrier owner (portal feed + localized email).
   // Best-effort — the review itself is already committed.
   if (reviewed) {
@@ -136,11 +154,22 @@ export async function getDocumentSignedUrl(
   // Storage RLS "staff manage carrier docs" authorizes this user directly.
   const { data, error } = await session.supabase.storage
     .from("carrier-docs")
-    .createSignedUrl(doc.storage_path, 300); // ≤ 5 minutes (S-01)
+    .createSignedUrl(doc.storage_path, SIGNED_URL_TTL_SECONDS); // S-01
   if (error || !data) {
     console.error("[admin] signed url failed", error?.message);
     return { ok: false, error: "Couldn't generate a download link." };
   }
+
+  // M-61: staff pulling a carrier's private W-9 / voided check / COI is the
+  // single highest-PII read in the product. Journal the ACCESS (never the
+  // signed URL itself — that would put a live credential in the ledger).
+  await recordAuditEvent({
+    actorId: session.userId,
+    action: "document.download",
+    targetTable: "documents",
+    targetId: id.data,
+    detail: { ttl_seconds: SIGNED_URL_TTL_SECONDS },
+  });
   return { ok: true, url: data.signedUrl };
 }
 
@@ -196,5 +225,17 @@ export async function updateCompanySetting(
     console.error("[admin] setting update failed", error.message);
     return { status: "error", message: "Couldn't save the setting. Retry." };
   }
+
+  // M-61 (audit §6.2): `company_settings` is the launch switchboard — MC/DOT
+  // numbers, the brokerage flip, signup gating. `updated_by` recorded WHO but
+  // not WHAT or WHEN-from-where, and it is overwritten on the next edit.
+  // The key is journaled; the value is not (settings can hold long JSON and
+  // the ledger is not the place for payloads).
+  await recordAuditEvent({
+    actorId: session.userId,
+    action: "settings.update",
+    targetTable: "company_settings",
+    detail: { key: parsed.data.key },
+  });
   return { status: "success" };
 }

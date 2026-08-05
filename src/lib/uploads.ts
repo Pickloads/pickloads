@@ -9,6 +9,15 @@ import "server-only";
 
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB — bucket cap
 
+/**
+ * S-01 / M-61: EVERY signed URL for the private `carrier-docs` bucket uses
+ * this TTL. It was a bare `300` literal repeated at each call site; a single
+ * exported constant is what a unit test can pin (tests/unit/security.test.ts
+ * asserts both the value and that no call site passes a longer literal).
+ * Ceiling is 300 seconds — 5 minutes, per the M-01 storage contract.
+ */
+export const SIGNED_URL_TTL_SECONDS = 300;
+
 export type AllowedMime =
   | "application/pdf"
   | "image/jpeg"

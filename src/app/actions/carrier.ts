@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { SIGNED_URL_TTL_SECONDS } from "@/lib/uploads";
 
 /**
  * M-25 carrier portal server actions. Everything runs on the cookie-bound
@@ -34,7 +35,7 @@ export async function getMyDocumentSignedUrl(
   // links expire in ≤5 minutes.
   const { data, error } = await supabase.storage
     .from("carrier-docs")
-    .createSignedUrl(doc.storage_path, 300);
+    .createSignedUrl(doc.storage_path, SIGNED_URL_TTL_SECONDS);
   if (error || !data) {
     console.error("[carrier] signed url failed", error?.message);
     return { ok: false, error: "Couldn't generate a download link." };

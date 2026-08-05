@@ -2,6 +2,7 @@ import "server-only";
 
 import { redirect } from "next/navigation";
 import { getPathname } from "@/i18n/navigation";
+import { getMfaState } from "@/lib/mfa";
 import { createClient } from "@/lib/supabase/server";
 import type {
   AccountStatus,
@@ -25,6 +26,8 @@ export interface SessionProfile {
   /** M-54 (0005): account status — suspension is enforced centrally here. */
   status: AccountStatus;
   fullName: string | null;
+  /** M-61: origin of the D3 dispatcher MFA grace window. */
+  createdAt: string | null;
 }
 
 export async function getSessionProfile(): Promise<SessionProfile | null> {
@@ -35,7 +38,7 @@ export async function getSessionProfile(): Promise<SessionProfile | null> {
   if (!user) return null;
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, status, full_name")
+    .select("role, status, full_name, created_at")
     .eq("id", user.id)
     .maybeSingle();
   if (!profile) return null;
@@ -45,6 +48,7 @@ export async function getSessionProfile(): Promise<SessionProfile | null> {
     role: profile.role,
     status: profile.status,
     fullName: profile.full_name,
+    createdAt: profile.created_at,
   };
 }
 
@@ -91,8 +95,39 @@ export async function requireShipper(locale: string): Promise<SessionProfile> {
   return session;
 }
 
+/** MFA step-up / enrollment surface — the ONE staff route not MFA-gated. */
+export const MFA_ROUTE = "/portal/admin/mfa";
+
+/**
+ * M-61 (audit §6.1, decision D3): central MFA enforcement for staff.
+ * Every /portal/admin route funnels through requireStaff or requireAdmin, so
+ * gating here covers current AND future staff pages — the same reason
+ * suspension lives in requireProfile.
+ *
+ * Degrades to a no-op when Supabase env is absent (getMfaState reports
+ * `configured:false`), keeping the placeholder-env build and e2e lanes green.
+ */
+async function enforceStaffMfa(
+  session: SessionProfile,
+  locale: string,
+): Promise<void> {
+  const state = await getMfaState(session.role, session.createdAt);
+  if (!state.configured || state.satisfied) return;
+  redirect(localizedPath(MFA_ROUTE, locale));
+}
+
 /** Page gate: staff only (admin/dispatcher); others land on their portal. */
 export async function requireStaff(locale: string): Promise<SessionProfile> {
+  const session = await requireStaffNoMfa(locale);
+  await enforceStaffMfa(session, locale);
+  return session;
+}
+
+/**
+ * Staff gate WITHOUT the MFA check — for the enrollment/challenge page only.
+ * Anything else must use requireStaff, or the gate has a hole.
+ */
+export async function requireStaffNoMfa(locale: string): Promise<SessionProfile> {
   const session = await requireProfile(locale);
   if (session.role !== "admin" && session.role !== "dispatcher") {
     redirect(localizedPath(portalHomeFor(session.role), locale));
@@ -106,6 +141,7 @@ export async function requireAdmin(locale: string): Promise<SessionProfile> {
   if (session.role !== "admin") {
     redirect(localizedPath("/portal", locale));
   }
+  await enforceStaffMfa(session, locale);
   return session;
 }
 

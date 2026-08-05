@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { tryCreateAdminClient } from "@/lib/supabase/admin";
 import { isStaffRole } from "@/lib/auth";
+import { recordAuditEvent } from "@/lib/audit";
 import { tryCreateStripe } from "@/lib/stripe";
 import { buildInvoiceIssuedEmail } from "@/emails/customer-templates";
 import { resolveEmailLocale } from "@/emails/i18n";
@@ -233,10 +234,34 @@ export async function generateLoadInvoice(
       };
     }
 
+    // M-61 (audit §6.2): invoice generation is money moving on a carrier's
+    // account and was journaled only in the provider-agnostic
+    // `webhook_events` ledger, which the security log does not read.
+    await recordAuditEvent({
+      actorId: user.id,
+      action: "invoice.generate",
+      targetTable: "invoices",
+      targetId: load.id,
+      detail: {
+        carrier_id: carrier.id,
+        load_id: load.id,
+        stripe_invoice_id: invoice.id,
+        amount_cents: amountCents,
+      },
+    });
+
     return { ok: true, invoiceId: invoice.id, hostedUrl };
   } catch (err) {
+    // M-61: NEVER surface the provider's message. Stripe errors embed request
+    // ids, customer ids, the failing API resource and occasionally the email
+    // that collided — none of which belongs in a UI string. The detail stays
+    // in the server log where staff (and only staff) can correlate it.
     const message = err instanceof Error ? err.message : String(err);
     console.error("[billing] invoice generation failed", message);
-    return { ok: false, error: `Stripe error: ${message}` };
+    return {
+      ok: false,
+      error:
+        "Stripe rejected the invoice. It was NOT sent — check the server logs, fix the carrier's billing details, and retry.",
+    };
   }
 }

@@ -1,5 +1,6 @@
 import "@/app/portal.css";
 import { getSessionProfile } from "@/lib/auth";
+import { MfaGraceBanner } from "@/components/portal/MfaGraceBanner";
 import { PortalSidebar } from "@/components/portal/PortalSidebar";
 import { SkipLink } from "@/components/ui/SkipLink";
 
@@ -21,7 +22,11 @@ export default async function PortalLayout({
     <div className="portal">
       <SkipLink />
       <PortalSidebar role={session.role} fullName={session.fullName} />
-      <div className="pmain">{children}</div>
+      <div className="pmain">
+        {/* M-61 (D3): dispatcher MFA countdown — self-hiding, staff only. */}
+        <MfaGraceBanner session={session} />
+        {children}
+      </div>
     </div>
   );
 }

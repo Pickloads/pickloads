@@ -137,6 +137,7 @@ export function PortalSidebar({
             {item("/portal/admin/support", "Support inbox")}
             {item("/portal/admin/posts", "Blog posts")}
             {role === "admin" ? item("/portal/admin/users", "Users") : null}
+            {item("/portal/admin/mfa", "Two-factor auth")}
             {role === "admin"
               ? item("/portal/admin/security", "Security log")
               : null}
