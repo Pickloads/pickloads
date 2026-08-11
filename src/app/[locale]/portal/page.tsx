@@ -44,7 +44,7 @@ export default async function PortalSelectPage({
   return (
     <>
       <Topbar />
-      <SiteNav />
+      <SiteNav brokerageActive={brokerageActive} />
       <main id="main">
         <PageHero eyebrow={tv("Portal")} title={tv("Choose your portal")}>
           {tv(

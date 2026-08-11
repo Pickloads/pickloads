@@ -1,0 +1,105 @@
+/* =========================================================================
+ * Phase B — global navigation, footer and shared state primitives.
+ *
+ * A SEPARATE FILE ON PURPOSE. `v4.css` is the approved prototype, converted
+ * verbatim; M-59 established that its two responsive blocks must sit LAST or
+ * the mobile rules lose the cascade and every page overflows at ≤480px.
+ * Appending Phase B rules there would either sit before those blocks (and be
+ * overridden) or after them (and quietly break the ordering M-59 fixed).
+ * Imported after v4.css, this file needs neither compromise.
+ *
+ * NO NEW COLOURS. Every value below is an existing @theme token or a literal
+ * already present in v4.css. CLAUDE.md, and the reason M-74's dark-surface
+ * work stayed inside the existing palette.
+ * ========================================================================= */
+
+/* ── Grouped navigation ───────────────────────────────────────────────────
+   The group header is a real link; the panel is an enhancement over it. */
+.navgroup{position:relative;display:flex;align-items:center}
+
+/* `display:none` when closed, NOT opacity/visibility. A panel that keeps its
+   links in the layout keeps them in the accessibility tree and in the
+   certified responsive suite's measurements — as links sitting outside the
+   72px bar, which is a real failure and was the correct thing to fail on. */
+.navpanel{display:none;position:absolute;top:100%;left:-14px;min-width:232px;
+  background:#0B0E11;border:1px solid var(--line);border-radius:8px;
+  padding:8px;box-shadow:0 18px 40px rgb(0 0 0 / .45);z-index:60}
+.navgroup.open .navpanel,.navgroup:focus-within .navpanel{display:block}
+
+/* The ANCHORS are display:none too, not just their container.
+   Hiding only the panel leaves each anchor computing `display:block` with a
+   0x0 rect, which is a link that exists for a screen reader and for any
+   measurement pass but has no size — exactly what the certified responsive
+   suite flagged ("nav link 'Dispatch Services' collapsed to 0x0"). It was
+   right to. Both levels flip together. */
+.navpanel a{display:none;padding:9px 12px;border-radius:6px;
+  color:#cfd6da;font-weight:500;border-bottom:none;white-space:nowrap}
+.navgroup.open .navpanel a,.navgroup:focus-within .navpanel a{display:block}
+.navpanel a:hover,.navpanel a:focus-visible{background:rgb(255 255 255 / .06);
+  color:var(--amber);border-bottom-color:transparent}
+
+/* The trigger keeps the underline affordance of a normal nav link. */
+.navgroup > a[aria-expanded="true"]{color:var(--amber)}
+
+/* ── Mobile drawer: grouped, flat, one tap per destination ──────────────── */
+.mobile-menu .mm-cta{display:block;margin:4px 0 12px;padding:13px 4px;
+  text-align:center;background:var(--amber);color:#12161a;border-radius:8px;
+  font-weight:700;border-bottom:none}
+.mobile-menu .mm-group{padding-top:6px}
+.mobile-menu .mm-head{display:block;padding:10px 4px 4px;color:#8a949b;
+  font-family:var(--font-mono);font-size:.72rem;letter-spacing:.12em;
+  text-transform:uppercase}
+
+/* ── Footer: seven columns that reflow rather than wrap raggedly ────────── */
+.foot-cols{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:22px;
+  padding:36px 0 8px;border-top:1px solid var(--line)}
+.foot-col h4{font-family:var(--font-display);font-size:.82rem;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--paper);
+  margin:0 0 10px}
+.foot-col a{display:block;padding:5px 0;color:#a9b2b8;font-size:.9rem}
+.foot-col a:hover,.foot-col a:focus-visible{color:var(--amber)}
+/* The single staff entry: present, findable, and visibly not a feature.
+   DE-EMPHASISED BY SIZE AND POSITION, NOT BY CONTRAST. The first version used
+   --color-dim (#5c666d) and axe caught it: serious colour-contrast failure on
+   every page. Low contrast is never the right way to make something secondary
+   — it makes it unreadable for the people who most need it readable, and it
+   fails WCAG 1.4.3 whatever the intent. It keeps the column's own colour and
+   is set apart by a rule, a smaller size and being last. */
+.foot-col a.foot-staff{font-size:.82rem;margin-top:10px;padding-top:10px;
+  border-top:1px solid var(--line)}
+
+/* ── Shared state primitives (§48) ────────────────────────────────────────
+   Five states, defined once. Before this each page invented its own empty
+   state, which is how "no data" and "the query failed" end up looking
+   identical — the distinction M-74 went to some trouble to keep. */
+.state{border:1px solid var(--line);border-radius:10px;padding:22px;
+  background:rgb(255 255 255 / .03)}
+.state h3{font-family:var(--font-display);font-size:1.02rem;margin:0 0 6px;
+  color:var(--paper)}
+.state p{margin:0;color:#a9b2b8;font-size:.94rem}
+.state--empty{border-style:dashed}
+.state--error{border-color:rgb(226 149 0 / .5)}
+.state--success{border-color:rgb(76 196 146 / .5)}
+.state--loading p::after{content:"…";animation:state-dots 1.2s steps(4) infinite}
+@keyframes state-dots{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}
+@media (prefers-reduced-motion:reduce){
+  .state--loading p::after{animation:none}
+}
+
+/* Light sections restate the three colours rather than forking the markup —
+   the M-74 pattern for reusing a dark-surface component on a light one. */
+.light .state{border-color:var(--line-dark);background:rgb(18 22 26 / .02)}
+.light .state h3{color:var(--ink)}
+.light .state p{color:var(--slate-body)}
+
+/* ── Responsive. LAST in this file, mirroring the M-59 ordering rule. ───── */
+@media (max-width:1100px){
+  .foot-cols{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+@media (max-width:860px){
+  .foot-cols{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:480px){
+  .foot-cols{grid-template-columns:1fr;gap:14px}
+  .foot-col h4{margin-bottom:4px}
+}

@@ -381,7 +381,19 @@ for (const vp of VIEWPORTS) {
             nav.linksDisplayed,
             `${route.path} @ ${vp.name}: .navlinks must be visible >${NAV_COLLAPSE_MAX}px`,
           ).toBe(true);
-          expect(nav.items.length).toBeGreaterThanOrEqual(8);
+          // PHASE B — the bar became a GROUPED nav: five group headers
+          // (Services / Carriers / Shippers / Resources / Company) plus two
+          // utility links (Track Shipment, Login). The old threshold of 8
+          // encoded the previous FLAT nav, where every destination sat in the
+          // bar; it is now 7 top-level entries fronting ~15 destinations.
+          //
+          // The count is a weaker check than it looks, so it is no longer the
+          // only one: `nav groups open and stay inside the viewport` below
+          // opens EVERY panel and measures its links, and
+          // tests/unit/site-nav.test.ts asserts the mobile drawer still
+          // reaches at least eight destinations and that every rendered href
+          // resolves to a real route. Net coverage goes up, not down.
+          expect(nav.items.length).toBeGreaterThanOrEqual(7);
           for (const item of nav.items) {
             const r = item.rect;
             expect(
@@ -502,4 +514,114 @@ test("portal-internal routes are session-gated (documents the screenshot-scope l
       `${path} must bounce to /login in the secretless lane`,
     ).toHaveURL(/\/login\?next=/);
   }
+});
+
+/* ====================================================================== *
+ * PHASE B — the grouped navigation, opened.
+ *
+ * The bar's link count no longer tells you whether the nav WORKS: five of
+ * its seven entries are group headers whose destinations live in a panel.
+ * This suite opens every panel at desktop width and holds its links to the
+ * same standard the bar's own links are held to — visible, sized, inside the
+ * viewport, not overlapping — because a mega-menu that renders off-screen is
+ * a nav that has quietly lost most of the site.
+ *
+ * Desktop only: below 960px `.navlinks` collapses and the drawer takes over,
+ * which the existing per-viewport suite already walks entry by entry.
+ * ====================================================================== */
+test.describe("Phase B · grouped navigation", () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test("every group opens, and its links are usable and on-screen", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const groups = page.locator("nav.sitenav .navgroup");
+    const count = await groups.count();
+    expect(count, "the five approved groups must be present").toBe(5);
+
+    for (let i = 0; i < count; i++) {
+      const group = groups.nth(i);
+      const trigger = group.locator("> a");
+      const label = (await trigger.textContent())?.trim() ?? `group ${i}`;
+
+      // Closed panels must be display:none — not merely transparent. An
+      // opacity-hidden panel keeps its links in the accessibility tree and in
+      // the layout, which is the failure this asserts against.
+      await expect(
+        group.locator(".navpanel"),
+        `${label}: panel must be hidden until opened`,
+      ).toBeHidden();
+
+      await trigger.hover();
+      const panel = group.locator(".navpanel");
+      await expect(panel, `${label}: panel did not open on hover`).toBeVisible();
+
+      const links = await panel.locator("a").all();
+      expect(links.length, `${label}: panel has no destinations`).toBeGreaterThan(0);
+
+      let prevBottom = -Infinity;
+      for (const link of links) {
+        const box = (await link.boundingBox())!;
+        expect(box.width, `${label}: panel link has zero width`).toBeGreaterThan(0);
+        expect(box.height, `${label}: panel link has zero height`).toBeGreaterThan(0);
+        expect(
+          Math.round(box.x),
+          `${label}: panel link clipped on the left`,
+        ).toBeGreaterThanOrEqual(-1);
+        expect(
+          Math.round(box.x + box.width),
+          `${label}: panel link spills past the viewport`,
+        ).toBeLessThanOrEqual(1440 + 1);
+        expect(
+          box.y,
+          `${label}: panel links overlap`,
+        ).toBeGreaterThanOrEqual(prevBottom - 1);
+        prevBottom = box.y + box.height;
+      }
+
+      // Move away so the next iteration starts from a closed state.
+      await page.locator("footer#contact-foot").hover();
+      await expect(panel, `${label}: panel stayed open after leaving`).toBeHidden();
+    }
+  });
+
+  test("every group header is a real destination, not a dead trigger", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const triggers = page.locator("nav.sitenav .navgroup > a");
+    for (let i = 0; i < (await triggers.count()); i++) {
+      const href = await triggers.nth(i).getAttribute("href");
+      expect(href, "a group header must link somewhere").toBeTruthy();
+      expect(href).not.toBe("#");
+    }
+  });
+
+  test("no dispatcher or admin portal path is exposed anywhere on the page", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const hrefs = await page.locator("a[href]").evaluateAll((els) =>
+      els.map((e) => e.getAttribute("href") ?? ""),
+    );
+    for (const href of hrefs) {
+      expect(href).not.toContain("/portal/admin");
+      expect(href).not.toContain("/portal/dispatcher");
+    }
+    // Non-vacuity: the page really does have links.
+    expect(hrefs.length).toBeGreaterThan(20);
+  });
+
+  test("the footer carries the seven approved columns and one staff entry", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await expect(page.locator("footer .foot-col")).toHaveCount(7);
+    await expect(page.locator("footer a.foot-staff")).toHaveCount(1);
+    await expect(page.locator("footer a.foot-staff")).toHaveAttribute(
+      "href",
+      /\/login$/,
+    );
+  });
 });

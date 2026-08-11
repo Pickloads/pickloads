@@ -1,13 +1,42 @@
 import { Link } from "@/i18n/navigation";
 import { Logo } from "@/components/ui/Logo";
 import { useV4 } from "@/i18n/v4";
+import { entryLabel, FOOTER_COLUMNS, liveEntries } from "@/lib/site-nav";
 
-/*
- * V4 footer. State links point to the six priority state pages (arch §8);
- * they 404 until M-35 publishes real content — hidden behind the M-16/M-35
- * rollout by linking only the "All 48 States" index once it exists.
- * MC/USDOT line becomes company_settings-driven in M-14.
+/**
+ * Phase B — the corporate footer.
+ *
+ * ── SEVEN COLUMNS, FROM THE SHARED IA ────────────────────────────────────
+ *
+ * Services · Carriers · Shippers · Resources · Company · Support · Legal, all
+ * from `src/lib/site-nav.ts`. The footer and the nav can no longer disagree
+ * about where a destination lives or what it is called, and
+ * `tests/unit/site-nav.test.ts` proves every rendered href resolves.
+ *
+ * ── THE SEO ROWS ARE KEPT ────────────────────────────────────────────────
+ *
+ * Dispatch-by-equipment and dispatch-by-state are 13 internal links into real
+ * pages that exist and rank. A "clean" redesign that dropped them would trade
+ * measurable acquisition for tidiness. They sit below the seven columns as a
+ * secondary row rather than competing with them.
+ *
+ * ── NOTHING HERE IS INVENTED ─────────────────────────────────────────────
+ *
+ * One address, one phone, one support mailbox — the approved company details,
+ * unchanged. MC and USDOT render as **pending** because they are pending. No
+ * office list, no carrier count, no awards, no certifications, no review
+ * score. §58, and the honest-states discipline this project has kept since
+ * M-00.
+ *
+ * ── THE STAFF ENTRY ──────────────────────────────────────────────────────
+ *
+ * Exactly one, last in the Support column, deliberately styled as the least
+ * prominent link on the page (`.foot-staff`). Dispatcher and admin portals are
+ * never named. Staff sign in through the same `/login` and the server decides
+ * where they land — advertising internal portal paths buys an attacker
+ * reconnaissance and buys a customer nothing.
  */
+
 const EQUIPMENT_LINKS = [
   ["dry-van", "Dry Van Dispatch"],
   ["reefer", "Reefer Dispatch"],
@@ -27,26 +56,13 @@ const STATE_LINKS = [
   ["illinois", "Illinois Truck Dispatch"],
 ] as const;
 
-/**
- * M-69 / P-3 — the `/shippers` label in the Services column is gated.
- *
- * The footer labelled it "Freight Brokerage" on every page of the site while
- * `company_settings.brokerage_active` is false and the FMCSA authority /
- * BMC-84 bond are still pending — the same honest-states standard the
- * shipper portal, ServicesSplit and the hero note already meet.
- *
- * The LINK is untouched (no dead nav), and no new marketing copy is
- * invented: the fallback is "For Shippers", an already-approved V4 dictionary
- * string used elsewhere in this same footer and in the top nav. The
- * "Freight Brokerage" string stays in the codebase and the catalogues and
- * returns the moment the flag flips.
- */
 export function Footer({
   brokerageActive = false,
 }: {
   brokerageActive?: boolean;
 }) {
   const tv = useV4();
+
   return (
     <footer id="contact-foot">
       <div className="wrap">
@@ -66,16 +82,7 @@ export function Footer({
               {tv("MC # pending · USDOT # pending")}
             </p>
           </div>
-          <div>
-            <h4>{tv("Services")}</h4>
-            <Link href="/#dispatch">{tv("Truck Dispatching")}</Link>
-            <Link href="/shippers">
-              {brokerageActive ? tv("Freight Brokerage") : tv("For Shippers")}
-            </Link>
-            <Link href="/#pricing">{tv("Pricing")}</Link>
-            <Link href="/#packet">{tv("Carrier Packet")}</Link>
-            <Link href="/#compliance">{tv("Compliance")}</Link>
-          </div>
+
           <div>
             <h4>{tv("Dispatch by Equipment")}</h4>
             {EQUIPMENT_LINKS.map(([slug, label]) => (
@@ -84,6 +91,7 @@ export function Footer({
               </Link>
             ))}
           </div>
+
           <div>
             <h4>{tv("Dispatch by State")}</h4>
             {STATE_LINKS.map(([slug, label]) => (
@@ -93,31 +101,27 @@ export function Footer({
             ))}
             <Link href="/truck-dispatch">{tv("All 48 States →")}</Link>
           </div>
-          <div>
-            <h4>{tv("Carriers")}</h4>
-            <Link href="/become-a-carrier">{tv("Become a Carrier")}</Link>
-            <Link href="/start-your-trucking-company">
-              {tv("Start Your Trucking Company")}
-            </Link>
-            <Link href="/#packet">{tv("Carrier Packet")}</Link>
-            <Link href="/#packet">{tv("Insurance Requirements")}</Link>
-            <Link href="/#packet">{tv("Factoring")}</Link>
-            <Link href="/faq">{tv("Carrier FAQ")}</Link>
-            <Link href="/login">{tv("Carrier Login")}</Link>
-          </div>
-          <div>
-            <h4>{tv("Company")}</h4>
-            <Link href="/about">{tv("About Us")}</Link>
-            <Link href="/shippers">{tv("For Shippers")}</Link>
-            <Link href="/blog">{tv("Freight Insights")}</Link>
-            <Link href="/faq">{tv("FAQ")}</Link>
-            <Link href="/contact">{tv("Contact")}</Link>
-            {/* M-51: support = staffed inbox for now; the in-portal support
-                module (threads) is a later phase of the upgrade directive. */}
-            <Link href="/contact">{tv("Support")}</Link>
-            <Link href="/login">{tv("Shipper Login")}</Link>
-          </div>
         </div>
+
+        <div className="foot-cols">
+          {FOOTER_COLUMNS.map((column) => (
+            <div className="foot-col" key={column.label}>
+              <h4>{tv(column.label)}</h4>
+              {liveEntries(column.entries).map((entry) => (
+                <Link
+                  key={`${column.label}-${entry.label}`}
+                  href={entry.href}
+                  className={
+                    entry.label === "Staff sign-in" ? "foot-staff" : undefined
+                  }
+                >
+                  {tv(entryLabel(entry, brokerageActive))}
+                </Link>
+              ))}
+            </div>
+          ))}
+        </div>
+
         <div className="foot-bottom">
           <span>
             {tv(
@@ -125,16 +129,9 @@ export function Footer({
             )}
           </span>
           <span>
-            <Link href="/legal/privacy">{tv("Privacy")}</Link> ·{" "}
-            <Link href="/legal/terms">{tv("Terms")}</Link> ·{" "}
-            <Link href="/legal/cookies">{tv("Cookies")}</Link> ·{" "}
-            <Link href="/legal/carrier-agreement">
-              {tv("Carrier Agreement")}
-            </Link>{" "}
-            ·{" "}
-            <Link href="/legal/dispatch-agreement">
-              {tv("Dispatch Agreement")}
-            </Link>
+            {tv(
+              "Document filing assistance only — we are not a law firm and do not provide legal advice.",
+            )}
           </span>
         </div>
       </div>

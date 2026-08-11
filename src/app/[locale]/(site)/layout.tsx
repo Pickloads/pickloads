@@ -23,7 +23,7 @@ export default async function SiteLayout({
     <>
       <SkipLink />
       <Topbar />
-      <SiteNav />
+      <SiteNav brokerageActive={brokerageActive} />
       {children}
       <Footer brokerageActive={brokerageActive} />
       <PortalToast />

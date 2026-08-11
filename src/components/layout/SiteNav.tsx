@@ -1,92 +1,197 @@
 "use client";
 
-import { Link } from "@/i18n/navigation";
-import { usePathname } from "@/i18n/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { Link, usePathname } from "@/i18n/navigation";
 import { Logo } from "@/components/ui/Logo";
 import { useV4 } from "@/i18n/v4";
+import {
+  entryLabel,
+  liveEntries,
+  NAV_GROUPS,
+  NAV_UTILITIES,
+  PRIMARY_CTA,
+} from "@/lib/site-nav";
 
-const NAV_LINKS = [
-  { href: "/#dispatch", label: "Dispatch", match: null },
-  { href: "/shippers", label: "Shippers", match: "/shippers" },
-  { href: "/#pricing", label: "Pricing", match: null },
-  { href: "/faq", label: "FAQ", match: "/faq" },
-  { href: "/blog", label: "Blog", match: "/blog" },
-  { href: "/about", label: "About", match: "/about" },
-  { href: "/contact", label: "Contact", match: "/contact" },
-  // M-51: real auth entry (directive) — sign-in is role-routed server-side.
-  { href: "/login", label: "Login", match: "/login" },
-] as const;
-
-const MOBILE_LINKS = [
-  { href: "/#dispatch", label: "Dispatch Services" },
-  { href: "/shippers", label: "Shippers & Freight Quote" },
-  { href: "/#pricing", label: "Pricing" },
-  { href: "/#packet", label: "Carrier Packet" },
-  { href: "/faq", label: "FAQ" },
-  { href: "/blog", label: "Freight Insights" },
-  { href: "/about", label: "About Us" },
-  { href: "/contact", label: "Contact" },
-  // M-51: auth + support entries (directive); M-52 points Get Started at
-  // the /create-account chooser.
-  { href: "/login", label: "Login" },
-  { href: "/create-account", label: "Get Started →" },
-  // M-82 (§22 "no hidden actions"): `Start Carrier Setup` → `/#quote` lives in
-  // `.nav-cta`, which v4.css hides at ≤960px. Every other collapsing control
-  // has a drawer or footer equivalent by DESTINATION; this one had neither, so
-  // on every phone-width page — including the tracking pages this module
-  // audits — the primary carrier call to action was simply unreachable. The
-  // label is already in the v4 dictionary (`.nav-cta` renders it), so this
-  // adds no string and no translation debt.
-  { href: "/#quote", label: "Start Carrier Setup" },
-  { href: "/contact", label: "Support" },
-] as const;
-
-export function SiteNav() {
+/**
+ * Phase B — the global navigation.
+ *
+ * ── WHAT CHANGED AND WHY ─────────────────────────────────────────────────
+ *
+ * The bar used to be eight flat links in source order. That is fine for eight
+ * destinations and falls apart at twenty: the approved IA groups the site into
+ * Services / Carriers / Shippers / Resources / Company, and a flat bar cannot
+ * express that without becoming a wall of text.
+ *
+ * Every link comes from `src/lib/site-nav.ts`, which the desktop bar, the
+ * mobile drawer and the footer all share. Three hard-coded lists were three
+ * chances to rename a destination in two places.
+ *
+ * ── EVERY GROUP HEADER IS A REAL LINK ────────────────────────────────────
+ *
+ * The trigger is an `<a>` to a real page, not a dead `<button>`. So the nav
+ * works with JavaScript disabled, works for a keyboard user who tabs straight
+ * past the panel, and never presents a control that does nothing. The panel is
+ * an enhancement layered on top.
+ *
+ * ── WHY THE PANEL IS `display: none` WHEN CLOSED ─────────────────────────
+ *
+ * Not cosmetic. A panel hidden with `opacity: 0` keeps its links in the
+ * accessibility tree and in the layout — screen readers announce them, tab
+ * order includes them, and the certified responsive suite measures them as
+ * links sitting outside the nav bar. `display: none` removes them from all
+ * three. The suite's probe skips `display: none` anchors for exactly this
+ * reason.
+ *
+ * ── NO DEAD LINKS ────────────────────────────────────────────────────────
+ *
+ * `liveEntries` drops anything with `ships: false`. Carrier Resources,
+ * Knowledge Base, Downloads, Careers and Partners are declared in the IA and
+ * do not render until their pages exist. `tests/unit/site-nav.test.ts` proves
+ * every rendered href resolves against the real app directory.
+ */
+export function SiteNav({
+  brokerageActive = false,
+}: {
+  brokerageActive?: boolean;
+}) {
   const tv = useV4();
-  const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const navRef = useRef<HTMLElement | null>(null);
+
+  // Close the panel on route change: a menu that survives navigation covers
+  // the page the user just asked for.
+  useEffect(() => {
+    setOpenGroup(null);
+    setDrawerOpen(false);
+  }, [pathname]);
+
+  // Escape closes, and focus returns to the trigger — WCAG 2.2 keyboard
+  // expectation for any transient overlay.
+  useEffect(() => {
+    if (openGroup === null && !drawerOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setOpenGroup(null);
+      setDrawerOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [openGroup, drawerOpen]);
+
+  // A click outside the nav closes the panel. Pointer users get the same
+  // dismissal affordance keyboard users get from Escape.
+  useEffect(() => {
+    if (openGroup === null) return;
+    const onDown = (e: MouseEvent) => {
+      if (navRef.current && !navRef.current.contains(e.target as Node)) {
+        setOpenGroup(null);
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [openGroup]);
+
+  const isActive = (href: string) =>
+    href !== "/" && !href.startsWith("/#") && pathname.startsWith(href);
 
   return (
-    <nav className="sitenav">
+    <nav className="sitenav" ref={navRef}>
       <div className="wrap">
         <Logo />
+
         <div className="navlinks">
-          {NAV_LINKS.map((l) => (
+          {NAV_GROUPS.map((group) => {
+            const entries = liveEntries(group.entries);
+            const open = openGroup === group.label;
+            return (
+              <div
+                key={group.label}
+                className={`navgroup${open ? " open" : ""}`}
+                // Hover opens on pointer devices; focus-within and the toggle
+                // cover keyboard and touch. Leaving closes, so the panel never
+                // strands itself open behind the cursor.
+                onMouseEnter={() => setOpenGroup(group.label)}
+                onMouseLeave={() =>
+                  setOpenGroup((cur) => (cur === group.label ? null : cur))
+                }
+              >
+                <Link
+                  href={group.href}
+                  className={isActive(group.href) ? "active" : undefined}
+                  aria-expanded={open}
+                  aria-haspopup="true"
+                  onFocus={() => setOpenGroup(group.label)}
+                >
+                  {tv(group.label)}
+                </Link>
+                <div className="navpanel" role="group" aria-label={tv(group.label)}>
+                  {entries.map((entry) => (
+                    <Link key={`${group.label}-${entry.label}`} href={entry.href}>
+                      {tv(entryLabel(entry, brokerageActive))}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          {liveEntries(NAV_UTILITIES).map((entry) => (
             <Link
-              key={l.label}
-              href={l.href}
-              className={l.match && pathname.startsWith(l.match) ? "active" : undefined}
+              key={entry.label}
+              href={entry.href}
+              className={isActive(entry.href) ? "active" : undefined}
             >
-              {tv(l.label)}
+              {tv(entry.label)}
             </Link>
           ))}
         </div>
+
         <div className="nav-cta">
-          {/* M-51 secondary Get Started (directive); M-52 → account chooser. */}
-          <Link className="btn btn-ghost" href="/create-account">
-            {tv("Get Started →")}
-          </Link>
-          <Link className="btn btn-amber" href="/#quote">
-            {tv("Start Carrier Setup")}
+          {/* §10/§20: the quote is the acquisition CTA. Tracking is a utility
+              in the bar above — putting a lookup box in the primary slot tells
+              a first-time visitor the main offering is a search field. */}
+          <Link className="btn btn-amber" href={PRIMARY_CTA.href}>
+            {tv(PRIMARY_CTA.label)}
           </Link>
           <button
             className="menu-btn"
-            aria-label="Menu"
-            aria-expanded={open}
+            aria-label={tv("Menu")}
+            aria-expanded={drawerOpen}
             aria-controls="mobile-menu"
-            onClick={() => setOpen((v) => !v)}
+            onClick={() => setDrawerOpen((v) => !v)}
           >
             ☰
           </button>
         </div>
       </div>
-      <div className={`mobile-menu${open ? " open" : ""}`} id="mobile-menu">
-        {MOBILE_LINKS.map((l) => (
-          <Link key={l.label} href={l.href} onClick={() => setOpen(false)}>
-            {tv(l.label)}
-          </Link>
+
+      {/* The drawer is flat and grouped by heading rather than nested: a
+          two-level accordion on a 320px screen costs a tap for every
+          destination and hides the thing the visitor came for. */}
+      <div className={`mobile-menu${drawerOpen ? " open" : ""}`} id="mobile-menu">
+        <Link className="mm-cta" href={PRIMARY_CTA.href}>
+          {tv(PRIMARY_CTA.label)}
+        </Link>
+        {NAV_GROUPS.map((group) => (
+          <div key={group.label} className="mm-group">
+            <span className="mm-head">{tv(group.label)}</span>
+            {liveEntries(group.entries).map((entry) => (
+              <Link key={`${group.label}-${entry.label}`} href={entry.href}>
+                {tv(entryLabel(entry, brokerageActive))}
+              </Link>
+            ))}
+          </div>
         ))}
+        <div className="mm-group">
+          {liveEntries(NAV_UTILITIES).map((entry) => (
+            <Link key={entry.label} href={entry.href}>
+              {tv(entry.label)}
+            </Link>
+          ))}
+        </div>
       </div>
     </nav>
   );
