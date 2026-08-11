@@ -177,22 +177,25 @@ test("/driver is disallowed in robots.txt and absent from the sitemap", async ({
 
 test("the driver refusal renders in all five locales", async ({ page }) => {
   // §24: drivers are the population the five-locale requirement exists for.
+  // M-84: all five are now authored. `ru` and `ht` used to mirror English —
+  // §30's six honest labels, this one included, were still the English text
+  // in both catalogues, which the M-84 honest-label sweep found and closed.
+  // The old version of this test asserted the ENGLISH string for ru/ht, which
+  // was the right call while the translation did not exist and is now the
+  // wrong one: it would pin the gap open.
   const expected: Record<string, string> = {
     "": "Tracking link expired",
     "/es": "El enlace de seguimiento ha caducado",
     "/fr": "Lien de suivi expiré",
+    "/ru": "Срок действия ссылки отслеживания истёк",
+    "/ht": "Lyen swiv la ekspire",
   };
   for (const [prefix, heading] of Object.entries(expected)) {
     await page.goto(`${prefix}/driver/update/${WELL_FORMED}`);
     await expect(page.locator("main#main h1")).toHaveText(heading);
   }
-  // ru/ht mirror English pending native review (flagged in the runbook), so
-  // they are asserted to RENDER rather than to differ — an assertion that
-  // they differed would fail honestly today and lock in a fake translation.
-  for (const prefix of ["/ru", "/ht"]) {
-    await page.goto(`${prefix}/driver/update/${WELL_FORMED}`);
-    await expect(page.locator("main#main h1")).toHaveText("Tracking link expired");
-  }
+  // …and all five are DISTINCT, so none of them is quietly falling back.
+  expect(new Set(Object.values(expected)).size).toBe(5);
 });
 
 /* ================================================================== *

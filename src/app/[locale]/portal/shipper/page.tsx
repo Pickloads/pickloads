@@ -131,7 +131,7 @@ export default async function ShipperOverviewPage({
             <>
               <p className="pempty" style={{ padding: 0 }}>
                 {tv(
-                  "Tracking activates with your first booked shipment — your dispatcher shares live status here.",
+                  "Tracking activates with your first booked shipment — your dispatcher posts status updates here.",
                 )}
               </p>
               <p style={{ paddingTop: 10 }}>

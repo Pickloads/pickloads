@@ -18,7 +18,7 @@ export const SHIPPER_FAQ = [
   ["Are you a licensed freight broker?", "Our brokerage division launches with our FMCSA MC authority and BMC-84 $75,000 surety bond, currently in process. Our registration numbers will be published on this site the day they're active, with direct FMCSA verification links. Early quote requests get priority onboarding."],
   ["How fast can you quote a shipment?", "Within one business hour for standard FTL lanes (Mon–Sat). Complex or specialized freight may take a little longer — we'll tell you upfront."],
   ["How do you vet carriers?", "Active authority, insurance certificates, FMCSA safety data and inspection history — verified before assignment, not after. We don't re-broker freight."],
-  ["Can I track my shipment?", "Yes — check calls and location updates through delivery, with proactive alerts if anything changes. A live shipper portal is on the roadmap."],
+  ["Can I track my shipment?", "Yes — check calls and location updates through delivery, with proactive alerts if anything changes. Sign in to the shipper portal for the full timeline, or track a single shipment at /track with your tracking number and delivery ZIP."],
   ["What happens if there's a claim?", "We manage the claims process end to end: documentation, carrier insurance filing and follow-up until resolution. One contact, start to finish."],
 ] as const;
 

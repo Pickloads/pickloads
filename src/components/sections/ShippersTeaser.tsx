@@ -22,7 +22,7 @@ export function ShippersTeaser() {
           </h2>
           <p className="sub">
             {tv(
-              "Vetted carriers, live tracking and claims support — see why shippers choose PickLoads.",
+              "Vetted carriers, milestone tracking and claims support — see why shippers choose PickLoads.",
             )}
           </p>
         </div>

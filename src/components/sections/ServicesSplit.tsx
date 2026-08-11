@@ -37,7 +37,7 @@ export function ServicesSplit() {
             <ul>
               <li>{tv("FTL & partial — dry, temp-controlled, open deck")}</li>
               <li>{tv("Vetted carrier network (insurance & safety checked)")}</li>
-              <li>{tv("Live shipment tracking & proactive updates")}</li>
+              <li>{tv("Milestone shipment tracking & proactive updates")}</li>
               <li>{tv("Claims support & document management")}</li>
             </ul>
             <Link className="link" href="/shippers">

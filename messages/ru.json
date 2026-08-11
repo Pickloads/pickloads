@@ -270,8 +270,8 @@
     "ftl_partial_dry_temp_controlled_open_deck": "FTL и частичные — сухие, реф, открытые платформы",
     "fuel_surcharges_card_programs_and_route_planning_tactics": "Топливные надбавки, карты и тактика маршрутов, защищающие вашу маржу.",
     "full_name": "Full name",
-    "full_truckload_and_partial_solutions_with_vetted_carrier": "Полные (FTL) и частичные перевозки с проверенными перевозчиками, реальным отслеживанием и одним контактным лицом от загрузки до POD.",
-    "full_truckload_and_partial_solutions_with_vetted_carrier_x": "FTL и частичные перевозки с проверенными перевозчиками, живым отслеживанием и одним контактом от загрузки до подтверждения доставки.",
+    "full_truckload_and_partial_solutions_with_vetted_carrier": "Полные (FTL) и частичные перевозки с проверенными перевозчиками, отслеживанием по контрольным точкам и одним контактным лицом от загрузки до POD.",
+    "full_truckload_and_partial_solutions_with_vetted_carrier_x": "FTL и частичные перевозки с проверенными перевозчиками, отслеживанием по контрольным точкам и одним контактом от загрузки до подтверждения доставки.",
     "get_freight_insights_in_your_inbox": "Получайте Freight Insights на почту",
     "get_insured": "Get insured",
     "get_quotes_and_coordinate_freight_with_vetted_carriers_t": "Get quotes and coordinate freight with vetted carriers — track every request and rate in your own portal.",
@@ -323,9 +323,9 @@
     "leased_on_setups_are_reviewed_personally_a_dispatcher_co": "Leased-on setups are reviewed personally — a dispatcher confirms how your lease works before dispatch starts.",
     "length_in": "Length (in)",
     "live_dispatch_support": "Живая поддержка",
-    "live_shipment_tracking_proactive_updates": "Отслеживание в реальном времени и проактивные обновления",
-    "live_tracking": "Живое отслеживание",
-    "live_tracking_x": "ЖИВОЕ ОТСЛЕЖИВАНИЕ",
+    "milestone_shipment_tracking_proactive_updates": "Отслеживание отправок по контрольным точкам и упреждающие уведомления",
+    "milestone_tracking": "Отслеживание по контрольным точкам",
+    "milestone_updates": "ОБНОВЛЕНИЯ ПО ЭТАПАМ",
     "llc_formation_ein_registration": "Регистрация LLC и получение EIN",
     "load": "Load",
     "load_booking_rate_negotiation": "Бронирование и переговоры",
@@ -650,7 +650,7 @@
     "track_document_review_and_insurance_status": "Track document review and insurance status",
     "track_it_in_my_quotes": "Track it in My Quotes",
     "track_your_quote_requests_and_statuses": "Track your quote requests and statuses",
-    "tracking_activates_with_your_first_booked_shipment_your": "Tracking activates with your first booked shipment — your dispatcher shares live status here.",
+    "tracking_activates_with_your_first_booked_shipment_your": "Отслеживание включается с вашей первой забронированной отправкой — диспетчер публикует здесь обновления статуса.",
     "trailer_type": "Тип прицепа",
     "transparency": "Прозрачность",
     "truck": "Truck",
@@ -675,7 +675,7 @@
     "verify_us_before_you_sign_we_insist": "Проверьте нас перед подписанием. Мы настаиваем.",
     "verify_your_email_first_click_the_confirmation_link_we_s": "Verify your email first — click the confirmation link we sent you, then sign in.",
     "vetted_carrier_network_insurance_safety_checked": "Сеть проверенных перевозчиков (страховка и безопасность)",
-    "vetted_carriers_live_tracking_and_claims_support_see_why": "Проверенные перевозчики, живое отслеживание и поддержка по претензиям.",
+    "vetted_carriers_milestone_tracking_and_claims_support_se": "Проверенные перевозчики, отслеживание по контрольным точкам и поддержка по претензиям.",
     "vetted_carriers_only": "Только проверенные перевозчики",
     "view": "View →",
     "view_all_shipments": "View all shipments",
@@ -835,14 +835,14 @@
       "third_party": "Third party"
     },
     "label": {
-      "last_updated_by_dispatch": "Last updated by dispatch",
-      "milestone_tracking": "Milestone tracking",
-      "live_location_available": "Live location available",
-      "location_unavailable": "Location temporarily unavailable",
-      "eta_by_dispatcher": "ETA provided by dispatcher",
-      "tracking_link_expired": "Tracking link expired",
-      "dispatch_written": "Written by dispatch, in English",
-      "eta_estimated": "Estimated from distance and standard transit times"
+      "last_updated_by_dispatch": "Последнее обновление от диспетчера",
+      "milestone_tracking": "Отслеживание по контрольным точкам",
+      "live_location_available": "Доступно отслеживание местоположения в реальном времени",
+      "location_unavailable": "Местоположение временно недоступно",
+      "eta_by_dispatcher": "Расчётное время прибытия указано диспетчером",
+      "tracking_link_expired": "Срок действия ссылки отслеживания истёк",
+      "dispatch_written": "Написано диспетчером, на английском языке",
+      "eta_estimated": "Рассчитано по расстоянию и стандартному времени в пути"
     },
     "phrase": {
       "update": {
@@ -903,6 +903,7 @@
       "gate_notice": "PickLoads brokerage shipments begin once our FMCSA broker authority and BMC-84 bond are active. If you are a dispatch customer, your loads are tracked inside the Carrier Portal.",
       "help_title": "Can't find your shipment?",
       "help_body": "Your tracking number is on your confirmation email and on the bill of lading. If the delivery ZIP code doesn't work, try the access code from the same email. Still stuck? Call (908) 404-5373 — a dispatcher answers 24/7.",
+      "noscript_body": "Для отслеживания требуется включённый JavaScript. Если включить его невозможно, позвоните по номеру (908) 404-5373 — диспетчер найдёт вашу отправку и сообщит последнее обновление.",
       "privacy_note": "We ask for two pieces of information because a tracking number on its own is not a password. We log every lookup attempt."
     },
     "form": {

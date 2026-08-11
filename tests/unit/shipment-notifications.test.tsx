@@ -860,13 +860,17 @@ describe("§24/D-6 — phrase tokens are resolved for email", () => {
       );
       // Verbatim — §24 forbids silently machine-translating operator text.
       expect(html, locale).toContain(free);
-      // …under the honest label, in the READER's language (es/fr authored).
-      const notice =
-        locale === "es"
-          ? "Escrito por dispatch, en inglés"
-          : locale === "fr"
-            ? "Rédigé par la régulation, en anglais"
-            : "Written by dispatch, in English";
+      // …under the honest label, in the READER's language. All five are now
+      // authored: M-84's §30 sweep found `shipment.label.*` still carrying the
+      // English text in `ru` and `ht`, so the two branches that used to fall
+      // through to English are real translations.
+      const notice = {
+        en: "Written by dispatch, in English",
+        es: "Escrito por dispatch, en inglés",
+        fr: "Rédigé par la régulation, en anglais",
+        ru: "Написано диспетчером, на английском языке",
+        ht: "Ekri pa repartisyon an, an angle",
+      }[locale as "en" | "es" | "fr" | "ru" | "ht"];
       expect(html, locale).toContain(notice);
     }
   });

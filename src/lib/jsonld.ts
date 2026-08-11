@@ -63,7 +63,7 @@ export function localBusinessJsonLd(): Record<string, unknown> {
         provider: { "@id": BUSINESS_ID },
         areaServed: { "@type": "Country", name: "United States" },
         description:
-          "Full truckload and partial freight with vetted carriers, live tracking and one point of contact from pickup to proof of delivery.",
+          "Full truckload and partial freight with vetted carriers, milestone tracking and one point of contact from pickup to proof of delivery.",
       },
     ],
   };

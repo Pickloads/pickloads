@@ -16,7 +16,7 @@ export async function generateMetadata({
     href: "/shippers",
     title: "Freight Shipping for Shippers — PickLoads Logistics Group",
     description:
-      "Full truckload and partial freight with vetted carriers, live tracking and one point of contact from pickup to proof of delivery. Request a quote — answered within one business hour.",
+      "Full truckload and partial freight with vetted carriers, milestone tracking and one point of contact from pickup to proof of delivery. Request a quote — answered within one business hour.",
   });
 }
 
@@ -41,7 +41,7 @@ function ShippersContent() {
         )}
       >
         {tv(
-          "Full truckload and partial solutions with vetted carriers, live tracking and one point of contact from pickup to proof of delivery.",
+          "Full truckload and partial solutions with vetted carriers, milestone tracking and one point of contact from pickup to proof of delivery.",
         )}
       </PageHero>
 
@@ -63,7 +63,7 @@ function ShippersContent() {
             </div>
             <div className="ship-card">
               <span className="ic" aria-hidden="true">📍</span>
-              <h3>{tv("Live tracking")}</h3>
+              <h3>{tv("Milestone tracking")}</h3>
               <p>
                 {tv(
                   "Check calls and location updates from pickup to delivery — proactively, not on request.",
@@ -113,7 +113,7 @@ function ShippersContent() {
               <span className="flow-arrow">→</span>
               <span className="flow-node">{tv("PICKUP SCHEDULED")}</span>
               <span className="flow-arrow">→</span>
-              <span className="flow-node hot">{tv("LIVE TRACKING")}</span>
+              <span className="flow-node hot">{tv("MILESTONE UPDATES")}</span>
               <span className="flow-arrow">→</span>
               <span className="flow-node">{tv("DELIVERY + POD")}</span>
               <span className="flow-arrow">→</span>

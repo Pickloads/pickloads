@@ -61,6 +61,17 @@ function literal(value: unknown): string {
   if (value === null || value === undefined) return "null";
   if (typeof value === "number") return String(value);
   if (typeof value === "boolean") return value ? "true" : "false";
+  // M-84 — objects and arrays are JSON, not `String(value)`.
+  //
+  // `String({})` is `"[object Object]"`, which PostgreSQL rejects for a
+  // `jsonb` column with `invalid input syntax for type json`. Until an
+  // integration test wrote through a jsonb column nothing noticed; the
+  // §27 shipper flow's POD download does — `recordAuditEvent` puts the
+  // document's `detail` object into `audit_events.detail`, and §15's
+  // requirement is precisely that this row EXISTS and does NOT carry the
+  // signed URL. A silently failing insert would have made that assertion
+  // vacuous in the friendliest possible way: green, and proving nothing.
+  if (typeof value === "object") return lit(JSON.stringify(value));
   return lit(String(value));
 }
 
@@ -189,10 +200,27 @@ function insert(
 }
 
 /**
+ * Tables this adapter will write to, and the module that added each one.
+ *
+ * An ALLOW-LIST, not a filter: a module that starts writing through the
+ * service client has to add itself here deliberately, which is the moment
+ * somebody asks whether that write belongs on the service role at all.
+ *
+ *   * `shipment_tracking_access` — M-73, the public-lookup ledger.
+ *   * `audit_events`             — M-84. `recordAuditEvent` is the single
+ *     writer (M-61), and the §27 shipper flow's POD download is the first
+ *     integration test that needs the row it writes: §15 requires a
+ *     document-access history entry, and the assertion that the entry does
+ *     NOT carry the signed URL is only makeable if the insert really lands.
+ */
+const INSERTABLE_TABLES = new Set(["shipment_tracking_access", "audit_events"]);
+
+/**
  * The client object `tryCreateAdminClient` is mocked to return.
  *
- * `insert` is refused for any table outside the allow-list, so a future module
- * that starts writing through this adapter has to add itself deliberately.
+ * `insert` is refused for any table outside `INSERTABLE_TABLES`, so a future
+ * module that starts writing through this adapter has to add itself
+ * deliberately.
  */
 export function createPsqlSupabaseClient() {
   return {
@@ -202,7 +230,7 @@ export function createPsqlSupabaseClient() {
           return new SelectBuilder(table, columns);
         },
         insert(row: Record<string, unknown>) {
-          if (table !== "shipment_tracking_access") {
+          if (!INSERTABLE_TABLES.has(table)) {
             throw new Error(
               `psql-supabase: insert into "${table}" is not supported by this adapter`,
             );

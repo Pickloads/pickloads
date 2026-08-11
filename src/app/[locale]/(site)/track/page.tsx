@@ -104,6 +104,34 @@ export default async function TrackPage({
             <TrackingLookup />
           </Suspense>
 
+          {/*
+            M-84 — the honest no-JavaScript answer.
+
+            `TrackingLookup` is a client component that reads `?number=`
+            through `useSearchParams`, which makes Next.js render that subtree
+            on the client even on this statically prerendered route. That is
+            the right trade for §25 (the cacheable shell holds no shipment),
+            but it has a consequence nothing in the suite had stated: with
+            scripting off, the one public tracking entry point renders an
+            empty panel under a heading that promises a lookup.
+
+            §30's rule is about not saying false things, and a blank form is a
+            false thing said silently. This block is server-rendered, so it is
+            in the static HTML whether or not the bundle ever runs, and CSS
+            hides it the moment scripting is available. It states what is
+            actually true and gives the number a person can call instead.
+          */}
+          <noscript>
+            <div className="track-banner is-neutral" role="note">
+              <p>{t("page.noscript_body")}</p>
+              <p>
+                <a className="btn btn-amber" href="tel:+19084045373">
+                  (908) 404-5373
+                </a>
+              </p>
+            </div>
+          </noscript>
+
           <section className="track-section" aria-labelledby="track-help">
             <h2 id="track-help">{t("page.help_title")}</h2>
             <p className="sub" style={{ maxWidth: 760 }}>

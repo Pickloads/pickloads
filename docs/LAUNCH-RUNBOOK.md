@@ -884,6 +884,165 @@ The order is not optional: each step is dark until the one before it is done.
 card**, stop: `my_broker_partner_ids()` is not verification-gated, which means
 0029 did not fully apply. Re-check it before sharing anything.
 
+## 9d. Tracking system — the launch chapter (M-84)
+
+Sections 1–9c above configure the platform. This one is the shipment tracking
+system specifically, and it is the §29 answer to *"update the Launch Runbook
+with new environment variables, database migrations, public tracking
+configuration, map configuration, notification setup, smoke tests, go-live
+checks and rollback steps."* The long form of each item — with the reasoning —
+is `docs/tracking/launch.md`; what follows is the operator's copy.
+
+### 9d.1 New environment variables
+
+| Variable | Scope | Unset → |
+|---|---|---|
+| `TRACKING_ACCESS_SECRET` | server | `/track` answers `unavailable` for **every** input. Tracking is off, and not as an oracle |
+| `DRIVER_TOKEN_SECRET` | server | driver links cannot be minted or verified; the page shows the dispatch number |
+| `CRON_SECRET` | server | `/api/cron/*` return 503 — no notifications, no retention purge |
+| `NEXT_PUBLIC_MAP_PROVIDER`, `NEXT_PUBLIC_MAP_TILE_URL`, `MAP_API_KEY` | as named | the map slot renders its text equivalent (a supported state, §9b) |
+| `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | both | structured `[shipment]` signals go to stdout only |
+
+Generate both tracking secrets with `openssl rand -base64 48` and keep them
+different between staging and production.
+
+**Rotating `TRACKING_ACCESS_SECRET` kills every access code already issued.**
+The plaintext was never stored, so there is nothing to re-hash from. Treat a
+rotation as a customer-visible event, not a maintenance task.
+
+**`SUPABASE_SERVICE_ROLE_KEY` is server-only.** It is not `NEXT_PUBLIC_`, no
+client component reaches a module that reads it, and it must never appear in a
+browser bundle.
+
+### 9d.2 Database migrations
+
+Apply **0017 → 0030** in order; all are additive and none rewrites a
+pre-tracking table. Then re-run `supabase/seed.sql` (idempotent).
+
+Three ordering facts that bite:
+
+- **0028 must commit before 0029** — Postgres cannot use a new enum value in
+  the transaction that adds it. That is the only reason 0028 is its own file.
+- **0030 revokes `select` on `shipments` from `authenticated` and `anon`** and
+  grants 49 named columns back. Application code selecting a 50th column
+  starts failing with `42501`. Apply 0030 **with or before** the deploy.
+- The seed's eleven `company_settings` keys must exist before first page load,
+  or gated surfaces fail closed — correct behaviour that looks like an outage.
+
+Verify:
+
+```sql
+select count(*) from pg_policies where schemaname = 'public';       -- >= 100
+select count(*) from pg_policies where permissive = 'RESTRICTIVE';  -- 14
+select has_column_privilege('authenticated','shipments','margin','select');
+-- must be false
+```
+
+### 9d.3 Public tracking configuration
+
+1. `TRACKING_ACCESS_SECRET` set. Nothing works without it.
+2. Second factor per shipment: delivery ZIP by default, explicit access code
+   where the ZIP is widely known (a distribution centre).
+3. Suspension works: switch `public_tracking_enabled` off on a test shipment,
+   look it up with the **correct** code, confirm the refusal is identical to
+   an unknown number's.
+4. Rate limit live: five rapid lookups from one IP trip it, and
+   `shipment_tracking_access` gains a `rate_limited` row with a **null**
+   shipment id.
+5. Turnstile renders, and a missing token is rejected.
+6. Read one ledger row and confirm the attempted second value appears
+   **nowhere** in it.
+
+### 9d.4 Map configuration
+
+Full version in §9b. With no provider configured the surface renders its text
+equivalent, which is supported and not degraded. When a provider is
+configured, confirm the map stays bounded (never wider than its container,
+never taller than 320px, never more than 60% of a phone screen) and that the
+text equivalent still carries the same facts.
+
+Set `location_retention_days` deliberately. 90 is the argued default: long
+enough for a billing dispute, short enough that a breach does not surrender a
+year of movements.
+
+### 9d.5 Notification setup
+
+1. `RESEND_API_KEY` set and the sending domain verified (§4).
+2. `CRON_SECRET` set, and both `vercel.json` entries present —
+   `/api/cron/daily` at `0 11 * * *`, `/api/cron/notifications` every 5 min.
+3. Trigger the worker once by hand and **read the response body**; it reports
+   harvested / claimed / settled counts.
+4. One real email per template family delivered, with an `email_log` row.
+5. The unsubscribe link resolves and the message carries `List-Unsubscribe`.
+6. `/api/cron/daily`'s `locationRetention.retentionDays` matches the
+   switchboard. Still 90 after you changed it means the value did not parse.
+
+### 9d.6 Smoke tests (production, first deploy)
+
+Run in order. Each is about a minute, and each has caught something.
+
+1. `/track` renders and asks for **two** factors; with scripting disabled the
+   `<noscript>` block shows the dispatch number.
+2. An unknown number is refused generically, and the ledger records the true
+   outcome.
+3. Create a shipment (needs `brokerage_active`); confirm a `PL-YYYY-######`
+   number and a `shipment_created` event.
+4. Assign a carrier; confirm the assignment row, `carrier_id` and event.
+5. Walk it to `delivered`; confirm each status wrote an event and the shipper
+   portal shows the timeline.
+6. Look it up publicly with the delivery ZIP; confirm status and milestones
+   and **no** money.
+7. Issue a driver link, use it, revoke it, confirm the same URL now refuses —
+   and that the refusal is indistinguishable from an unknown token's.
+8. Upload a POD, approve it, confirm `pod_uploaded` becomes reachable and the
+   shipper can download it. Check the `audit_events` row for
+   `document.download` and confirm it carries **no** signed URL.
+9. Confirm a second shipper account sees none of it — list, detail, timeline
+   and document all empty.
+10. Complete the shipment; confirm the notification queue produced the
+    expected rows and the worker sent them. Then **cancel the test shipment**
+    rather than leaving fabricated freight in the data (§30).
+
+### 9d.7 Go-live checks (tracking)
+
+- [ ] All variables in 9d.1 set in production **and** staging, with different
+      secrets.
+- [ ] Migrations 0017–0030 applied; the three verification queries return the
+      expected values.
+- [ ] Seed applied; all eleven `company_settings` keys present.
+- [ ] `brokerage_active` reviewed **with counsel**.
+- [ ] `location_retention_days` set deliberately.
+- [ ] Both cron entries firing — check response bodies, not just the 200.
+- [ ] Upstash rate limiting **live** (not the dev no-op).
+- [ ] Turnstile **live**.
+- [ ] `npm run test:rls` against staging; `npm run test:integration` on the
+      release commit; `npx playwright test` against the production build.
+- [ ] The ten smoke tests above, on production, with a real shipment that is
+      then cancelled.
+- [ ] §30 review: no page claims "live tracking" while updates are manual, no
+      page claims AI, no fabricated shipment is displayed anywhere.
+
+### 9d.8 Rollback steps
+
+There are **no `down` migrations**, deliberately: a `down` that drops a table
+drops the data in it, and the moment somebody reaches for one is exactly the
+moment that is unacceptable. Roll back by blast radius, smallest first.
+
+| Symptom | Action |
+|---|---|
+| Public tracking leaking or misbehaving | Unset `TRACKING_ACCESS_SECRET`. Every lookup answers `unavailable`; nothing else changes. Seconds, reversible |
+| Driver links compromised | Rotate `DRIVER_TOKEN_SECRET`. Every outstanding link dies at once; re-issue from the board |
+| Notifications sending wrongly | Remove `/api/cron/notifications` from `vercel.json` and redeploy. The queue keeps accumulating; nothing is lost |
+| Retention deleting too aggressively | Raise `location_retention_days`. **Deleted rows do not come back** — the expiry stamp is written at insert. Restore from backup if the loss matters |
+| Bad code deploy | Roll back the Vercel deployment. The schema stays: 0017–0030 are additive and the previous build tolerates them |
+| 0030's column privileges break a query | `grant select (<column>) on public.shipments to authenticated;` for that column only, then fix the query. Never re-grant the table |
+| 0030's restrictive policies over-scope a dispatcher | `alter policy` or `drop policy` the specific one. The permissive policies underneath are unchanged, so dropping one restores pre-M-83 behaviour for that table |
+| Brokerage must close urgently | `brokerage_active` → `false` in Settings. No deploy. New shipments refused; in-flight freight keeps running |
+
+Take a backup before anything not in that table.
+
+---
+
 ## 10. GA4 + Search Console
 
 1. GA4: create the property, Web stream for `https://pickloads.com` →
