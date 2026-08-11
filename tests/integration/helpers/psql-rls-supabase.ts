@@ -34,8 +34,8 @@ import { execFileSync } from "node:child_process";
  * ── HONEST LIMITS ─────────────────────────────────────────────────────────
  *
  * This is not PostgREST. It implements the operators M-74 uses — `eq`, `in`,
- * `gte`, `lte`, `lt`, `ilike`, `or`, `order`, `range`, `limit`, `maybeSingle`,
- * and `count`/`head` — and THROWS on anything else, so a future query shape
+ * `gte`, `lte`, `lt`, `is` (null only, M-81), `ilike`, `or`, `order`, `range`,
+ * `limit`, `maybeSingle` and `count`/`head` — and THROWS on anything else, so a future query shape
  * cannot silently take an untested path. Embedded resources, `not`, `filter`
  * and range headers are absent because M-74 uses none of them.
  */
@@ -186,6 +186,20 @@ class RlsSelectBuilder implements PromiseLike<RlsResult> {
     this.predicates.push({ sql: `"${column}" < ${literal(value)}` });
     return this;
   }
+  /**
+   * M-81 — `.is(column, null)`. PostgREST spells the null test separately from
+   * `eq` because SQL does: `= null` is never true, and a revoked-at filter
+   * written as `eq(…, null)` would silently return nothing. The adapter models
+   * ONLY the null case, because that is the only one the module uses and a
+   * broader `is` would be untested surface.
+   */
+  is(column: string, value: null): this {
+    if (value !== null) {
+      throw new Error("psql-rls: is() supports null only");
+    }
+    this.predicates.push({ sql: `"${column}" is null` });
+    return this;
+  }
   ilike(column: string, pattern: string): this {
     this.predicates.push({
       sql: `"${column}"::text ilike ${lit(pattern)}`,
@@ -209,9 +223,17 @@ class RlsSelectBuilder implements PromiseLike<RlsResult> {
     this.rowLimit = to - from + 1;
     return Promise.resolve(this.execute());
   }
-  limit(n: number): Promise<RlsResult> {
+  /**
+   * CHAINABLE, unlike `range()`. supabase-js allows `.limit(1).maybeSingle()`
+   * — the shape every membership helper uses (`getMyCarrierId`,
+   * `getMyShipperId`, and M-81's `getMyBrokerPartnerId`) — so returning a
+   * Promise here would make those helpers unrunnable in this lane while
+   * working perfectly in production. The builder is `PromiseLike`, so an
+   * `await` on the result of `.limit(n)` still resolves to an `RlsResult`.
+   */
+  limit(n: number): this {
     this.rowLimit = n;
-    return Promise.resolve(this.execute());
+    return this;
   }
   maybeSingle(): Promise<RlsSingleResult> {
     this.rowLimit = 2;

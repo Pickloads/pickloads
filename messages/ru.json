@@ -747,7 +747,9 @@
     "your_shipper_portal_tracks_every_quote_request_and_rate": "Your shipper portal tracks every quote request and rate — and any quotes you already requested under this email get linked automatically.",
     "your_signed_agreement_appears_here_for_download_once_it": "Your signed agreement appears here for download once it's executed.",
     "your_signed_copy_hasn_t_been_filed_here_yet_it_s_in_your": "Your signed copy hasn't been filed here yet — it's in your signature-request email, or ask support and we'll upload it.",
-    "zip": "ZIP"
+    "zip": "ZIP",
+    "partner_portal": "Partner portal",
+    "shared_shipments": "Shared Shipments"
   },
   "shipment": {
     "status": {
@@ -1172,6 +1174,45 @@
       "coordinates": "{lat}, {lon}",
       "speed": "{mph} mph",
       "more_readings": "{count} older location updates are on record."
+    },
+    "broker": {
+      "crumb": "Partner portal",
+      "title": "Shared shipments",
+      "intro": "Shipments PickLoads has shared with your organization. Status, timeline, documents and approved contacts — nothing about rates, carrier records or billing.",
+      "no_org": "Your account isn't linked to a partner organization yet. Ask your PickLoads admin — partner access is granted by invitation only.",
+      "unverified_title": "Your organization is awaiting verification",
+      "unverified_body": "A PickLoads admin has to verify your organization before shipments appear here. We check authority, bond and references first — it isn't automatic. Call (908) 404-5373 if you need it looked at today.",
+      "gate_notice": "Partner access starts once our FMCSA broker authority and BMC-84 bond are active. Nothing has been shared with your organization yet.",
+      "empty": "No shipments have been shared with your organization yet.",
+      "empty_filtered": "No shared shipments match those filters.",
+      "failed": "We couldn't load your shipments. Reload the page, or call (908) 404-5373.",
+      "truncated": "Only the most recent shipments are listed. Use the filters to narrow the list, or call (908) 404-5373.",
+      "lane": "Lane",
+      "open": "Open",
+      "back": "All shared shipments",
+      "filters_legend": "Filter shared shipments",
+      "filter_apply": "Apply",
+      "showing": "Showing {from}–{to} of {total}",
+      "prev": "Newer",
+      "next": "Older",
+      "summary_title": "Shipment details",
+      "timeline_title": "Progress",
+      "timeline_empty": "Nothing has been shared on this shipment yet.",
+      "timeline_more": "Show older",
+      "timeline_reset": "Back to newest",
+      "contacts_title": "Approved contacts",
+      "contacts_empty": "No contact has been approved for sharing on this shipment.",
+      "contacts_withheld": "Some contact details are not shared. Call (908) 404-5373 and dispatch will relay.",
+      "carrier_assigned": "A carrier is assigned",
+      "carrier_pending": "No carrier assigned yet",
+      "access_title": "How you have access",
+      "access_link": "Your organization is a party to this shipment.",
+      "access_grant": "This shipment was shared with your organization on {date}.",
+      "access_agreement": "Covered by your account agreement, active since {date}.",
+      "access_reference": "Reference: {reference}",
+      "withheld_title": "What this portal never shows",
+      "withheld_body": "Carrier packets and insurance records, shipper billing, our commission and our margin are not shown here and are not part of your access. This is by design, not a loading state.",
+      "docs_blurb": "Bills of lading and proof of delivery for this shipment, once our team has checked them. Rate confirmations, quotes and invoices are not shared."
     }
   }
 }

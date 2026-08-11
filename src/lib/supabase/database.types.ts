@@ -7,7 +7,21 @@
  * (See docs/modules/M-02-auth-core.md.)
  */
 
-export type UserRole = "admin" | "dispatcher" | "carrier" | "shipper";
+/**
+ * `broker` added by migration 0028 (M-81).
+ *
+ * It is a ROUTING and INVITATION fact, never an authorization one: no policy
+ * in the chain reads `profiles.role = 'broker'`, and a broker profile with no
+ * `broker_partner_memberships` row reads exactly what an outsider reads.
+ * `docs/modules/M-81-broker-partner-access.md` argues it; §16 of the RLS suite
+ * asserts it.
+ */
+export type UserRole =
+  | "admin"
+  | "dispatcher"
+  | "carrier"
+  | "shipper"
+  | "broker";
 
 export type LeadStatus =
   | "new"
@@ -619,6 +633,19 @@ import type {
  */
 type AsRow<T> = { [K in keyof T]: T[K] };
 
+/**
+ * M-81 (0029) — §12's verification state.
+ *
+ * `verified` is the ONLY value `my_broker_partner_ids()` accepts, so the
+ * other three are all "reads nothing", distinguished so the LEDGER can tell
+ * "not looked at yet" from "looked at and refused" from "was fine, isn't now".
+ */
+export type BrokerVerificationStatus =
+  | "pending"
+  | "verified"
+  | "rejected"
+  | "suspended";
+
 type BrokerPartnerRow = {
   id: string;
   company_name: string;
@@ -632,6 +659,69 @@ type BrokerPartnerRow = {
   approved_by: string | null;
   approved_at: string | null;
   notes: string | null;
+  created_at: string;
+  updated_at: string;
+  /** M-81 (0029) — §12 "verified". Required by `my_broker_partner_ids()`. */
+  verification_status: BrokerVerificationStatus;
+  verified_by: string | null;
+  verified_at: string | null;
+  /* M-81 (0029) — plan §9.3's vetting field list. Records of what an admin
+   * checked; nothing in the schema or in `src/` scores them (§30). */
+  dot_number: string | null;
+  bond_provider: string | null;
+  bond_amount_usd: number | null;
+  authority_since: string | null;
+  days_to_pay: number | null;
+}
+
+/**
+ * M-81 (0029) — §12's *"invited by an admin"*, in M-58's idiom.
+ *
+ * `token_hash` is declared because the SERVER ACTION writes and matches on it;
+ * no browser-reachable read exists (0029 grants `authenticated` nothing at all
+ * on this table, and there is no member policy).
+ */
+type BrokerPartnerInviteRow = {
+  id: string;
+  broker_partner_id: string;
+  email: string;
+  membership_role: MembershipRole;
+  token_hash: string;
+  invited_by: string;
+  expires_at: string;
+  accepted_at: string | null;
+  accepted_by: string | null;
+  revoked_at: string | null;
+  revoked_by: string | null;
+  created_at: string;
+}
+
+/** M-81 (0029) — §12 "granted access shipment by shipment". */
+type BrokerShipmentGrantRow = {
+  id: string;
+  shipment_id: string;
+  broker_partner_id: string;
+  granted_by: string;
+  granted_at: string;
+  revoked_at: string | null;
+  revoked_by: string | null;
+  revoke_reason: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+/** M-81 (0029) — §12 "or account agreement", bounded by its own window. */
+type BrokerAccountAgreementRow = {
+  id: string;
+  broker_partner_id: string;
+  shipper_id: string;
+  agreement_reference: string | null;
+  starts_at: string;
+  ends_at: string | null;
+  granted_by: string;
+  revoked_at: string | null;
+  revoked_by: string | null;
+  revoke_reason: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1091,6 +1181,37 @@ export type Database = {
         Update: Partial<BrokerPartnerMembershipRow>;
         Relationships: [];
       };
+      /* M-81 (0029) — §12's invitation, and its two grant shapes. All three
+       * are STAFF-WRITE ONLY: 0029 creates no customer INSERT/UPDATE/DELETE
+       * policy on any of them, so a broker can neither invite themselves nor
+       * grant themselves a shipment. */
+      broker_partner_invites: {
+        Row: BrokerPartnerInviteRow;
+        Insert: Insertable<
+          BrokerPartnerInviteRow,
+          "broker_partner_id" | "email" | "token_hash" | "invited_by" | "expires_at"
+        >;
+        Update: Partial<BrokerPartnerInviteRow>;
+        Relationships: [];
+      };
+      broker_shipment_grants: {
+        Row: BrokerShipmentGrantRow;
+        Insert: Insertable<
+          BrokerShipmentGrantRow,
+          "shipment_id" | "broker_partner_id" | "granted_by"
+        >;
+        Update: Partial<BrokerShipmentGrantRow>;
+        Relationships: [];
+      };
+      broker_account_agreements: {
+        Row: BrokerAccountAgreementRow;
+        Insert: Insertable<
+          BrokerAccountAgreementRow,
+          "broker_partner_id" | "shipper_id" | "granted_by"
+        >;
+        Update: Partial<BrokerAccountAgreementRow>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -1098,9 +1219,27 @@ export type Database = {
       is_staff: { Args: Record<string, never>; Returns: boolean };
       my_carrier_ids: { Args: Record<string, never>; Returns: string[] };
       my_shipper_ids: { Args: Record<string, never>; Returns: string[] };
-      /** M-71 (0018) — active-filtered, so an unapproved broker org yields
-       * nothing (§12). */
+      /** M-71 (0018), NARROWED by M-81 (0029) — active AND `verified`, so an
+       * unapproved OR unverified broker org yields nothing (§12). */
       my_broker_partner_ids: { Args: Record<string, never>; Returns: string[] };
+      /** M-81 (0029) — the ONE definition of "this broker may read this
+       * shipment": party link OR live per-shipment grant OR live account
+       * agreement. Granted to `authenticated`; used only from policy USING
+       * clauses. */
+      broker_can_read_shipment: {
+        Args: { p_shipment_id: string };
+        Returns: boolean;
+      };
+      /** M-81 (0029) — §12's verification act, `service_role` only. */
+      verify_broker_partner: {
+        Args: {
+          p_broker_partner_id: string;
+          p_actor_id: string;
+          p_verified: boolean;
+          p_note?: string | null;
+        };
+        Returns: unknown;
+      };
 
       /* ---------- M-72 (0019) — the shipment write path ----------
        *

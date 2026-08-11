@@ -137,6 +137,11 @@ export function PortalSidebar({
                 create routes must keep the parent entry marked current. */}
             {item("/portal/admin/shipments", "Shipments")}
             {item("/portal/admin/quotes", "Freight quotes")}
+            {/* M-81 — §12's partner administration. ADMIN only: deciding who a
+                counterparty is is an account decision, and M-58 established
+                that dispatchers do not make those. Sharing one shipment is on
+                the shipment page, where a dispatcher can reach it. */}
+            {role === "admin" ? item("/portal/admin/brokers", "Broker partners") : null}
             {item("/portal/admin/support", "Support inbox")}
             {item("/portal/admin/posts", "Blog posts")}
             {role === "admin" ? item("/portal/admin/users", "Users") : null}
@@ -162,6 +167,20 @@ export function PortalSidebar({
             {item("/portal/shipper/support", tv("Support"))}
             {item("/portal/shipper/company", tv("Company Settings"))}
             {item("/portal/shipper/settings", tv("Account Settings"))}
+          </>
+        ) : role === "broker" ? (
+          <>
+            {/* M-81 — §12's partner portal. FOUR entries would be three too
+                many: §12 grants a broker partner a VIEW of shared shipments
+                and nothing else, so there is no documents page (documents
+                live on the shipment they belong to), no billing page (§12
+                forbids it outright) and no company page (the organization is
+                administered by PickLoads, which is what "admin-invited only"
+                means). One entry, and the honest reason it is one. */}
+            <span className="plabel">{tv("Partner portal")}</span>
+            {/* Not `exact`: the detail route `/shipments/[id]` must keep this
+                entry marked current, and it is the only entry there is. */}
+            {item("/portal/broker", tv("Shared Shipments"))}
           </>
         ) : (
           <>

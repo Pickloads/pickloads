@@ -177,12 +177,21 @@ insert into auth.users (id, email) values
 -- ---------- broker organizations -------------------------------------------
 -- A and B are admin-approved (active). C is invited but NOT approved, which
 -- is the §12 state my_broker_partner_ids() must treat as "no access".
-insert into broker_partners (id, company_name, mc_number, active, approved_by, approved_at) values
+-- M-81 (0029) adds `verification_status`, and `my_broker_partner_ids()` now
+-- requires BOTH `active` and `'verified'` (§12 "verified"). A and B carry it
+-- explicitly rather than relying on 0029's backfill, which runs against an
+-- empty table at migration time and therefore cannot reach fixture rows.
+insert into broker_partners (id, company_name, mc_number, active,
+                             verification_status, approved_by, approved_at,
+                             verified_by, verified_at) values
   ('eeeeeeee-eeee-eeee-eeee-eeeeeeee0a01', 'Broker A Partners', 'MC-200001', true,
+   'verified', '00000000-0000-0000-0000-0000000000f1', now(),
    '00000000-0000-0000-0000-0000000000f1', now()),
   ('eeeeeeee-eeee-eeee-eeee-eeeeeeee0b01', 'Broker B Partners', 'MC-200002', true,
+   'verified', '00000000-0000-0000-0000-0000000000f1', now(),
    '00000000-0000-0000-0000-0000000000f1', now()),
-  ('eeeeeeee-eeee-eeee-eeee-eeeeeeee0c01', 'Broker C Unapproved', 'MC-200003', false, null, null);
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeee0c01', 'Broker C Unapproved', 'MC-200003', false,
+   'pending', null, null, null, null);
 
 insert into broker_partner_memberships (broker_partner_id, profile_id, role) values
   ('eeeeeeee-eeee-eeee-eeee-eeeeeeee0a01', '00000000-0000-0000-0000-00000000ab01', 'owner'),
@@ -703,3 +712,199 @@ insert into tracking_provider_connections (
    'https://share.example.test/t/SENTINEL-TRACKING-URL-DO-NOT-LEAK-B',
    now() - interval '1 day', 'revoked', false,
    '00000000-0000-0000-0000-0000000000e1', 'fixture: expired');
+
+-- ===========================================================================
+-- M-81 — broker-partner access fixtures (migrations 0028–0029)
+--
+-- §12 gives a broker partner THREE ways to reach a shipment and TWO ways to
+-- be locked out. Every one of them gets its own row here, because an
+-- assertion about a state that no fixture produces is an assertion about
+-- nothing.
+--
+-- Identity map extension
+--   ...00c3    shipper C owner            (a third shipper, so the new
+--                                          shipment does not disturb the
+--                                          "shipperA sees exactly 1" counts)
+--   ...00ab04  broker D owner             VERIFIED · reaches shipment C by
+--                                         PER-SHIPMENT GRANT
+--   ...00ab05  broker E owner             VERIFIED · reaches shipment C by
+--                                         ACCOUNT AGREEMENT
+--   ...00ab06  broker F owner             ACTIVE but NOT VERIFIED · holds a
+--                                         live grant and reads nothing
+--
+-- NOTE ON PROFILE ROLES, DELIBERATELY SPLIT. Brokers A/B/C keep the enum's
+-- default role (M-71's fixture note: broker access is ORGANIZATION-scoped and
+-- the profile role is immaterial). D/E/F carry the `broker` role 0028 added,
+-- which is a ROUTING fact. Both halves must hold: A reads its shipment with
+-- the "wrong" role, and F reads nothing with the "right" one. That pair is
+-- the proof that the enum value grants nothing.
+-- ===========================================================================
+
+insert into auth.users (id, email) values
+  ('00000000-0000-0000-0000-0000000000c3', 'ownerC@shipper-c.test'),
+  ('00000000-0000-0000-0000-00000000ab04', 'ownerD@broker-d.test'),
+  ('00000000-0000-0000-0000-00000000ab05', 'ownerE@broker-e.test'),
+  ('00000000-0000-0000-0000-00000000ab06', 'ownerF@broker-f-unverified.test');
+
+update profiles set role = 'shipper' where id = '00000000-0000-0000-0000-0000000000c3';
+update profiles set role = 'broker'
+  where id in ('00000000-0000-0000-0000-00000000ab04',
+               '00000000-0000-0000-0000-00000000ab05',
+               '00000000-0000-0000-0000-00000000ab06');
+
+insert into shippers (id, company_name, industry) values
+  ('22222222-2222-2222-2222-2222222ccccc', 'Shipper C Inc', 'wholesale');
+insert into shipper_memberships (shipper_id, profile_id, role) values
+  ('22222222-2222-2222-2222-2222222ccccc', '00000000-0000-0000-0000-0000000000c3', 'owner');
+
+-- ---------- broker organizations D / E / F ---------------------------------
+insert into broker_partners (id, company_name, mc_number, active,
+                             verification_status, approved_by, approved_at,
+                             verified_by, verified_at, authority_since,
+                             days_to_pay, bond_provider, bond_amount_usd) values
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeee0d01', 'Broker D Grants', 'MC-200004', true,
+   'verified', '00000000-0000-0000-0000-0000000000f1', now(),
+   '00000000-0000-0000-0000-0000000000f1', now(),
+   date '2019-04-01', 30, 'Bond Co', 75000.00),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeee0e01', 'Broker E Agreement', 'MC-200005', true,
+   'verified', '00000000-0000-0000-0000-0000000000f1', now(),
+   '00000000-0000-0000-0000-0000000000f1', now(),
+   date '2016-09-15', 45, 'Bond Co', 75000.00),
+  -- ACTIVE and PENDING at once: the state M-81 introduced, and the one 0018's
+  -- `active`-only helper would have let through.
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeee0f01', 'Broker F Unverified', 'MC-200006', true,
+   'pending', null, null, null, null, current_date - 60, 60, null, null);
+
+insert into broker_partner_memberships (broker_partner_id, profile_id, role) values
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeee0d01', '00000000-0000-0000-0000-00000000ab04', 'owner'),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeee0e01', '00000000-0000-0000-0000-00000000ab05', 'owner'),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeee0f01', '00000000-0000-0000-0000-00000000ab06', 'owner');
+
+-- ---------- shipment C -----------------------------------------------------
+-- Shipper C, NO carrier and NO `broker_partner_id`: the only ways in are
+-- M-81's two sharing shapes, so every assertion below is about them and not
+-- about M-71's floor leaking through.
+update company_settings set value = 'true'::jsonb where key = 'brokerage_active';
+
+insert into shipments (
+  id, tracking_number, shipper_id, carrier_id, dispatcher_id, broker_partner_id,
+  status, origin_city, origin_state, destination_city, destination_state,
+  equipment, gross_shipper_amount, carrier_pay, margin,
+  public_tracking_enabled, tracking_mode, location_visibility, public_access_hash
+) values
+  ('ffffffff-ffff-ffff-ffff-ffffff810c01', 'PL-2026-000303',
+   '22222222-2222-2222-2222-2222222ccccc', null,
+   '00000000-0000-0000-0000-0000000000e1', null,
+   'carrier_search', 'Boston', 'MA', 'Miami', 'FL', 'dry-van',
+   5100, 4300, 800, false, 'manual', 'milestone_only', 'sha256-secondary-c');
+
+update company_settings set value = 'false'::jsonb where key = 'brokerage_active';
+
+-- Two events on shipment C: one the broker band may read, one it may not.
+-- Without the second, "brokerA reads only the broker band" would be a
+-- statement about an empty set.
+insert into shipment_events (
+  id, shipment_id, event_type, status, event_time, source, created_by,
+  city, state, public_message, internal_message, visibility, metadata
+) values
+  ('ebebebeb-ebeb-ebeb-ebeb-ebebebeb0c01', 'ffffffff-ffff-ffff-ffff-ffffff810c01',
+   'status_change', 'carrier_search', now() - interval '3 hours', 'dispatcher',
+   '00000000-0000-0000-0000-0000000000e1', 'Boston', 'MA',
+   'Sourcing a carrier for this lane', null, 'broker', '{}'::jsonb),
+  ('ebebebeb-ebeb-ebeb-ebeb-ebebebeb0c02', 'ffffffff-ffff-ffff-ffff-ffffff810c01',
+   'internal_note', null, now() - interval '2 hours', 'dispatcher',
+   '00000000-0000-0000-0000-0000000000e1', null, null,
+   null, 'SENTINEL-STAFF-ONLY-NOTE-DO-NOT-LEAK', 'staff_only', '{}'::jsonb);
+
+-- One shareable party and one that is not — §12's "approved contact channels"
+-- is only testable when both exist.
+insert into shipment_parties (id, shipment_id, party_role, organization_id,
+                              company_name, contact_name, phone, email, public_contact) values
+  ('fafafafa-fafa-fafa-fafa-fafafafa0c01', 'ffffffff-ffff-ffff-ffff-ffffff810c01',
+   'consignee', null, 'Miami DC', 'Receiving Desk', '3055550100',
+   'dock@miami-dc.test', true),
+  ('fafafafa-fafa-fafa-fafa-fafafafa0c02', 'ffffffff-ffff-ffff-ffff-ffffff810c01',
+   'billing', '22222222-2222-2222-2222-2222222ccccc', 'Shipper C Inc',
+   'Accounts Payable', '6175550100', 'ap@shipper-c.test', false);
+
+-- An approved BOL and an approved rate confirmation on shipment C: §16's
+-- matrix must still decide the TYPE even when M-81's grant decides the
+-- SHIPMENT, so a partner reaching C by grant reads the BOL and not the rate.
+insert into shipment_documents (
+  id, shipment_id, doc_type, visibility, storage_path, file_name,
+  mime_type, size_bytes, status, uploaded_by, reviewed_by, reviewed_at,
+  approved_by, approved_at
+) values
+  ('fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0c01', 'ffffffff-ffff-ffff-ffff-ffffff810c01',
+   'bol', 'shipper', 'ffffffff-ffff-ffff-ffff-ffffff810c01/aaaa-bol.pdf', 'bol.pdf',
+   'application/pdf', 210000, 'approved',
+   '00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-0000000000e1',
+   now() - interval '2 hours', '00000000-0000-0000-0000-0000000000e1',
+   now() - interval '2 hours'),
+  ('fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0c02', 'ffffffff-ffff-ffff-ffff-ffffff810c01',
+   'rate_confirmation', 'carrier',
+   'ffffffff-ffff-ffff-ffff-ffffff810c01/bbbb-ratecon.pdf', 'ratecon.pdf',
+   'application/pdf', 110000, 'approved',
+   '00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-0000000000e1',
+   now() - interval '2 hours', '00000000-0000-0000-0000-0000000000e1',
+   now() - interval '2 hours');
+
+-- ---------- §12 grant shape ONE — per shipment -----------------------------
+insert into broker_shipment_grants (
+  id, shipment_id, broker_partner_id, granted_by, granted_at,
+  revoked_at, revoked_by, revoke_reason, note
+) values
+  -- LIVE: broker D reaches shipment C.
+  ('bdbdbdbd-bdbd-bdbd-bdbd-bdbdbdbd0d01', 'ffffffff-ffff-ffff-ffff-ffffff810c01',
+   'eeeeeeee-eeee-eeee-eeee-eeeeeeee0d01', '00000000-0000-0000-0000-0000000000e1',
+   now() - interval '1 day', null, null, null, 'Customer 3PL'),
+  -- REVOKED: broker D once reached shipment B and must not now. This is the
+  -- row that makes "revocation stops access" a fact rather than a promise.
+  ('bdbdbdbd-bdbd-bdbd-bdbd-bdbdbdbd0d02', 'ffffffff-ffff-ffff-ffff-ffffffff0b01',
+   'eeeeeeee-eeee-eeee-eeee-eeeeeeee0d01', '00000000-0000-0000-0000-0000000000e1',
+   now() - interval '9 days', now() - interval '2 days',
+   '00000000-0000-0000-0000-0000000000f1', 'Agreement ended', null),
+  -- LIVE but on an UNVERIFIED organization: the grant exists and grants
+  -- nothing, because `my_broker_partner_ids()` never returns broker F.
+  ('bdbdbdbd-bdbd-bdbd-bdbd-bdbdbdbd0f01', 'ffffffff-ffff-ffff-ffff-ffffff810c01',
+   'eeeeeeee-eeee-eeee-eeee-eeeeeeee0f01', '00000000-0000-0000-0000-0000000000e1',
+   now() - interval '1 day', null, null, null, 'Pending verification');
+
+-- ---------- §12 grant shape TWO — account agreement ------------------------
+insert into broker_account_agreements (
+  id, broker_partner_id, shipper_id, agreement_reference,
+  starts_at, ends_at, granted_by, revoked_at, revoked_by, revoke_reason
+) values
+  -- LIVE and open-ended: broker E reaches everything of shipper C.
+  ('baeaeaea-baea-baea-baea-baeabaea0e01', 'eeeeeeee-eeee-eeee-eeee-eeeeeeee0e01',
+   '22222222-2222-2222-2222-2222222ccccc', 'AGR-2026-001',
+   now() - interval '30 days', null, '00000000-0000-0000-0000-0000000000f1',
+   null, null, null),
+  -- EXPIRED: the same partner once covered shipper A. The window is the whole
+  -- point of modelling agreements separately from grants, so a fixture that
+  -- never exercises an expiry would leave the window untested.
+  ('baeaeaea-baea-baea-baea-baeabaea0e02', 'eeeeeeee-eeee-eeee-eeee-eeeeeeee0e01',
+   '22222222-2222-2222-2222-2222222aaaaa', 'AGR-2025-009',
+   now() - interval '400 days', now() - interval '30 days',
+   '00000000-0000-0000-0000-0000000000f1', null, null, null),
+  -- REVOKED: broker D once had a standing agreement on shipper C. Revocation
+  -- must beat the window, so this row is live BY DATE and dead BY REVOCATION.
+  ('baeaeaea-baea-baea-baea-baeabaea0d01', 'eeeeeeee-eeee-eeee-eeee-eeeeeeee0d01',
+   '22222222-2222-2222-2222-2222222bbbbb', 'AGR-2026-002',
+   now() - interval '20 days', null, '00000000-0000-0000-0000-0000000000f1',
+   now() - interval '1 day', '00000000-0000-0000-0000-0000000000f1', 'Ended early');
+
+-- ---------- §12 invitations ------------------------------------------------
+-- `token_hash` is a placeholder: the RLS suite asserts NOBODY but staff can
+-- read this table at all, so the value only has to be unique.
+insert into broker_partner_invites (
+  id, broker_partner_id, email, membership_role, token_hash, invited_by,
+  expires_at, accepted_at, revoked_at
+) values
+  ('b1b1b1b1-b1b1-b1b1-b1b1-b1b1b1b10d01', 'eeeeeeee-eeee-eeee-eeee-eeeeeeee0d01',
+   'newuser@broker-d.test', 'member', 'sha256-broker-invite-pending',
+   '00000000-0000-0000-0000-0000000000f1', now() + interval '7 days', null, null),
+  ('b1b1b1b1-b1b1-b1b1-b1b1-b1b1b1b10f01', 'eeeeeeee-eeee-eeee-eeee-eeeeeeee0f01',
+   'ownerF@broker-f-unverified.test', 'owner', 'sha256-broker-invite-used',
+   '00000000-0000-0000-0000-0000000000f1', now() + interval '7 days',
+   now() - interval '1 day', null);

@@ -747,7 +747,9 @@
     "your_shipper_portal_tracks_every_quote_request_and_rate": "Votre portail expéditeur suit chaque demande de devis et tarif — et les devis déjà demandés avec cet e-mail sont liés automatiquement.",
     "your_signed_agreement_appears_here_for_download_once_it": "Votre accord signé apparaîtra ici en téléchargement dès qu'il sera exécuté.",
     "your_signed_copy_hasn_t_been_filed_here_yet_it_s_in_your": "Votre exemplaire signé n'est pas encore archivé ici — il est dans l'e-mail de demande de signature, ou demandez au support et nous le téléverserons.",
-    "zip": "Code postal"
+    "zip": "Code postal",
+    "partner_portal": "Portail partenaire",
+    "shared_shipments": "Expéditions partagées"
   },
   "shipment": {
     "status": {
@@ -1172,6 +1174,45 @@
       "coordinates": "{lat}, {lon}",
       "speed": "{mph} mph",
       "more_readings": "{count} mises à jour de position plus anciennes sont enregistrées."
+    },
+    "broker": {
+      "crumb": "Portail partenaire",
+      "title": "Expéditions partagées",
+      "intro": "Expéditions que PickLoads a partagées avec votre organisation. Statut, chronologie, documents et contacts approuvés — rien sur les tarifs, les dossiers transporteur ou la facturation.",
+      "no_org": "Votre compte n'est pas encore rattaché à une organisation partenaire. Contactez votre administrateur PickLoads — l'accès partenaire se fait uniquement sur invitation.",
+      "unverified_title": "Votre organisation est en attente de vérification",
+      "unverified_body": "Un administrateur PickLoads doit vérifier votre organisation avant que des expéditions n'apparaissent ici. Nous contrôlons d'abord l'autorité, la caution et les références — ce n'est pas automatique. Appelez le (908) 404-5373 si c'est urgent.",
+      "gate_notice": "L'accès partenaire débute dès l'activation de notre autorité de courtier FMCSA et de notre caution BMC-84. Rien n'a encore été partagé avec votre organisation.",
+      "empty": "Aucune expédition n'a encore été partagée avec votre organisation.",
+      "empty_filtered": "Aucune expédition partagée ne correspond à ces filtres.",
+      "failed": "Nous n'avons pas pu charger vos expéditions. Rechargez la page ou appelez le (908) 404-5373.",
+      "truncated": "Seules les expéditions les plus récentes sont listées. Utilisez les filtres ou appelez le (908) 404-5373.",
+      "lane": "Trajet",
+      "open": "Ouvrir",
+      "back": "Toutes les expéditions partagées",
+      "filters_legend": "Filtrer les expéditions partagées",
+      "filter_apply": "Appliquer",
+      "showing": "Affichage de {from}–{to} sur {total}",
+      "prev": "Plus récentes",
+      "next": "Plus anciennes",
+      "summary_title": "Détails de l'expédition",
+      "timeline_title": "Progression",
+      "timeline_empty": "Rien n'a encore été partagé sur cette expédition.",
+      "timeline_more": "Afficher plus anciennes",
+      "timeline_reset": "Revenir aux plus récentes",
+      "contacts_title": "Contacts approuvés",
+      "contacts_empty": "Aucun contact n'a été approuvé au partage sur cette expédition.",
+      "contacts_withheld": "Certaines coordonnées ne sont pas partagées. Appelez le (908) 404-5373 et la répartition fera le relais.",
+      "carrier_assigned": "Un transporteur est assigné",
+      "carrier_pending": "Aucun transporteur assigné pour l'instant",
+      "access_title": "Comment vous avez accès",
+      "access_link": "Votre organisation est partie à cette expédition.",
+      "access_grant": "Cette expédition a été partagée avec votre organisation le {date}.",
+      "access_agreement": "Couvert par votre accord de compte, actif depuis le {date}.",
+      "access_reference": "Référence : {reference}",
+      "withheld_title": "Ce que ce portail ne montre jamais",
+      "withheld_body": "Les dossiers et assurances transporteur, la facturation expéditeur, notre commission et notre marge ne sont pas affichés ici et ne font pas partie de votre accès. C'est voulu, ce n'est pas un chargement.",
+      "docs_blurb": "Lettres de voiture et preuves de livraison de cette expédition, une fois vérifiées par notre équipe. Les confirmations de tarif, devis et factures ne sont pas partagés."
     }
   }
 }

@@ -414,7 +414,7 @@ select rls_test.eq((select count(*) from drivers), 2, 'dispatcher reads all driv
 -- touch. The count moves because the fixture set grew, not because a policy
 -- changed.
 select rls_test.eq((select count(*) from invoices), 4, 'dispatcher reads all invoices (2 carrier + 2 shipper)');
-select rls_test.eq((select count(*) from shippers), 2, 'dispatcher reads all shippers');
+select rls_test.eq((select count(*) from shippers), 3, 'dispatcher reads all shippers');
 select rls_test.eq((select count(*) from freight_quotes), 3, 'dispatcher reads all freight quotes');
 select rls_test.eq((select count(*) from carrier_leads), 1, 'dispatcher reads the CRM');
 select rls_test.eq((select count(*) from lead_activities), 1, 'dispatcher reads lead activities');
@@ -429,7 +429,7 @@ select rls_test.eq((select count(*) from support_threads), 2, 'dispatcher reads 
 select rls_test.eq((select count(*) from support_messages), 2, 'dispatcher reads every support message');
 select rls_test.eq((select count(*) from user_preferences), 2, 'dispatcher reads user preferences');
 -- 8 M-61 identities + the 3 broker identities M-71's fixtures add.
-select rls_test.eq((select count(*) from profiles), 11, 'dispatcher reads all profiles');
+select rls_test.eq((select count(*) from profiles), 15, 'dispatcher reads all profiles');
 -- staff limits
 select rls_test.eq((select count(*) from notifications), 0, 'dispatcher does NOT inherit customer notifications');
 select rls_test.affects($$update company_settings set value = '"nope"'::jsonb where key = 'mc_number'$$, 0,
@@ -703,18 +703,18 @@ select rls_test.writes_nothing($$delete from shipment_assignments$$,
 reset role;
 set role authenticated;
 set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000e1';
-select rls_test.eq((select count(*) from shipments), 2, 'dispatcher reads all shipments');
-select rls_test.eq((select count(*) from shipment_parties), 3, 'dispatcher reads all shipment parties');
+select rls_test.eq((select count(*) from shipments), 3, 'dispatcher reads all shipments');
+select rls_test.eq((select count(*) from shipment_parties), 5, 'dispatcher reads all shipment parties');
 select rls_test.eq((select count(*) from shipment_assignments), 2, 'dispatcher reads all shipment assignments');
-select rls_test.eq((select count(*) from broker_partners), 3, 'dispatcher reads all broker organizations, active or not');
+select rls_test.eq((select count(*) from broker_partners), 6, 'dispatcher reads all broker organizations, active or not');
 select rls_test.affects($$update shipments set status = 'arrived_at_delivery' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$, 1,
   'dispatcher CAN advance a shipment status (proves every 0 above is a policy result, not an empty table)');
 select rls_test.rejects_with($$update shipments set tracking_number = 'PL-2026-123456' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
   'P0001', 'dispatcher cannot rewrite a tracking number either (§5 immutability)');
 
 set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000f1';
-select rls_test.eq((select count(*) from shipments), 2, 'admin reads all shipments');
-select rls_test.eq((select count(*) from shipment_parties), 3, 'admin reads all shipment parties');
+select rls_test.eq((select count(*) from shipments), 3, 'admin reads all shipments');
+select rls_test.eq((select count(*) from shipment_parties), 5, 'admin reads all shipment parties');
 select rls_test.affects($$update broker_partners set active = true where id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeee0c01'$$, 1,
   'admin CAN approve a broker organization');
 select rls_test.affects($$update broker_partners set active = false where id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeee0c01'$$, 1,
@@ -973,14 +973,14 @@ select rls_test.rejects_with($$insert into shipment_events (shipment_id, event_t
 -- ---------------------------------------------------------------------------
 set role authenticated;
 set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000e1';
-select rls_test.eq((select count(*) from shipment_events), 7,
-  'the dispatcher reads all 7 events across both shipments (so the counts above are policy, not an empty table)');
-select rls_test.eq((select count(*) from shipment_events where visibility = 'staff_only'), 2,
-  'the dispatcher reads both staff_only notes');
+select rls_test.eq((select count(*) from shipment_events), 9,
+  'the dispatcher reads all 9 events across all three shipments (so the counts above are policy, not an empty table)');
+select rls_test.eq((select count(*) from shipment_events where visibility = 'staff_only'), 3,
+  'the dispatcher reads all three staff_only notes');
 
 set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000f1';
-select rls_test.eq((select count(*) from shipment_events), 7,
-  'the admin reads all 7 events');
+select rls_test.eq((select count(*) from shipment_events), 9,
+  'the admin reads all 9 events');
 select rls_test.affects($$insert into shipment_events (id, shipment_id, event_type, source, visibility, internal_message) values ('ecececec-ecec-ecec-ecec-ecececec0a06','ffffffff-ffff-ffff-ffff-ffffffff0a01','internal_note','admin','staff_only','staff can append')$$,
   1, 'staff CAN append an event (non-vacuous: the customer refusals above are not a missing grant)');
 select rls_test.writes_nothing($$update shipment_events set internal_message = 'edited by staff' where id = 'ecececec-ecec-ecec-ecec-ecececec0a06'$$,
@@ -1006,7 +1006,7 @@ select rls_test.rejects_with($$delete from shipment_events$$,
   'P0001', 'a bulk delete is refused too (row-level trigger, no set-level escape)');
 select rls_test.rejects_with($$delete from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
   'P0001', 'a shipment with events cannot be deleted — the ON DELETE CASCADE fires the append-only trigger (documented consequence, not an accident)');
-select rls_test.eq((select count(*) from shipment_events), 8,
+select rls_test.eq((select count(*) from shipment_events), 10,
   'every row survives every deletion attempt');
 
 -- Idempotency: a retried write cannot double-append.
@@ -1434,10 +1434,14 @@ select rls_test.ok(
       and policyname not like 'staff %') = 0,
   'no NON-staff policy on any shipment table is anything but SELECT — carriers still have no write surface');
 
+-- M-81 makes this FIVE: 0029 added `"broker shared read shipments"` beside
+-- M-71's floor rather than replacing it (0018 §3's own instruction, *"it
+-- cannot widen it without a new policy that says so"*). The count is asserted
+-- rather than loosened to `>=` so a SIXTH policy is still a deliberate act.
 select rls_test.ok(
   (select count(*) from pg_policies
-    where schemaname = 'public' and tablename = 'shipments') = 4,
-  'shipments still carries exactly 4 policies (staff/shipper/carrier/broker) — M-76 added none');
+    where schemaname = 'public' and tablename = 'shipments') = 5,
+  'shipments carries exactly 5 policies (staff/shipper/carrier/broker + M-81 sharing)');
 
 -- ---- 2 · the credential column -------------------------------------------
 select rls_test.ok(
@@ -1929,13 +1933,13 @@ select rls_test.reads_nothing('shipment_document_audiences',
 -- empty table.
 set role authenticated;
 set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000e1';
-select rls_test.eq((select count(*) from shipment_documents), 8,
-  'a DISPATCHER reads all eight — every customer zero above is a band decision, not an empty table');
+select rls_test.eq((select count(*) from shipment_documents), 10,
+  'a DISPATCHER reads all ten documents — every customer zero above is a band decision, not an empty table');
 select rls_test.eq((select count(*) from shipment_documents where status = 'pending'), 1,
   'staff see the pending document the customers cannot — that IS the review queue');
 set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000f1';
-select rls_test.eq((select count(*) from shipment_documents), 8,
-  'an ADMIN reads all eight');
+select rls_test.eq((select count(*) from shipment_documents), 10,
+  'an ADMIN reads all ten documents');
 
 -- ---- 5 · §20''s POD fact, from the fixtures --------------------------------
 reset role;
@@ -2614,13 +2618,13 @@ select rls_test.rejects_with(
 
 set role authenticated;
 set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000e1';
-select rls_test.eq((select count(*) from shipment_locations), 7,
-  'a DISPATCHER reads all seven location rows — every customer zero above is a policy decision, not an empty table');
+select rls_test.eq((select count(*) from shipment_locations), 8,
+  'a DISPATCHER reads all eight location rows — every customer zero above is a policy decision, not an empty table');
 select rls_test.eq((select count(*) from tracking_provider_connections), 2,
   'a DISPATCHER reads both provider connections');
 set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000f1';
-select rls_test.eq((select count(*) from shipment_locations), 7,
-  'an ADMIN reads all seven');
+select rls_test.eq((select count(*) from shipment_locations), 8,
+  'an ADMIN reads all eight location rows');
 
 -- ---- 3 · §9's four levels, through the accessor ------------------------
 
@@ -2916,3 +2920,293 @@ select rls_test.eq(
   ((select location_retention_days())::int)::bigint, 90::bigint,
   '§9 FAILS SAFE: an unparseable retention setting falls back to 90 days — never to "keep forever"');
 update company_settings set value = '90'::jsonb where key = 'location_retention_days';
+
+-- ===========================================================================
+-- §16 · M-81 — broker-partner access (migrations 0028–0029)
+--
+-- §12 in full, and §19's named proof *"Broker A cannot view Broker B's
+-- shipment"* re-run against the WIDER surface M-81 added. Five claims:
+--
+--   1. VERIFICATION IS A GATE. An active-but-unverified organization reads
+--      nothing, even holding a live grant.
+--   2. THE TWO SHARING SHAPES WORK. A per-shipment grant and an account
+--      agreement each reach exactly one shipment and no other.
+--   3. REVOCATION AND EXPIRY STOP ACCESS, immediately and separately.
+--   4. NOTHING WAS WIDENED. Broker A still sees exactly its one linked
+--      shipment; broker A still cannot see broker B's.
+--   5. THE §12 DENY LIST HOLDS on the new paths — a partner reaching a
+--      shipment by GRANT still cannot read the rate confirmation, the
+--      shipper's billing, the carrier packet or the staff band.
+--
+-- Identity shorthands added by the M-81 fixtures:
+--   shipper C owner  00000000-0000-0000-0000-0000000000c3
+--   broker D owner   00000000-0000-0000-0000-00000000ab04  (grant)
+--   broker E owner   00000000-0000-0000-0000-00000000ab05  (agreement)
+--   broker F owner   00000000-0000-0000-0000-00000000ab06  (unverified)
+-- ===========================================================================
+
+reset role;
+set role authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 16a · The helper is now verification-gated (§12 "verified")
+-- ---------------------------------------------------------------------------
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab06';
+select rls_test.eq((select count(*) from broker_partner_memberships), 1,
+  'NON-VACUITY: brokerF CAN see it holds a membership on an unverified org');
+select rls_test.eq((select count(*) from my_broker_partner_ids()), 0,
+  '§12: an ACTIVE but UNVERIFIED organization grants nothing');
+select rls_test.eq((select count(*) from shipments), 0,
+  '§12: an unverified broker reads NO shipment — not even one granted to it');
+select rls_test.eq((select count(*) from broker_shipment_grants), 0,
+  '§12: an unverified broker cannot even see the grant written for it');
+select rls_test.eq((select count(*) from shipment_documents), 0,
+  '§12: an unverified broker reads no document');
+select rls_test.eq((select count(*) from shipment_events), 0,
+  '§12: an unverified broker reads no timeline');
+select rls_test.eq((select count(*) from broker_partners), 0,
+  '§12: an unverified broker cannot read its own organization row');
+-- The profile role is `broker` here, so this pair is the proof that 0028's
+-- enum value is a ROUTING fact and grants nothing on its own.
+select rls_test.eq(
+  (select count(*) from profiles where id = '00000000-0000-0000-0000-00000000ab06'
+     and role = 'broker'), 1,
+  'NON-VACUITY: brokerF really does hold the `broker` profile role');
+
+-- ---------------------------------------------------------------------------
+-- 16b · §12 grant shape ONE — shipment by shipment
+-- ---------------------------------------------------------------------------
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab04';
+select rls_test.eq((select count(*) from my_broker_partner_ids()), 1,
+  'my_broker_partner_ids scopes brokerD to its 1 verified organization');
+select rls_test.eq((select count(*) from shipments), 1,
+  '§12: brokerD sees exactly the 1 shipment GRANTED to it');
+select rls_test.eq(
+  (select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffff810c01'), 1,
+  '§12: the granted shipment is the one it was granted');
+select rls_test.eq(
+  (select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'), 0,
+  '§12 REVOCATION: brokerD cannot read the shipment whose grant was revoked');
+select rls_test.eq(
+  (select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'), 0,
+  '§19: brokerD cannot read brokerA''s linked shipment');
+select rls_test.ok(
+  (select broker_can_read_shipment('ffffffff-ffff-ffff-ffff-ffffff810c01')),
+  'broker_can_read_shipment() agrees with the policy for the granted shipment');
+select rls_test.ok(
+  not (select broker_can_read_shipment('ffffffff-ffff-ffff-ffff-ffffffff0b01')),
+  'broker_can_read_shipment() refuses the REVOKED grant');
+-- The revoked agreement on shipper B must not resurrect it either.
+select rls_test.eq((select count(*) from broker_account_agreements), 1,
+  'brokerD reads only its own agreement rows');
+select rls_test.eq(
+  (select count(*) from broker_account_agreements where revoked_at is null), 0,
+  '§12 REVOCATION: brokerD holds no LIVE agreement');
+select rls_test.eq((select count(*) from broker_shipment_grants), 2,
+  'brokerD reads its own grant history — revoked rows included (§15)');
+select rls_test.eq(
+  (select count(*) from broker_shipment_grants
+     where broker_partner_id <> 'eeeeeeee-eeee-eeee-eeee-eeeeeeee0d01'), 0,
+  '§19: brokerD reads NO other organization''s grants');
+
+-- §12's deny list, on the GRANT path specifically.
+select rls_test.eq((select count(*) from shipment_documents), 1,
+  '§16 matrix still decides the TYPE: brokerD reads the approved BOL only');
+select rls_test.eq(
+  (select count(*) from shipment_documents where doc_type = 'bol'), 1,
+  '§12 "BOL, when authorized" — the authorization is the grant');
+select rls_test.eq(
+  (select count(*) from shipment_documents where doc_type = 'rate_confirmation'), 0,
+  '§12: a GRANTED shipment does NOT hand over the carrier rate confirmation');
+select rls_test.eq((select count(*) from shipment_events), 1,
+  '§12 timeline: brokerD reads the broker-band event and not the staff note');
+select rls_test.eq(
+  (select count(*) from shipment_events where visibility = 'staff_only'), 0,
+  '§7: no customer audience reads the staff_only band');
+select rls_test.eq((select count(*) from shipment_parties), 1,
+  '§12 "approved contact channels": only the public_contact party');
+select rls_test.eq(
+  (select count(*) from shipment_parties where public_contact = false), 0,
+  '§12: the private billing party stays invisible on a granted shipment');
+select rls_test.eq((select count(*) from carriers), 0,
+  '§12: brokerD reads no carrier record (carrier''s private packet)');
+select rls_test.eq((select count(*) from documents), 0,
+  '§12: brokerD reads no carrier document (insurance records)');
+select rls_test.eq((select count(*) from invoices), 0,
+  '§12: brokerD reads no invoice (shipper billing)');
+select rls_test.eq((select count(*) from freight_quotes), 0,
+  '§12: brokerD reads no freight quote (shipper billing)');
+select rls_test.eq((select count(*) from shipment_assignments), 0,
+  '§12: brokerD reads no carrier assignment detail');
+
+-- A broker cannot create the link that would grant it access.
+select rls_test.writes_nothing(
+  $$insert into broker_shipment_grants (shipment_id, broker_partner_id, granted_by)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01',
+            'eeeeeeee-eeee-eeee-eeee-eeeeeeee0d01',
+            '00000000-0000-0000-0000-00000000ab04')$$,
+  '§3: brokerD cannot grant ITSELF a shipment');
+select rls_test.writes_nothing(
+  $$insert into broker_account_agreements (broker_partner_id, shipper_id, granted_by)
+    values ('eeeeeeee-eeee-eeee-eeee-eeeeeeee0d01',
+            '22222222-2222-2222-2222-2222222aaaaa',
+            '00000000-0000-0000-0000-00000000ab04')$$,
+  '§3: brokerD cannot sign its OWN account agreement');
+-- `writes_nothing`, not `affects`: 0029 REVOKES all privileges on this table
+-- from `authenticated` before granting SELECT back, so the write is refused at
+-- the GRANT (42501) rather than filtered to zero rows by RLS. Both outcomes
+-- mean "nothing changed"; the helper accepts either and the distinction is
+-- recorded here so a future reader does not "fix" it back.
+select rls_test.writes_nothing(
+  $$update broker_shipment_grants set revoked_at = null
+     where id = 'bdbdbdbd-bdbd-bdbd-bdbd-bdbdbdbd0d02'$$,
+  '§3: brokerD cannot un-revoke its own revoked grant');
+select rls_test.affects(
+  $$update broker_partners set verification_status = 'verified'
+     where id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeee0f01'$$, 0,
+  '§12: a broker cannot verify an organization — verification is an admin act');
+select rls_test.writes_nothing(
+  $$insert into broker_partner_invites (broker_partner_id, email, token_hash,
+      invited_by, expires_at)
+    values ('eeeeeeee-eeee-eeee-eeee-eeeeeeee0d01', 'self@broker-d.test',
+            'sha256-forged', '00000000-0000-0000-0000-00000000ab04',
+            now() + interval '7 days')$$,
+  '§3: brokerD cannot invite itself');
+select rls_test.reads_nothing('broker_partner_invites',
+  '§12: no customer role reads ANY invite row — the table is staff-policy only');
+-- And nobody, staff included, may read the credential column: 0029 revokes it
+-- at COLUMN level (0023's idiom), so naming it is a permission error rather
+-- than a value.
+select rls_test.denied(
+  $$select token_hash from broker_partner_invites limit 1$$,
+  '§12: `token_hash` is revoked at COLUMN level — naming it is refused, not filtered');
+
+-- ---------------------------------------------------------------------------
+-- 16c · §12 grant shape TWO — account agreement, and its window
+-- ---------------------------------------------------------------------------
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab05';
+select rls_test.eq((select count(*) from shipments), 1,
+  '§12: brokerE sees exactly the 1 shipment covered by its LIVE agreement');
+select rls_test.eq(
+  (select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffff810c01'), 1,
+  '§12: the agreement reaches the covered shipper''s shipment');
+select rls_test.eq(
+  (select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'), 0,
+  '§12 WINDOW: an EXPIRED agreement on shipperA grants nothing today');
+select rls_test.ok(
+  not (select broker_can_read_shipment('ffffffff-ffff-ffff-ffff-ffffffff0a01')),
+  'broker_can_read_shipment() honours the agreement window');
+select rls_test.eq((select count(*) from broker_shipment_grants), 0,
+  'brokerE holds no per-shipment grant — its access is the agreement alone');
+select rls_test.eq((select count(*) from broker_account_agreements), 2,
+  'brokerE reads its own agreement history, expired row included (§15)');
+select rls_test.eq(
+  (select count(*) from broker_account_agreements
+     where broker_partner_id <> 'eeeeeeee-eeee-eeee-eeee-eeeeeeee0e01'), 0,
+  '§19: brokerE reads NO other organization''s agreements');
+select rls_test.eq((select count(*) from shipment_documents where doc_type = 'bol'), 1,
+  '§16: the agreement path reaches the approved BOL');
+select rls_test.eq(
+  (select count(*) from shipment_documents where doc_type = 'rate_confirmation'), 0,
+  '§12: the agreement path does NOT reach the rate confirmation');
+
+-- ---------------------------------------------------------------------------
+-- 16d · NOTHING WAS WIDENED — M-71's proofs, re-run
+-- ---------------------------------------------------------------------------
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab01';
+select rls_test.eq((select count(*) from shipments), 1,
+  'M-81 DID NOT WIDEN: brokerA still sees exactly its 1 linked shipment');
+select rls_test.eq(
+  (select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffff810c01'), 0,
+  '§19: brokerA cannot read the shipment shared with brokerD and brokerE');
+select rls_test.eq(
+  (select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'), 0,
+  '§19 RESTATED: Broker A cannot view Broker B''s shipment');
+select rls_test.eq((select count(*) from broker_shipment_grants), 0,
+  'brokerA reads no grant rows — it holds none');
+select rls_test.eq((select count(*) from broker_account_agreements), 0,
+  'brokerA reads no agreement rows — it holds none');
+
+-- The SHIPPER whose freight is covered by an agreement is unaffected by it.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c3';
+select rls_test.eq((select count(*) from shipments), 1,
+  'shipperC sees its own shipment regardless of who it is shared with');
+select rls_test.eq((select count(*) from broker_partners), 0,
+  'a shipper reads no broker organization');
+select rls_test.eq((select count(*) from broker_account_agreements), 0,
+  'a shipper reads no agreement rows — sharing is between PickLoads and the partner');
+
+-- ---------------------------------------------------------------------------
+-- 16e · Staff and anon
+-- ---------------------------------------------------------------------------
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000f1';
+select rls_test.eq((select count(*) from broker_partners), 6,
+  'admin reads every broker organization');
+select rls_test.eq((select count(*) from broker_partner_invites), 2,
+  'admin reads the invite ledger');
+select rls_test.eq((select count(*) from broker_shipment_grants), 3,
+  'admin reads every grant, revoked included');
+select rls_test.eq((select count(*) from broker_account_agreements), 3,
+  'admin reads every agreement');
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000e1';
+select rls_test.eq((select count(*) from broker_partners), 6,
+  'dispatcher reads broker organizations (it shares shipments with them)');
+select rls_test.eq((select count(*) from broker_shipment_grants), 3,
+  'dispatcher reads every grant');
+
+reset role;
+set request.jwt.claim.sub = '';
+set role anon;
+select rls_test.reads_nothing('broker_partner_invites',
+  'anon reads nothing from broker_partner_invites (§19 no anonymous SELECT)');
+select rls_test.reads_nothing('broker_shipment_grants',
+  'anon reads nothing from broker_shipment_grants');
+select rls_test.reads_nothing('broker_account_agreements',
+  'anon reads nothing from broker_account_agreements');
+select rls_test.writes_nothing(
+  $$insert into broker_partners (company_name, active, verification_status)
+    values ('Self Registered Broker', true, 'verified')$$,
+  '§3: anon cannot self-register as a broker partner');
+
+-- ---------------------------------------------------------------------------
+-- 16f · Catalog facts — the shape of the guarantee, not just its effect
+-- ---------------------------------------------------------------------------
+reset role;
+
+-- `my_broker_partner_ids()` must require BOTH columns. Read out of pg_proc so
+-- a future edit that drops the verification clause fails here rather than
+-- silently re-opening every broker policy at once.
+select rls_test.ok(
+  (select prosrc like '%verification_status%' and prosrc like '%b.active%'
+     from pg_proc where proname = 'my_broker_partner_ids'),
+  '§12: my_broker_partner_ids() requires active AND verified');
+
+-- The four M-81 policies exist and are SELECT-only. A `FOR ALL` here would
+-- hand a broker partner write access to the shipment tables.
+select rls_test.eq(
+  (select count(*) from pg_policies
+    where policyname like 'broker shared read %' and cmd = 'SELECT'), 4,
+  'M-81 added exactly 4 broker policies and all 4 are SELECT-only');
+select rls_test.eq(
+  (select count(*) from pg_policies
+    where policyname like 'broker %' and cmd <> 'SELECT'), 0,
+  '§19: NO broker policy of any kind permits a write');
+
+-- No customer write policy on the three new tables.
+select rls_test.eq(
+  (select count(*) from pg_policies
+    where tablename in ('broker_partner_invites', 'broker_shipment_grants',
+                        'broker_account_agreements')
+      and cmd <> 'SELECT' and policyname not like 'staff %'), 0,
+  '§3: the only non-SELECT policies on M-81''s tables are the staff ones');
+
+-- The `broker` enum value exists and is used by NO policy expression, which
+-- is the whole claim 0028's header makes.
+select rls_test.eq(
+  (select count(*) from pg_enum e join pg_type t on t.oid = e.enumtypid
+    where t.typname = 'user_role' and e.enumlabel = 'broker'), 1,
+  '0028: the `broker` value exists on user_role');
+select rls_test.eq(
+  (select count(*) from pg_policies
+    where coalesce(qual, '') || coalesce(with_check, '') like '%''broker''::user_role%'), 0,
+  '0028: NO policy authorizes on profiles.role = broker — access stays org-scoped');

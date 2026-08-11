@@ -403,17 +403,28 @@ export function StaffShipmentDocuments({
         reviewAction={reviewAction}
       />
       {/*
-        §12/§16 — the BROKER band is live: 0024's "broker member read shipment
-        documents" policy grants an approved BOL and POD to a partner
-        organization the shipment is linked to. The broker PORTAL is M-81's.
+        §12/§16 — the BROKER band is live, and since M-81 so is the surface
+        that reads it: 0024's "broker member read shipment documents" and
+        0029's "broker shared read shipment documents" grant an approved BOL
+        and POD to any partner organization this shipment is linked to,
+        granted to, or covered for by an account agreement — and those
+        partners read them at `/portal/broker`.
+
+        M-77 shipped this note saying the permission existed and the surface
+        did not. That caveat is removed rather than softened: it is no longer
+        true, and a stale hedge on an operator screen is the same failure as a
+        stale status on a customer one.
+
         Naming the band here is what stops a dispatcher assuming an approved
-        BOL is invisible to a partner org, which is the assumption that leads
-        to filing something under the wrong type.
+        BOL is invisible to a partner org — the assumption that leads to
+        filing something under the wrong type.
       */}
       <p className="pempty" style={{ padding: "0 0 12px" }} role="note">
-        Broker partners linked to this shipment can be shown its BOL and POD
-        once approved (§12). The partner portal itself is not built yet — the
-        permission exists, the surface does not.
+        Any broker partner this shipment is shared with sees its BOL and POD
+        once you approve them (§12), in the partner portal. Nothing else on
+        this list reaches them — rate confirmations, quotes and invoices are
+        outside a partner&apos;s permissions. Manage sharing under &ldquo;Broker
+        partner access&rdquo; below.
       </p>
     </>
   );

@@ -46,3 +46,29 @@ export async function getMyShipperId(
     .maybeSingle();
   return data?.shipper_id ?? null;
 }
+
+/**
+ * M-81 — first broker organization this profile belongs to.
+ *
+ * The third sibling, and the one that is NOT an authorization check. 0018's
+ * `"own broker partner memberships"` policy returns the membership row whether
+ * or not the organization is verified, so this answers *"was this person
+ * invited?"* and never *"may they read anything?"* — that second question is
+ * `my_broker_partner_ids()`'s, and every policy asks it.
+ *
+ * The distinction is load-bearing: §12 requires an unverified partner to read
+ * nothing, and the portal still has to tell them WHY rather than render an
+ * empty table that looks like a bug. `getBrokerPartnerState()` in
+ * `src/lib/shipments/broker-access.ts` is what combines the two.
+ */
+export async function getMyBrokerPartnerId(
+  supabase: ServerSupabase,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("broker_partner_memberships")
+    .select("broker_partner_id")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  return data?.broker_partner_id ?? null;
+}

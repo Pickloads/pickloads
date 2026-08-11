@@ -1,0 +1,57 @@
+-- ============================================================================
+-- PickLoads — Migration 0028: the `broker` value on `user_role` (M-81).
+--
+-- ONE STATEMENT, ITS OWN FILE, AND THAT IS THE WHOLE POINT.
+--
+-- PostgreSQL refuses to USE an enum value that was added in the SAME
+-- transaction that added it ("unsafe use of new value of enum type"). 0029
+-- names 'broker' in a CHECK constraint and in seeded data, so if both lived in
+-- one file every runner that wraps a migration in a transaction — `supabase db
+-- push`, the Supabase SQL editor, a psql `-1` — would fail at the second
+-- statement. Splitting the ADD VALUE into a file that contains nothing else
+-- makes the migration chain runner-agnostic instead of runner-lucky.
+--
+-- ── WHY THE VALUE EXISTS AT ALL, GIVEN M-71 SAID IT SHOULD NOT ───────────
+--
+-- `docs/modules/M-71-shipment-schema.md` recorded: *"`user_role` was
+-- deliberately NOT extended with a `broker` value … every policy here keys off
+-- `broker_partner_memberships` + `broker_partners.active`, never off
+-- `profiles.role` … for zero security gain."*
+--
+-- That reasoning is still correct AND STILL HOLDS, and this migration does not
+-- contradict it: **no policy anywhere reads `profiles.role = 'broker'`.**
+-- Authorization stays organization-scoped, exactly as M-71 built it. What the
+-- value buys is the thing M-71 had no surface for and M-81 does:
+--
+--   * §12 requires broker partners to be *invited by an admin*. M-58's invite
+--     idiom assigns a ROLE server-side (`staff_invites.role`), and an invite
+--     that assigns no role cannot be the single door M-81 needs it to be.
+--   * `portalHomeFor()` (M-54) routes on the role and nothing else. Without a
+--     value, an invited broker lands on `/portal/carrier` — a portal that is
+--     not theirs, gated by `requireCarrier`, which bounces them back to
+--     `/portal/carrier`. A redirect loop is not a routing decision.
+--   * `requireCarrier` / `requireShipper` / `requireStaff` all redirect a
+--     non-matching role to its own home. Adding the value TIGHTENS those three
+--     gates for broker users rather than loosening anything.
+--
+-- The value grants NOTHING on its own. A profile with `role = 'broker'` and no
+-- `broker_partner_memberships` row reads exactly what an outsider reads:
+-- nothing. `supabase/tests/20_rls_isolation.sql` §16 asserts precisely that,
+-- so the claim is a test rather than this comment.
+--
+-- ── ROLLBACK ─────────────────────────────────────────────────────────────
+--
+-- **There is none, and PostgreSQL is the reason:** an enum value cannot be
+-- dropped. Reversing M-81 therefore means rolling back 0029 (which has a full
+-- rollback script) and demoting every broker profile:
+--
+--   update profiles set role = 'carrier' where role = 'broker';
+--
+-- The unused value then sits inert in the type, referenced by nothing. That is
+-- inconvenient, not dangerous: an enum value no row holds and no policy reads
+-- costs one line in `pg_enum`. Recreating the type would mean rewriting
+-- `profiles.role` and `staff_invites.role` on a shipped table, which is a far
+-- larger risk than the line it removes.
+-- ============================================================================
+
+alter type user_role add value if not exists 'broker';

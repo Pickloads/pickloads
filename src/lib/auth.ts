@@ -70,10 +70,20 @@ export async function requireProfile(locale: string): Promise<SessionProfile> {
   return session;
 }
 
-/** Role → portal home (M-32 adds the shipper surface). */
+/**
+ * Role → portal home (M-32 adds the shipper surface; M-81 the broker one).
+ *
+ * M-81's addition is not cosmetic. Every `requireX` gate below redirects a
+ * non-matching role HERE, so before the `broker` branch existed an invited
+ * partner would have been sent to `/portal/carrier`, bounced by
+ * `requireCarrier` back to `portalHomeFor('broker')` — and round again. The
+ * branch is what makes the three gates total over the enum rather than total
+ * over four fifths of it.
+ */
 export function portalHomeFor(role: UserRole): string {
   if (role === "admin" || role === "dispatcher") return "/portal/admin";
   if (role === "shipper") return "/portal/shipper";
+  if (role === "broker") return "/portal/broker";
   return "/portal/carrier";
 }
 
@@ -90,6 +100,31 @@ export async function requireCarrier(locale: string): Promise<SessionProfile> {
 export async function requireShipper(locale: string): Promise<SessionProfile> {
   const session = await requireProfile(locale);
   if (session.role !== "shipper") {
+    redirect(localizedPath(portalHomeFor(session.role), locale));
+  }
+  return session;
+}
+
+/**
+ * M-81 page gate: broker role only; other roles land on their own home.
+ *
+ * ── THIS GATE DECIDES THE SURFACE, NOT THE DATA ─────────────────────────
+ *
+ * Passing it means "you are a broker user and this is your portal". It does
+ * NOT mean you may read a shipment: §12's *"verified"* and *"attached to a
+ * broker organization"* are ORGANIZATION facts, enforced by
+ * `my_broker_partner_ids()` inside every policy, and a broker profile with no
+ * verified membership passes here and then reads nothing. The pages render
+ * `getBrokerPartnerState()` and say which of the two states the user is in.
+ *
+ * Splitting it that way is deliberate: folding verification into the gate
+ * would redirect an unverified partner somewhere with no explanation, and an
+ * account that silently bounces is the support call §30's honesty rule exists
+ * to avoid.
+ */
+export async function requireBroker(locale: string): Promise<SessionProfile> {
+  const session = await requireProfile(locale);
+  if (session.role !== "broker") {
     redirect(localizedPath(portalHomeFor(session.role), locale));
   }
   return session;

@@ -24,6 +24,8 @@ import {
   listStaffLocations,
 } from "@/lib/shipments/locations";
 import { providerStatuses } from "@/lib/shipments/providers";
+import { listVerifiedBrokerPartners } from "@/app/actions/broker-partners";
+import type { BrokerGrantView } from "@/components/portal/BrokerShipmentShare";
 
 export const dynamic = "force-dynamic";
 
@@ -106,6 +108,8 @@ export default async function StaffShipmentPage({
     exceptions,
     locationResult,
     connectionResult,
+    grantResult,
+    brokerPartners,
   ] = await Promise.all([
     getStaffTimelinePage(supabase, shipmentId, sp.before),
     getShipmentAssignments(supabase, shipmentId),
@@ -121,6 +125,26 @@ export default async function StaffShipmentPage({
     // than adding two more round trips (§25).
     listStaffLocations(supabase, shipmentId),
     listProviderConnections(supabase, shipmentId),
+    /* M-81 — §12's per-shipment grants on this shipment, under 0029's "staff
+       manage broker grants" policy on the COOKIE-BOUND client. Joining the
+       existing fan-out rather than adding a round trip (§25).
+
+       NO PostgREST EMBED. `broker_partners(company_name)` would be the
+       obvious way to get the name, and `database.types.ts` is hand-authored
+       with `Relationships: []` on every table — an embed would be the first
+       one in the codebase and would need a foreign-key descriptor kept in
+       step with the DDL by hand. The names come from one extra bounded read
+       below, taken ONLY when this shipment has grants at all. */
+    supabase
+      .from("broker_shipment_grants")
+      .select("id, broker_partner_id, granted_at, note")
+      .eq("shipment_id", shipmentId)
+      .is("revoked_at", null)
+      .order("granted_at", { ascending: false })
+      .limit(25),
+    /* Verified partners only. The action refuses an unverified one too; this
+       list stops the mistake being offered. */
+    listVerifiedBrokerPartners(),
   ]);
 
   const actorRole = session.role === "admin" ? "admin" : "dispatcher";
@@ -143,6 +167,37 @@ export default async function StaffShipmentPage({
     history.events,
     approvedPod?.id ?? null,
   );
+
+  /*
+   * Partner NAMES for the grants above.
+   *
+   * Deliberately not resolved from `brokerPartners` (the dropdown list): that
+   * list is verified partners only, and a shipment can hold a live grant to an
+   * organization an admin has since SUSPENDED. Rendering that row as
+   * "Partner organization" would hide exactly the case a dispatcher needs to
+   * see. One extra read, only when there is something to name.
+   */
+  const grantRows = grantResult.data ?? [];
+  const grantPartnerIds = [...new Set(grantRows.map((row) => row.broker_partner_id))];
+  const { data: grantPartnerRows } =
+    grantPartnerIds.length === 0
+      ? { data: [] }
+      : await supabase
+          .from("broker_partners")
+          .select("id, company_name")
+          .in("id", grantPartnerIds)
+          .limit(25);
+  const grantPartnerNames = new Map(
+    (grantPartnerRows ?? []).map((row) => [row.id, row.company_name] as const),
+  );
+  const brokerGrants: BrokerGrantView[] = grantRows.map((row) => ({
+    id: row.id,
+    broker_partner_id: row.broker_partner_id,
+    company_name:
+      grantPartnerNames.get(row.broker_partner_id) ?? "Partner organization",
+    granted_at: row.granted_at,
+    note: row.note,
+  }));
 
   return (
     <main id="main">
@@ -182,6 +237,9 @@ export default async function StaffShipmentPage({
            `isConfigured()` reads `process.env`, which a client component
            cannot and must not. Every row is `connected: false`. */
         providers={providerStatuses()}
+        brokerGrants={brokerGrants}
+        brokerPartners={brokerPartners}
+        brokerGrantsFailed={grantResult.error !== null}
       />
     </main>
   );

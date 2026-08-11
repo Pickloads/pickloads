@@ -6,7 +6,29 @@ degrades gracefully when a secret is missing (dev warnings, honest pending
 states) — so a partial deploy never crashes, it just quietly disables the
 affected integration. **Production must have every var set.**
 
-*Last revised for M-80 (tracking map + provider adapters): migration **0027**
+*Last revised for M-81 (broker-partner access): migrations **0028–0029**
+added to the order-and-rollback table, the `0001 → 0029` chain, refreshed gate
+counts (1462 unit / 742 RLS / 329 integration / 283 e2e / 388 pages), a new
+**§9c Broker-partner onboarding** section with its smoke test — and **no new
+environment variable, no new `company_settings` key and no new cron entry**.
+Five operational notes worth reading before go-live: (1) **APPLY 0028 BEFORE
+0029, AND LET IT COMMIT** — 0028 is a single `alter type user_role add value`
+and PostgreSQL refuses to *use* a new enum value in the transaction that added
+it, so a runner wrapping both files together fails at 0029's first mention of
+`'broker'`; (2) **0029 NARROWS `my_broker_partner_ids()`** to require `active`
+**AND** `verification_status = 'verified'` — the backfill marks every
+already-active organization verified, so deploying is access-neutral, but any
+organization created afterwards reads **nothing** until an admin verifies it;
+(3) **there is no self-service path to broker access at all** — an admin
+creates the organization, verifies it, and sends a single-use invitation;
+nothing on the public site can produce a partner account; (4) **0028 cannot be
+rolled back** (PostgreSQL cannot drop an enum value) — reversing M-81 means
+rolling back 0029 and running `update profiles set role = 'carrier' where role
+= 'broker'`, after which the unused value sits inert, read by no policy; (5)
+the partner portal shows §12's deny list to the partner on the shipment page
+and on the invitation itself, so **support does not have to explain why a rate
+is missing**.
+Previously revised for M-80 (tracking map + provider adapters): migration **0027**
 added to the order-and-rollback table, the `0001 → 0027` chain, refreshed gate
 counts (1399 unit / 671 RLS / 295 integration / 270 e2e / 373 pages), a new
 **§9b Map and tracking-provider configuration** section, an **eleventh
@@ -151,11 +173,13 @@ region `us-east-1` (closest to NJ ops). For **each** project, in order:
    | 0026 | `0026_shipment_notifications.sql` | **M-79.** §17's notifications and §25's **background processing architecture**. 3 enums (`shipment_notification_event` — the eleven, in the directive's order; `notification_channel` — `email`/`in_app`, with **no `sms` value** because §17 permits SMS only with an approved provider and compliant opt-in, and a value nothing can deliver is a fake capability; `notification_delivery_state`). 5 tables: `shipment_notification_rules` (the event → notification mapping as DATA, 11 seeded rows, mirrored by `SHIPMENT_NOTIFICATION_RULES` in TypeScript and pinned cell-for-cell in both directions by the integration lane), `shipment_notification_queue` (**unique `idempotency_key`** — §17's key requirement made a database fact; a payload-safety CHECK refusing `signed_url`/`access_code`/`internal_message`/`gross_shipper_amount`/`carrier_pay` **at the writer**; a `(state='sent') = (sent_at is not null)` CHECK; 3 indexes, one partial on the hot worker read), `shipment_notification_attempts` (**append-only** for every role including the owner — a delivery ledger somebody can edit is not a ledger), `shipment_notification_watermark` (single-row harvest watermark; an optimisation, not the correctness mechanism — the harvest deliberately re-reads a 10-minute overlap and every re-read conflict-do-nothings), and `notification_suppressions` (address-level opt-out, lowercase enforced by CHECK). **THE ONE SHIPPED TABLE THIS TOUCHES is `user_preferences` (0005)** — three columns ADDED (`email_shipment_updates`, `inapp_shipment_updates`, both `default true`; `notification_token uuid` uniquely indexed), nothing dropped, no default changed, and 0009's four `user_preferences` policies byte-identical afterwards. RLS on all five tables, `revoke all … from authenticated, anon` then **SELECT only**, then **one staff-read policy each — five in total, and NO write policy for any role**. 4 `security definer` functions with **EXECUTE granted to `service_role` ALONE**: `enqueue_shipment_notification` (idempotent, reports whether it deduped), `harvest_shipment_notifications` (maps new `shipment_events` **and** shipper `invoices` onto queue rows), `claim_shipment_notifications` (`for update skip locked` + a lock TTL, so two workers split a batch rather than double-send it), `settle_shipment_notification` (writes the append-only attempt row **and** moves the queue row in ONE transaction). | Full script in [`docs/modules/M-79-shipment-notifications.md`](modules/M-79-shipment-notifications.md) §DB changes. **STOP THE WORKER FIRST** — remove the `/api/cron/notifications` entry from `vercel.json` or unset `CRON_SECRET` — so nothing claims rows mid-teardown. Then drop the 4 functions (signatures in the doc), the 2 triggers **before** their tables, the trigger function, the 5 tables `cascade`, the 3 `user_preferences` columns, and the 3 enums. **Destructive for the QUEUE and the ATTEMPT LEDGER, not for the history** — every notification the worker sent survives in `email_log` (M-14) and `notifications` (M-60), and every fact that produced one survives as a `shipment_events` row; what is lost is the retry state of anything in flight and the per-attempt provider answers. `pg_dump -t shipment_notification_queue -t shipment_notification_attempts` first. **EXPORT THE OPT-OUTS BEFORE DROPPING THE COLUMNS** — `select profile_id from user_preferences where not email_shipment_updates` — because dropping them re-subscribes everyone who unsubscribed, and keep `notification_suppressions` if you can: an address-level opt-out you cannot reproduce is the one piece of state whose loss is visible to a customer. Roll back `src/lib/supabase/database.types.ts`, delete `src/lib/shipments/notification-{rules,queue,worker}.ts`, `src/lib/notification-preferences.ts`, `src/app/actions/notification-preferences.ts`, `src/emails/{shipment-templates.tsx,phrases.ts}`, the cron route and the unsubscribe page, and revert the `resendNotificationAction` block in `src/app/actions/dispatcher-shipments.ts` to its M-75 text, in the same deploy. `sendEmail`'s and `notifyCustomer`'s new return values may STAY — they are additive and every other caller ignores them. It fails **CLOSED**: with the queue gone the worker route returns 503 and **no shipment email is sent at all**, rather than an unthrottled inline send appearing in its place. M-60's fan-out for every non-shipment flow is untouched throughout, and 0017–0025 are untouched entirely. |
 
    | 0027 | `0027_shipment_locations_providers.sql` | **M-80.** §9's map and provider architecture, and the **RETENTION EXECUTOR** the plan's §4 records as missing. `company_settings` row `location_retention_days` (`90`) + `location_retention_days()` (fails safe to 90 — never to "keep forever"). `shipment_locations` — the PURGEABLE position series (M-70's row type in full, incl. §9's vehicle **speed** and **raw provider metadata**), 5 CHECKs, a **partial UNIQUE** `(shipment_id, provider, external_event_id)` that makes §9's dedupe a database fact, a retention index, and `trg_shipment_locations_no_update` (a reading is a fact about a moment — PL409 for every role incl. the owner; DELETE deliberately NOT blocked, because this is the one shipment table §9 requires to be deletable). `tracking_provider_connections` — §9 Mode B's five fields incl. the **`tracking_url`**, one **active** connection per shipment, identity immutable and revocation one-way (PL409), plus a §15 CHECK refusing eight credential shapes in the URL and an https-only CHECK. **TWO TRIGGERS ON `shipment_events`, both additive**: `trg_shipment_events_no_coordinates` refuses a lat/long (PL422 — the ledger is append-only and therefore un-purgeable, so a coordinate there would outlive any retention window; no path in `src/` has ever written one) and `trg_shipment_events_location_mirror` copies any event carrying a city into the purgeable series, so §9 Mode A produces real history with no call-site change. RLS on both tables, `revoke all … from authenticated, anon` then **SELECT only**, then **one staff policy each — no customer policy, no anon policy, no write policy for any role**. SIX `security definer` functions: `my_shipment_locations(uuid,int)` (**`authenticated`** — the customer projection, seven OUT columns with no `raw_metadata`/`provider`/`external_event_id`, audience from the caller's own memberships, §9's four levels applied IN SQL, speed gated on `exact` **and** driver consent) and `record_shipment_location` / `set_shipment_location_visibility` (narrow = dispatcher, **widen = admin**, PL403) / `attach_tracking_provider_connection` / `revoke_tracking_provider_connection` / **`purge_expired_shipment_locations`** (**`service_role` only**). | Full script in [`docs/modules/M-80-map-providers.md`](modules/M-80-map-providers.md) §ROLLBACK. **REMOVE THE RETENTION TASK FROM `/api/cron/daily` FIRST** (or unset `CRON_SECRET`) so nothing calls the purger mid-teardown. Then drop the 2 `shipment_events` triggers and their functions, the 6 functions, the 2 policies, the 2 table triggers and their functions, the 2 tables `cascade`, and the settings key. **Destructive** for the position series and every provider link — `pg_dump -t shipment_locations -t tracking_provider_connections` first — but **NOT for the timeline**: every city/state ever reported survives as the `shipment_events` row it was mirrored from, which is why the mirror is a copy and not a move. Roll back `src/lib/supabase/database.types.ts`, delete `src/lib/shipments/{locations,retention,location-visibility,map-state}.ts` and `src/lib/shipments/providers/`, delete `src/components/tracking/{ShipmentMap,LocationPanel}.tsx`, and revert the three actions, three forms, four surfaces, the `dto.ts` `locations` additions and the cron task in the same deploy. It fails **CLOSED**: with the tables gone the accessors are gone, the DTOs receive an empty location list, the map never mounts and every panel renders §30's "Location temporarily unavailable". 0017–0026 are untouched. |
+   | 0028 | `0028_broker_role_value.sql` | **M-81.** ONE STATEMENT: `alter type user_role add value if not exists 'broker'`. It is a file of its own because PostgreSQL refuses to *use* an enum value added in the same transaction — `supabase db push`, the SQL editor and `psql -1` all wrap a file, so 0029's first `'broker'` literal would fail. **The value grants NOTHING**: no policy in the chain reads `profiles.role = 'broker'` (asserted as a catalog fact), broker authorization stays organization-scoped exactly as M-71 built it, and a broker profile with no verified membership reads what an outsider reads. What it buys is M-58's invite idiom (which assigns a role server-side) and a `portalHomeFor()` branch, without which an invited partner ping-pongs between `requireCarrier` and its own home. | **NONE — PostgreSQL cannot drop an enum value.** Reverse M-81 by rolling back 0029 first, then `update profiles set role = 'carrier' where role = 'broker';`. The value then sits inert in the type, referenced by nothing. Recreating the type would mean rewriting `profiles.role` and `staff_invites.role` on shipped tables — a far larger risk than the line it removes. |
+   | 0029 | `0029_broker_partner_access.sql` | **M-81.** §12's broker-partner access. Enum `broker_verification_status`; **8 columns on `broker_partners`** — `verification_status` (NOT NULL, default `'pending'`), `verified_by`, `verified_at`, plus plan §9.3's vetting checklist (`dot_number`, `bond_provider`, `bond_amount_usd`, `authority_since`, `days_to_pay`, recorded for a human, **scored by nothing**) — with a **backfill marking every already-`active` organization verified**, so deploying is access-neutral. **`my_broker_partner_ids()` is REPLACED** to require `active` **AND** `'verified'`: every 0018/0019/0024 policy inherits §12's *"verified"* in one write, and an admin suspending an organization revokes its access everywhere at once. Three tables: `broker_partner_invites` (M-58's idiom — SHA-256 hash only, single-use, 7-day expiry — plus §12's two additions: it names the ORGANIZATION, and it is revocable, with a CHECK refusing a row that is both accepted and cancelled), `broker_shipment_grants` (§12 *"shipment by shipment"*; a **partial UNIQUE** enforces one live grant per (shipment, partner) and revocation is a COLUMN so §15 can answer *"who could see this last March?"*), `broker_account_agreements` (§12 *"or account agreement"*; `shipper_id` **NOT NULL**, so §19's forbidden wildcard is unrepresentable). 7 indexes, 1 `updated_at` trigger. Two `security definer` functions: **`broker_can_read_shipment(uuid)`** (`authenticated`) — the ONE definition of the question, OR'ing M-71's party link with the two sharing shapes and evaluating the agreement window against `now()` — and **`verify_broker_partner(...)`** (**`service_role` only**), which moves the status and the `verified_by`/`verified_at` stamp together. RLS on all three tables with **no customer INSERT/UPDATE/DELETE policy of any kind**; `revoke all … from authenticated, anon`, then SELECT on the two grant tables and a **COLUMN-LEVEL** grant on `broker_partner_invites` that never names `token_hash` (naming it is a permission error for every session, staff included — M-76's 0023 idiom, and the ORDER matters: a table-level grant would override a column revoke). Four NEW SELECT-only policies on `shipments` / `shipment_events` / `shipment_parties` / `shipment_documents`, **added beside** 0018/0019/0024's four rather than replacing them — 0018's own instruction — so the effect is M-71's floor plus §12's two sharing shapes and nothing else. | Full script in [`docs/modules/M-81-broker-partner-access.md`](modules/M-81-broker-partner-access.md) §DB changes. **RESTORE 0018's `my_broker_partner_ids()` FIRST** (the verbatim body is in 0029's header) or every broker policy in the chain fails on a missing function. Then drop the 4 `broker shared read %` policies, the 5 policies on the new tables, the 2 functions, the 3 tables `cascade`, the 8 columns and the enum; finally `update profiles set role = 'carrier' where role = 'broker';`. **Destructive at the table drop** — it removes the record of which shipments were shared with which partner and under what agreement, so `pg_dump -t broker_shipment_grants -t broker_account_agreements -t broker_partner_invites` first. It fails **CLOSED**: with the tables gone a partner falls back to M-71's floor (`shipments.broker_partner_id` only), which is less access, never more. Roll back `src/lib/supabase/database.types.ts`, delete `src/lib/shipments/broker-{permissions,access}.ts`, `src/lib/validation/broker.ts`, `src/app/actions/broker-partners.ts`, the four broker components, the email template and the five routes, and revert `src/lib/{auth,memberships}.ts`, `PortalSidebar.tsx`, `ShipmentDocumentReview.tsx`, `ShipmentStaffDetailView.tsx` and the dispatcher detail page in the same deploy. 0017–0027 are untouched. |
 
    After applying, sanity-check the chain the same way CI does:
 
    ```bash
-   npm run test:rls     # rebuilds a throwaway DB from 0001→0027 + seed + fixtures
+   npm run test:rls     # rebuilds a throwaway DB from 0001→0029 + seed + fixtures
    ```
 
    **Then VERIFY the two private buckets exist and are private (M-77):**
@@ -365,14 +389,14 @@ sets them expecting an effect:
 
 ```bash
 npm run typecheck && npm run lint && npm run build   # module gate (CLAUDE.md)
-npm test                 # 1399 unit assertions
-npm run test:rls         # 671 RLS isolation assertions — see below
-npm run test:integration # 295 integration tests against local PG16 — see below
-npm run test:e2e         # 270 chromium tests against the production build
+npm test                 # 1462 unit assertions
+npm run test:rls         # 742 RLS isolation assertions — see below
+npm run test:integration # 329 integration tests against local PG16 — see below
+npm run test:e2e         # 283 chromium tests against the production build
 ```
 
 **`npm run test:rls` is a release gate, not an optional extra.** It rebuilds
-a throwaway database from `0001 → 0027` + seed + two/three-tenant fixtures and
+a throwaway database from `0001 → 0029` + seed + two/three-tenant fixtures and
 asserts that carrier A cannot reach carrier B, shipper A cannot reach shipper
 B (including *unclaimed* public quotes), anon reaches nothing but
 `company_settings` and published posts, and no session — staff or admin — can
@@ -407,7 +431,18 @@ table), that **carrier A reads nothing of carrier B's documents**, that a
 de-activated broker organization reads nothing, that a `pending` document and a
 `staff_only`-narrowed one reach nobody, that a **rate confirmation filed as
 `shipper` is refused by the database**, and that the two document write
-functions are refused `42501` to an admin session.
+functions are refused `42501` to an admin session. **Since M-81 it also
+asserts §12's broker-partner cluster**: that an ACTIVE but UNVERIFIED
+organization grants nothing while its member can still see the membership row
+(so the zero is verification, not a missing fixture), that a per-shipment grant
+and an account agreement each reach exactly one shipment and no other, that a
+**revoked** grant and an **expired or revoked** agreement stop access, that
+broker A still sees exactly its one linked shipment (M-81 widened nothing),
+that a partner cannot grant, invite, verify or un-revoke anything for itself,
+that `token_hash` is refused at COLUMN level to every session including staff,
+and — read straight out of the catalog — that `my_broker_partner_ids()`
+requires both clauses, that all four M-81 policies are SELECT-only, and that
+**no policy anywhere authorizes on `profiles.role = 'broker'`**.
 It needs a local PostgreSQL 16; it is deliberately **not** part of `npm test`, because vitest runs on
 placeholder env with no database and that property is load-bearing for CI.
 
@@ -423,7 +458,7 @@ the tracking directive's §27 integration tier, which
 [`docs/FINAL-IMPLEMENTATION-PLAN.md`](FINAL-IMPLEMENTATION-PLAN.md) §4 records
 as *"diagnosed absent, then dropped entirely"* by the extension audit and
 restores as M-83b; M-72 ships the lane plus the four tests it can prove today.
-It builds its own throwaway database (`0001 → 0026` + seed, **not** the RLS
+It builds its own throwaway database (`0001 → 0029` + seed, **not** the RLS
 fixtures — it creates shipments through the engine) and then runs vitest
 against it, so the real TypeScript transition engine drives the real SQL write
 path: create → assign carrier → create event → update status, idempotent
@@ -665,6 +700,76 @@ off. **Widening requires an admin** (PL403 otherwise), because `exact` is the
 setting §9 spends its warning paragraph on. The public `/track` page is capped
 at city/state at **every** level. Each change is journalled as a `staff_only`
 shipment event and an `audit_events` row.
+
+## 9c. Broker-partner onboarding (M-81)
+
+**Nothing to configure.** No environment variable, no `company_settings` key,
+no cron entry. `broker_partners` is empty in every environment on day one, and
+**there is no self-service path to broker access at all** — §3 forbids it, and
+`src/lib/validation/broker.ts` has no `role`, `verification_status` or `active`
+field for a browser to post.
+
+### Onboarding a partner, in order
+
+The order is not optional: each step is dark until the one before it is done.
+
+1. **Admin only** → `/portal/admin/brokers` → *Add a partner organization*.
+   Record what you checked: MC and DOT number, **authority grant date**, bond
+   provider and amount, and stated days to pay. The organization is created
+   **UNVERIFIED and inactive** and reads nothing.
+2. **Verify.** The table shows *"under 12 months old"* beside a recent
+   authority date — that is a FACT for you to weigh, not a verdict; nothing in
+   the product scores a partner. Verification stamps who and when, and writes a
+   `broker.verify` audit event.
+3. **Invite a user.** Enter their email. The invitation link is single-use,
+   expires in seven days, and exists **only** inside that email — the database
+   stores a SHA-256 hash, and `token_hash` cannot be read by any session
+   including yours (column-level grant). Cancel a pending invite from the same
+   row.
+4. **They accept** at `/broker-invite/<token>`, choosing a name and password
+   and nothing else. The organization and the role come from the invite row.
+5. **Share freight.** Either:
+   * *shipment by shipment* — open the shipment at
+     `/portal/admin/shipments/<id>` → **Broker partner access** → share. A
+     **dispatcher** can do this for shipments in their scope; sharing with an
+     unverified partner is refused rather than silently granting nothing.
+   * *account agreement* — `/portal/admin/brokers` → **Account agreement**:
+     one partner, one shipper account, an optional end date. Revoking it closes
+     every shipment it covered at once.
+
+### Revoking access, fastest first
+
+| Need | Do this | Effect |
+|---|---|---|
+| One shipment, one partner | *Revoke* on the shipment's Broker partner access card | That shipment only, immediately |
+| Everything under one agreement | *Revoke* the agreement | Every shipment of that shipper, immediately |
+| **Everything, everywhere, now** | *Suspend* the organization | Every shipment, document, timeline and contact — one write, because the rule lives inside `my_broker_partner_ids()` |
+
+### Smoke test (needs `brokerage_active` true and one real shipment)
+
+1. Create a partner organization. **Before verifying**, invite yourself at a
+   second address and accept. Sign in: `/portal/broker` must say *"Your
+   organization is awaiting verification"* — **not** an empty table.
+2. Verify the organization. Reload: the page now says nothing has been shared
+   yet.
+3. Share one shipment from its dispatcher page. Reload `/portal/broker`: **that
+   shipment and no other.** Open it and confirm — status, timeline, ETA,
+   approved contacts, and any APPROVED BOL or POD.
+4. **Confirm the deny list on the same screen**: no rate, no customer price, no
+   margin, no carrier name (only *"A carrier is assigned"*), no rate
+   confirmation and no invoice in the document list. The *"What this portal
+   never shows"* card states it in the partner's own language.
+5. Revoke the share. Reload: the shipment is gone and its URL is a **404**, not
+   a 403.
+6. Suspend the organization. Reload: back to the unverified state, everywhere.
+7. Check `/portal/admin/security`: `broker.partner_create`, `broker.verify`,
+   `broker.invite`, `broker.invite_accepted`, `broker.grant_shipment`,
+   `broker.revoke_shipment` and `broker.suspend` are all journalled, and **no
+   entry contains a token**.
+
+**If step 1 shows an empty shipment table instead of the awaiting-verification
+card**, stop: `my_broker_partner_ids()` is not verification-gated, which means
+0029 did not fully apply. Re-check it before sharing anything.
 
 ## 10. GA4 + Search Console
 
@@ -1053,6 +1158,25 @@ effect site-wide immediately — **no deploy**.
          `https://example.test/t/opaque-abc`: accepted, the shipment moves to
          `link` mode, and **no customer surface shows the link**. Revoke it —
          the shipment returns to `manual` and to the milestone label.
+
+- [ ] **Broker-partner smoke test (M-81).** Needs `brokerage_active` **true**
+      and one real shipment. Full walkthrough in **§9c**; the four checks that
+      block launch:
+      1. Invite yourself into an **unverified** organization and sign in.
+         `/portal/broker` must say *"Your organization is awaiting
+         verification"*. **An empty shipment table here means
+         `my_broker_partner_ids()` is not verification-gated — stop, 0029 did
+         not fully apply.**
+      2. Verify, share ONE shipment, reload. **That shipment and no other.**
+         Open a second shipment's id by hand: **404, never 403.**
+      3. On the detail page confirm §12's deny list holds: **no rate, no
+         customer price, no margin, no carrier name** (only *"A carrier is
+         assigned"*), and the document list carries the approved BOL/POD and
+         **not** the rate confirmation or the invoice. If any of those appear,
+         stop and do not go live.
+      4. Revoke the share → the shipment is gone and its URL 404s. Suspend the
+         organization → everything is gone at once. Both are journalled in
+         `/portal/admin/security`, and **no audit entry contains a token**.
 
 - [ ] **Notifications smoke test (M-79).** Needs `brokerage_active` **true**,
       `CRON_SECRET` and `RESEND_API_KEY` set, and a shipment with a shipper

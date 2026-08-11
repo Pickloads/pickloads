@@ -29,6 +29,11 @@ import {
   type StaffDocumentView,
 } from "@/components/portal/ShipmentDocumentReview";
 import {
+  BrokerShipmentShare,
+  type BrokerGrantView,
+  type BrokerPartnerOption,
+} from "@/components/portal/BrokerShipmentShare";
+import {
   getStaffDocumentUrlAction,
   reviewDocumentAction,
   staffUploadDocumentAction,
@@ -387,6 +392,11 @@ export interface ShipmentStaffDetailProps {
   connectionsFailed: boolean;
   /** M-80 — the adapter contract table. Every entry is `connected: false`. */
   providers: readonly ProviderStatus[];
+  /** M-81 — §12's per-shipment grants on this shipment, with partner names. */
+  brokerGrants: readonly BrokerGrantView[];
+  /** M-81 — VERIFIED partner organizations only; sharing with any other grants nothing. */
+  brokerPartners: readonly BrokerPartnerOption[];
+  brokerGrantsFailed: boolean;
 }
 
 /**
@@ -673,6 +683,18 @@ export function ShipmentStaffDetailView(props: ShipmentStaffDetailProps) {
         uploadAction={staffUploadDocumentAction}
         reviewAction={reviewDocumentAction}
         downloadAction={getStaffDocumentUrlAction}
+      />
+
+      {/* M-81 — §12's "shipment by shipment" grant, where the shipment is.
+          Placed directly after Documents on purpose: the question a dispatcher
+          asks when they share a load is "can the partner see the BOL?", and
+          the two answers should be next to each other. */}
+      <span className="psec">Broker partner access</span>
+      <BrokerShipmentShare
+        shipmentId={shipment.id}
+        partners={props.brokerPartners}
+        grants={props.brokerGrants}
+        failed={props.brokerGrantsFailed}
       />
 
       {/* M-78 — §21's register, with the open/resolve lifecycle §14 asked for

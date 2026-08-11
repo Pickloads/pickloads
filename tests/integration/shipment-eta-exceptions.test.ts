@@ -226,8 +226,13 @@ beforeAll(() => {
       (${lit(SHIPPER_B)}, 'M78 Other Shipper Inc') on conflict do nothing`);
   exec(`insert into carriers (id, company_name, active) values
       (${lit(CARRIER_A)}, 'M78 Carrier A', true) on conflict do nothing`);
-  exec(`insert into broker_partners (id, company_name, active) values
-      (${lit(BROKER)}, 'M78 Broker Partner', true) on conflict do nothing`);
+  // M-81 (0029) narrowed `my_broker_partner_ids()` to require `active` AND
+  // `verification_status = 'verified'` (§12 "verified"). The fixture states
+  // both rather than relying on 0029's backfill, which runs against an empty
+  // table at migration time.
+  exec(`insert into broker_partners (id, company_name, active, verification_status)
+      values (${lit(BROKER)}, 'M78 Broker Partner', true, 'verified')
+      on conflict do nothing`);
   exec(`insert into shipper_memberships (shipper_id, profile_id, role) values
       (${lit(SHIPPER)}, ${lit(SHIPPER_USER)}, 'owner'),
       (${lit(SHIPPER_B)}, ${lit(SHIPPER_B_USER)}, 'owner') on conflict do nothing`);

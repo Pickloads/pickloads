@@ -442,6 +442,22 @@ const PROVIDER_CONNECTIONS: TrackingProviderConnectionRow[] = [
 /** The real registry, so the contract table is the shipped one. */
 const PROVIDER_STATUSES = providerStatuses();
 
+/** M-81 — §12's per-shipment grant, as the dispatcher page resolves it. */
+const BROKER_GRANTS = [
+  {
+    id: "grant-1",
+    broker_partner_id: "bp-1",
+    company_name: "Probe Partners LLC",
+    granted_at: "2026-09-02T12:00:00.000Z",
+    note: "Customer's 3PL",
+  },
+];
+
+const BROKER_PARTNERS = [
+  { id: "bp-1", company_name: "Probe Partners LLC" },
+  { id: "bp-2", company_name: "Second Partners Inc" },
+];
+
 /**
  * M-80 — the staff detail view now embeds `LocationPanel`, which is shared
  * verbatim with `/track` and the shipper portal and therefore reads the
@@ -489,6 +505,13 @@ function detail(
         connections={PROVIDER_CONNECTIONS}
         connectionsFailed={false}
         providers={PROVIDER_STATUSES}
+        /* M-81 — §12's per-shipment sharing. One LIVE grant and one verified
+         partner by default, so both halves of the card (the table and the
+         share form) are non-vacuous: with empty arrays every assertion about
+         them would be true whether or not they rendered. */
+        brokerGrants={BROKER_GRANTS}
+        brokerPartners={BROKER_PARTNERS}
+        brokerGrantsFailed={false}
         {...overrides}
       />
     </NextIntlClientProvider>

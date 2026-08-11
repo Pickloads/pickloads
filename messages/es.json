@@ -747,7 +747,9 @@
     "your_shipper_portal_tracks_every_quote_request_and_rate": "Tu portal de shipper sigue cada solicitud de cotización y tarifa — y las cotizaciones que ya pediste con este correo se vinculan automáticamente.",
     "your_signed_agreement_appears_here_for_download_once_it": "Tu acuerdo firmado aparecerá aquí para descargar en cuanto esté ejecutado.",
     "your_signed_copy_hasn_t_been_filed_here_yet_it_s_in_your": "Tu copia firmada aún no está archivada aquí — está en el correo de la solicitud de firma, o pídela a soporte y la subimos.",
-    "zip": "Código postal"
+    "zip": "Código postal",
+    "partner_portal": "Portal de socios",
+    "shared_shipments": "Envíos compartidos"
   },
   "shipment": {
     "status": {
@@ -1172,6 +1174,45 @@
       "coordinates": "{lat}, {lon}",
       "speed": "{mph} mph",
       "more_readings": "Hay {count} actualizaciones de ubicación más antiguas registradas."
+    },
+    "broker": {
+      "crumb": "Portal de socios",
+      "title": "Envíos compartidos",
+      "intro": "Envíos que PickLoads ha compartido con tu organización. Estado, cronología, documentos y contactos aprobados — nada sobre tarifas, registros del carrier ni facturación.",
+      "no_org": "Tu cuenta aún no está vinculada a una organización socia. Habla con tu administrador de PickLoads — el acceso de socios es solo por invitación.",
+      "unverified_title": "Tu organización está pendiente de verificación",
+      "unverified_body": "Un administrador de PickLoads debe verificar tu organización antes de que aparezcan envíos aquí. Revisamos autoridad, fianza y referencias primero — no es automático. Llama al (908) 404-5373 si lo necesitas hoy.",
+      "gate_notice": "El acceso de socios comienza cuando nuestra autoridad de broker FMCSA y la fianza BMC-84 estén activas. Aún no se ha compartido nada con tu organización.",
+      "empty": "Aún no se ha compartido ningún envío con tu organización.",
+      "empty_filtered": "Ningún envío compartido coincide con esos filtros.",
+      "failed": "No pudimos cargar tus envíos. Recarga la página o llama al (908) 404-5373.",
+      "truncated": "Solo se listan los envíos más recientes. Usa los filtros para acotar la lista o llama al (908) 404-5373.",
+      "lane": "Ruta",
+      "open": "Abrir",
+      "back": "Todos los envíos compartidos",
+      "filters_legend": "Filtrar envíos compartidos",
+      "filter_apply": "Aplicar",
+      "showing": "Mostrando {from}–{to} de {total}",
+      "prev": "Más recientes",
+      "next": "Más antiguos",
+      "summary_title": "Detalles del envío",
+      "timeline_title": "Progreso",
+      "timeline_empty": "Aún no se ha compartido nada sobre este envío.",
+      "timeline_more": "Ver más antiguos",
+      "timeline_reset": "Volver a lo más reciente",
+      "contacts_title": "Contactos aprobados",
+      "contacts_empty": "No se ha aprobado ningún contacto para compartir en este envío.",
+      "contacts_withheld": "Algunos datos de contacto no se comparten. Llama al (908) 404-5373 y despacho hará el enlace.",
+      "carrier_assigned": "Hay un carrier asignado",
+      "carrier_pending": "Aún no hay carrier asignado",
+      "access_title": "Cómo tienes acceso",
+      "access_link": "Tu organización es parte de este envío.",
+      "access_grant": "Este envío se compartió con tu organización el {date}.",
+      "access_agreement": "Cubierto por tu acuerdo de cuenta, activo desde el {date}.",
+      "access_reference": "Referencia: {reference}",
+      "withheld_title": "Lo que este portal nunca muestra",
+      "withheld_body": "Los paquetes y seguros del carrier, la facturación del shipper, nuestra comisión y nuestro margen no se muestran aquí ni forman parte de tu acceso. Es por diseño, no es un estado de carga.",
+      "docs_blurb": "Conocimientos de embarque y comprobantes de entrega de este envío, una vez revisados por nuestro equipo. Las confirmaciones de tarifa, cotizaciones y facturas no se comparten."
     }
   }
 }
