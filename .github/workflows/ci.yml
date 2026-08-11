@@ -1,0 +1,191 @@
+# =============================================================================
+# PickLoads — continuous integration
+# =============================================================================
+#
+# WHY THIS EXISTS. Until now this project had four green test lanes and nothing
+# that ran them. That is precisely how it lost track of its own state twice:
+# an audit concluded work was missing while the code sat in an unopened
+# archive, and 371 browser tests existed for weeks without a single one ever
+# executing. Green lanes nobody runs are documentation, not verification.
+#
+# WHAT IT GUARANTEES. Every push to `main` and every pull request runs the same
+# gate CLAUDE.md defines as "done": typecheck, lint, unit, RLS, integration,
+# e2e and a production build — plus `npm audit`, which the stack is required to
+# keep at zero.
+#
+# NO SECRETS ARE USED, AND NONE ARE NEEDED. Every lane is secretless by
+# design:
+#   * `npm test` runs on placeholder env with no database (M-40 doctrine);
+#   * the RLS and integration lanes build a THROWAWAY database from the
+#     migration chain in a service container — they never touch a real project;
+#   * the e2e lane loads `.env.e2e`, which is committed and contains only
+#     placeholders chosen to exercise the graceful-degradation paths.
+# If a future lane genuinely needs a credential, add it as a repository secret
+# and reference it here — never inline, and never a production value.
+#
+# JOB SHAPE. Three jobs rather than one, so a failure says WHERE it failed
+# without reading a log: `static` (fast, no services), `database` (needs
+# Postgres), `browser` (needs a build + Chromium). They run in parallel.
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main, final-website-production]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # A newer push supersedes an in-flight run on the same ref. The default
+  # branch is exempt: main's history should show a result for every commit.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  # Node 24 is what the project is developed against.
+  NODE_VERSION: "24"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  static:
+    name: Typecheck · Lint · Unit · Build · Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      # `npm ci` not `npm install`: the lockfile is the contract, and a CI run
+      # that silently resolves a different tree is not testing what ships.
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # 1,638 assertions, no database, no network, no secrets.
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      # CLAUDE.md requires this to stay at zero. `--audit-level=low` means any
+      # advisory at all fails the job, which is the point.
+      - name: Dependency audit
+        run: npm audit --audit-level=low
+
+  # ---------------------------------------------------------------------------
+  database:
+    name: RLS · Integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # PostgreSQL 16 — the version every migration and both SQL suites are
+    # written and validated against.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      # Trust auth is not available against the official image, so the suites
+      # authenticate with the throwaway container's password. It guards nothing
+      # that exists after the job ends.
+      PGPASSWORD: postgres
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      # The runner image ships a psql client, but not necessarily 16. Both
+      # suites shell out to `psql`, so pin the client to the server's major.
+      - name: Install PostgreSQL 16 client
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client-16
+          psql --version
+
+      - name: Install
+        run: npm ci
+
+      # Rebuilds a throwaway database from 00_shim -> 0001..0030 -> seed ->
+      # fixtures, then runs 806 assertions as five different Postgres roles.
+      # A failure here is a security regression, not a test nuisance.
+      - name: RLS isolation suite
+        run: npm run test:rls
+
+      # 369 tests: the real exported functions against the real schema.
+      - name: Integration suite
+        run: npm run test:integration
+
+  # ---------------------------------------------------------------------------
+  browser:
+    name: E2E · Responsive · Accessibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Stock Playwright resolution. The config no longer hard-pins a binary;
+      # PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH exists for images that provision
+      # their own and is deliberately NOT set here — this job is the proof that
+      # the default path works on an ordinary runner.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      # MUST be build:e2e, not build. NEXT_PUBLIC_* is inlined at build time,
+      # so building without `.env.e2e` serves a bundle that disagrees with the
+      # server the tests then talk to.
+      - name: Build with the e2e environment
+        run: npm run build:e2e
+
+      # 371 tests: 12 responsive breakpoints, WCAG 2.2 AA axe scans, and every
+      # named flow. globalSetup regenerates its own harness fixtures first.
+      - name: E2E suite
+        run: npm run test:e2e
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failures
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
