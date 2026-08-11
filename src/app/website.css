@@ -92,6 +92,26 @@
 .light .state h3{color:var(--ink)}
 .light .state p{color:var(--slate-body)}
 
+/* ── A dark card inside a light section ──────────────────────────────────
+   `.svc` carries its own dark background (--asphalt2), so it stays a dark
+   card wherever it sits. But v4.css has `.light p.sub{color:#4a545b}` for
+   light sections, and that override lands INSIDE the dark card — dark text on
+   a dark panel. axe reported it as a serious contrast failure the moment the
+   Dispatch Services page put a `.svc` on a light section.
+
+   Restated rather than forked, the M-74 pattern: the card keeps the colour
+   its own background requires.
+
+   NOTE ON THE VALUE: the literal, not var(--fog). v4.css defines only eleven
+   :root variables (--asphalt, --asphalt2, --paper, --amber, --amber-deep,
+   --green, --green-bright, --steel, --ink, --line, --line-dark) — "fog" is a
+   Tailwind @theme token named --color-fog and is NOT in that set. The first
+   attempt used var(--fog), which resolves to nothing, so the declaration was
+   invalid, the light-section rule kept winning, and axe reported the identical
+   failure a second time. #a9b2b8 is the value v4.css already uses on line 42;
+   no new colour enters the system. */
+.light .svc p.sub{color:#a9b2b8}
+
 /* ── Responsive. LAST in this file, mirroring the M-59 ordering rule. ───── */
 @media (max-width:1100px){
   .foot-cols{grid-template-columns:repeat(4,minmax(0,1fr))}

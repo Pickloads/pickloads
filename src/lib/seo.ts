@@ -34,6 +34,10 @@ export const PUBLIC_ROUTES = [
      conversion page missing from the sitemap is a conversion page search
      engines have to guess at. Its own e2e suite asserts it is listed. */
   "/request-a-quote",
+  /* The dispatch pillar's hub. The equipment and state pages remain and are
+     unchanged; this is the page they link into, and the one that ranks for
+     the service itself rather than for a lane or a trailer type. */
+  "/dispatch-services",
   "/become-a-carrier",
   "/start-your-trucking-company",
   "/truck-dispatch",

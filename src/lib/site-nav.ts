@@ -63,9 +63,9 @@ export interface NavGroup {
 export const NAV_GROUPS: readonly NavGroup[] = [
   {
     label: "Services",
-    href: "/truck-dispatch",
+    href: "/dispatch-services",
     entries: [
-      { label: "Dispatch Services", href: "/truck-dispatch", ships: true },
+      { label: "Dispatch Services", href: "/dispatch-services", ships: true },
       {
         label: "Freight Brokerage",
         href: "/shippers",
@@ -147,7 +147,14 @@ export const PRIMARY_CTA: NavEntry = {
   ships: true,
 };
 
-/** Secondary, carrier-side. Points at the carrier acquisition page. */
+/**
+ * Secondary, carrier-side.
+ *
+ * Points at `/become-a-carrier`, which hosts the real `CarrierWizard` —
+ * company info, documents, agreement, portal. Not at the marketing hub: a
+ * call to action labelled "Start Dispatching" that lands on another marketing
+ * page has not started anything.
+ */
 export const SECONDARY_CTA: NavEntry = {
   label: "Start Dispatching",
   href: "/become-a-carrier",
@@ -165,9 +172,9 @@ export const SECONDARY_CTA: NavEntry = {
 export const FOOTER_COLUMNS: readonly NavGroup[] = [
   {
     label: "Services",
-    href: "/truck-dispatch",
+    href: "/dispatch-services",
     entries: [
-      { label: "Dispatch Services", href: "/truck-dispatch", ships: true },
+      { label: "Dispatch Services", href: "/dispatch-services", ships: true },
       {
         label: "Freight Brokerage",
         href: "/shippers",

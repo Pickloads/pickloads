@@ -35,6 +35,7 @@ const PAGES = [
    * shape of a real token. */
   `/driver/update/${"A".repeat(43)}`,
   "/request-a-quote",
+  "/dispatch-services",
   "/shippers",
   "/become-a-carrier",
   "/start-your-trucking-company",
