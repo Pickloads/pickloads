@@ -569,3 +569,58 @@ insert into shipment_eta_history (
   ('ffffffff-ffff-ffff-ffff-ffffffff0b01', 'pickup',
    null, now() + interval '1 day', 'manual', 'high', null,
    null, null, '00000000-0000-0000-0000-0000000000e1', now() - interval '5 hours');
+
+-- ---------------------------------------------------------------------------
+-- M-79 (0026) — §17's notification queue, attempt ledger and suppressions.
+--
+-- Shaped so every customer zero in §15 of the isolation suite is a POLICY
+-- result: shipment A's shipper OWNS the shipment these rows are about, and
+-- still reads nothing from the queue. Sentinels are planted in `last_error`
+-- and in the payload so "the customer cannot read the machinery" is asserted
+-- against a string that is genuinely there for staff.
+-- ---------------------------------------------------------------------------
+
+insert into shipment_notification_queue (
+  id, shipment_id, notification_event, channel, recipient_profile_id,
+  idempotency_key, payload, state, attempts, available_at, sent_at,
+  last_error, provider_message_id
+) values
+  -- SENT: the happy path, with a provider response recorded.
+  ('fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a01', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'picked_up', 'email', '00000000-0000-0000-0000-0000000000c1',
+   'm79:picked_up:ffffffff-ffff-ffff-ffff-ffffffff0a01:once:email',
+   '{"tracking_number":"PL-2026-000101"}'::jsonb,
+   'sent', 1, now() - interval '2 hours', now() - interval '2 hours',
+   null, 'prov_fixture_0a01'),
+  -- PENDING after a failure: the retry state §17 requires.
+  ('fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a02', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'delivered', 'email', '00000000-0000-0000-0000-0000000000c1',
+   'm79:delivered:ffffffff-ffff-ffff-ffff-ffffffff0a01:once:email',
+   '{"tracking_number":"PL-2026-000101"}'::jsonb,
+   'pending', 2, now() + interval '5 minutes', null,
+   'SENTINEL-QUEUE-ERROR-provider-said-no-do-not-leak', null),
+  -- The in-app twin of the same fact, on its own key.
+  ('fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a03', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'delivered', 'in_app', '00000000-0000-0000-0000-0000000000c1',
+   'm79:delivered:ffffffff-ffff-ffff-ffff-ffffffff0a01:once:in_app',
+   '{"tracking_number":"PL-2026-000101"}'::jsonb,
+   'sent', 1, now() - interval '1 hour', now() - interval '1 hour', null, null),
+  -- Shipment B, so every cross-tenant zero is a policy result too.
+  ('fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0b01', 'ffffffff-ffff-ffff-ffff-ffffffff0b01',
+   'in_transit', 'email', '00000000-0000-0000-0000-0000000000c2',
+   'm79:in_transit:ffffffff-ffff-ffff-ffff-ffffffff0b01:once:email',
+   '{"tracking_number":"PL-2026-000102"}'::jsonb,
+   'pending', 0, now(), null, null, null);
+
+insert into shipment_notification_attempts (
+  queue_id, attempt_no, outcome, provider_message_id, error
+) values
+  ('fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a01', 1, 'sent', 'prov_fixture_0a01', null),
+  ('fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a02', 1, 'failed', null,
+   'SENTINEL-ATTEMPT-ERROR-provider-said-no-do-not-leak'),
+  ('fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a02', 2, 'failed', null,
+   'SENTINEL-ATTEMPT-ERROR-provider-said-no-again-do-not-leak'),
+  ('fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a03', 1, 'sent', null, null);
+
+insert into notification_suppressions (email, scope, reason) values
+  ('dock@shipper-a.test', 'shipment', 'fixture: customer opt-out via token');

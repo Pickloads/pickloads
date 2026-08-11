@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { lookupTracking } from "@/app/actions/public-tracking";
 import { initialTrackingState } from "@/lib/shipments/public-tracking-state";
@@ -33,9 +34,33 @@ import { TrackingResult } from "@/components/tracking/TrackingResult";
  * hidden state to reset, no "start over" button that has to remember what to
  * clear, and a second lookup is one edit away. `.bigform` is the V4 vocabulary
  * every other public form on this site uses.
+ *
+ * ── M-79: `?number=` PREFILL, AND ONLY THAT ───────────────────────────────
+ *
+ * §17 requires every customer notification to carry a tracking link. The link
+ * is `/track?number=PL-YYYY-######`, and this is where it lands.
+ *
+ * Read CLIENT-SIDE, through `useSearchParams`, so the page itself stays a
+ * static prerendered shell — the property that makes §25's *"never cache
+ * private shipment data publicly"* true by construction (the shell contains no
+ * shipment). A server-side `searchParams` read would make the whole route
+ * dynamic to prefill one text input.
+ *
+ * ONLY THE FIRST FACTOR IS PREFILLED, and no code path here can change that:
+ * the second input has no default, no query parameter is consulted for it, and
+ * M-73's threat model is explicit about why — a URL carrying the ZIP or access
+ * code puts BOTH factors into a location bar, a browser history, a `Referer`
+ * header and every corporate proxy log between the customer and us. An email
+ * is forwarded, archived and machine-scanned far more often than a page is
+ * visited, which makes the link the worst place of all to carry a secret.
+ *
+ * A prefilled number still submits nothing on its own: `required` on both
+ * inputs, Turnstile, the rate limit and the constant-time comparison of the
+ * second value are all unchanged and all server-side.
  */
 export function TrackingLookup() {
   const t = useTranslations();
+  const prefilledNumber = useSearchParams().get("number") ?? "";
   const [state, formAction, pending] = useActionState(
     lookupTracking,
     initialTrackingState,
@@ -60,6 +85,7 @@ export function TrackingLookup() {
                 autoComplete="off"
                 spellCheck={false}
                 placeholder="PL-2026-000458"
+                defaultValue={prefilledNumber}
                 required
                 aria-describedby="tk-number-hint tk-err"
               />

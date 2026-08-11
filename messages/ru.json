@@ -1141,6 +1141,23 @@
       "field_type": "Тип документа",
       "field_file": "Файл",
       "field_hint": "PDF, JPG, PNG или HEIC · до 10 МБ"
+    },
+    "optout": {
+      "meta_title": "Shipment notification preferences — PickLoads",
+      "eyebrow": "Shipment notifications",
+      "title": "Shipment update emails",
+      "intro": "Turn off the emails we send as your freight moves. Your shipments keep updating in the portal and on the tracking page.",
+      "invalid": "This link isn't complete or is no longer valid. Email support@pickloads.com and we'll update your preferences by hand — no account needed.",
+      "unavailable": "We can't reach your preferences right now, so nothing was changed. Try again in a few minutes, or email support@pickloads.com.",
+      "confirm": "Confirm below and we'll stop emailing you shipment updates for this address. This takes effect immediately.",
+      "already": "Shipment update emails are already off for this address — nothing more to do.",
+      "stop_cta": "Yes, stop these emails",
+      "stopping": "Updating…",
+      "stopped": "✓ STOPPED — We will not email you shipment updates at this address.",
+      "resume_cta": "Turn shipment emails back on",
+      "resuming": "Updating…",
+      "resumed": "✓ RESUMED — Shipment update emails are on again for this address.",
+      "scope_note": "This only covers shipment update emails. Freight Insights (our newsletter) has its own unsubscribe link, and account, billing and support emails you asked for keep working."
     }
   }
 }

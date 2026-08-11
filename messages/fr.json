@@ -1141,6 +1141,23 @@
       "field_type": "Type de document",
       "field_file": "Fichier",
       "field_hint": "PDF, JPG, PNG ou HEIC · 10 Mo maxi"
+    },
+    "optout": {
+      "meta_title": "Préférences de notification d'envoi — PickLoads",
+      "eyebrow": "Notifications d'envoi",
+      "title": "E-mails de suivi d'envoi",
+      "intro": "Désactivez les e-mails que nous envoyons au fil du transport. Vos envois continuent d'être mis à jour dans le portail et sur la page de suivi.",
+      "invalid": "Ce lien est incomplet ou n'est plus valide. Écrivez à support@pickloads.com et nous mettrons vos préférences à jour manuellement — sans compte.",
+      "unavailable": "Nous ne pouvons pas accéder à vos préférences pour l'instant, rien n'a été modifié. Réessayez dans quelques minutes ou écrivez à support@pickloads.com.",
+      "confirm": "Confirmez ci-dessous et nous cesserons de vous envoyer les e-mails de suivi d'envoi à cette adresse. Effet immédiat.",
+      "already": "Les e-mails de suivi d'envoi sont déjà désactivés pour cette adresse — rien de plus à faire.",
+      "stop_cta": "Oui, arrêter ces e-mails",
+      "stopping": "Mise à jour…",
+      "stopped": "✓ ARRÊTÉ — Nous ne vous enverrons plus d'e-mails de suivi d'envoi à cette adresse.",
+      "resume_cta": "Réactiver les e-mails d'envoi",
+      "resuming": "Mise à jour…",
+      "resumed": "✓ RÉACTIVÉ — Les e-mails de suivi d'envoi sont de nouveau actifs pour cette adresse.",
+      "scope_note": "Cela ne concerne que les e-mails de suivi d'envoi. Freight Insights (notre infolettre) a son propre lien de désabonnement, et les e-mails de compte, de facturation et de support que vous avez demandés continuent de fonctionner."
     }
   }
 }

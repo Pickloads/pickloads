@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { PageHero } from "@/components/ui/PageHero";
@@ -84,7 +85,18 @@ export default async function TrackPage({
             </div>
           )}
 
-          <TrackingLookup />
+          {/*
+            M-79: `TrackingLookup` now reads `?number=` (the tracking link
+            §17 puts in every notification email) through `useSearchParams`.
+            Next.js requires a Suspense boundary around a client component
+            that does so on a statically rendered route — and that boundary is
+            what KEEPS this route static, which is the property §25's "never
+            cache private shipment data publicly" rests on: the cacheable
+            shell contains no shipment, only a form.
+          */}
+          <Suspense fallback={null}>
+            <TrackingLookup />
+          </Suspense>
 
           <section className="track-section" aria-labelledby="track-help">
             <h2 id="track-help">{t("page.help_title")}</h2>

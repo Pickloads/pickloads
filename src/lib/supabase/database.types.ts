@@ -366,6 +366,92 @@ type UserPreferencesRow = {
   email_load_updates: boolean;
   email_document_reviews: boolean;
   email_marketing: boolean;
+  /** M-79 (0026) — §17 per-channel opt-out for shipment notifications. */
+  email_shipment_updates: boolean;
+  inapp_shipment_updates: boolean;
+  /** M-79 (0026) — single-purpose credential for /notifications/unsubscribe. */
+  notification_token: string;
+  updated_at: string;
+}
+
+/* ---------- M-79 (0026) — shipment notifications ---------- */
+
+/** §17's eleven customer notifications. Mirrors `notification-rules.ts`. */
+type ShipmentNotificationEventDb =
+  | "quote_accepted"
+  | "carrier_assigned"
+  | "driver_dispatched"
+  | "picked_up"
+  | "in_transit"
+  | "delay_reported"
+  | "delivery_eta_updated"
+  | "arrived_at_delivery"
+  | "delivered"
+  | "pod_available"
+  | "invoice_available";
+
+type NotificationChannelDb = "email" | "in_app";
+
+type NotificationDeliveryStateDb =
+  | "pending"
+  | "sending"
+  | "sent"
+  | "suppressed"
+  | "dead";
+
+type ShipmentNotificationRuleRow = {
+  id: string;
+  notification_event: ShipmentNotificationEventDb;
+  source_event_type: ShipmentEventType;
+  match_status: ShipmentStatus | null;
+  match_metadata: Record<string, unknown>;
+  require_customer_visible: boolean;
+  dedupe_scope: "per_shipment" | "per_source";
+  created_at: string;
+}
+
+type ShipmentNotificationQueueRow = {
+  id: string;
+  shipment_id: string;
+  notification_event: ShipmentNotificationEventDb;
+  channel: NotificationChannelDb;
+  recipient_profile_id: string;
+  idempotency_key: string;
+  source_event_id: string | null;
+  payload: Record<string, unknown>;
+  state: NotificationDeliveryStateDb;
+  attempts: number;
+  max_attempts: number;
+  available_at: string;
+  locked_at: string | null;
+  sent_at: string | null;
+  last_error: string | null;
+  provider_message_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+type ShipmentNotificationAttemptRow = {
+  id: string;
+  queue_id: string;
+  attempt_no: number;
+  outcome: "sent" | "failed" | "suppressed" | "skipped";
+  provider_message_id: string | null;
+  error: string | null;
+  created_at: string;
+}
+
+type NotificationSuppressionRow = {
+  email: string;
+  scope: "shipment";
+  reason: string | null;
+  created_at: string;
+}
+
+type ShipmentNotificationWatermarkRow = {
+  id: boolean;
+  harvested_through: string;
+  last_run_at: string | null;
   updated_at: string;
 }
 
@@ -899,6 +985,58 @@ export type Database = {
         Update: Partial<AsRow<ShipmentExceptionRow>>;
         Relationships: [];
       };
+      /* M-79 (0026) — §17's notification infrastructure.
+       *
+       * All five are STAFF-READ at the table level and have NO write policy
+       * for any role: every write goes through the four `security definer`
+       * functions below, granted to `service_role` alone. The `Insert`/
+       * `Update` shapes are declared for completeness and are unreachable
+       * from `src/` — except `notification_suppressions`, which the tokenized
+       * opt-out writes through the admin client (it is the customer's own
+       * request, and it must work with no session at all). */
+      shipment_notification_rules: {
+        Row: ShipmentNotificationRuleRow;
+        Insert: Insertable<
+          ShipmentNotificationRuleRow,
+          "notification_event" | "source_event_type" | "dedupe_scope"
+        >;
+        Update: Partial<ShipmentNotificationRuleRow>;
+        Relationships: [];
+      };
+      shipment_notification_queue: {
+        Row: ShipmentNotificationQueueRow;
+        Insert: Insertable<
+          ShipmentNotificationQueueRow,
+          | "shipment_id"
+          | "notification_event"
+          | "channel"
+          | "recipient_profile_id"
+          | "idempotency_key"
+        >;
+        Update: Partial<ShipmentNotificationQueueRow>;
+        Relationships: [];
+      };
+      shipment_notification_attempts: {
+        Row: ShipmentNotificationAttemptRow;
+        Insert: Insertable<
+          ShipmentNotificationAttemptRow,
+          "queue_id" | "attempt_no" | "outcome"
+        >;
+        Update: Partial<ShipmentNotificationAttemptRow>;
+        Relationships: [];
+      };
+      shipment_notification_watermark: {
+        Row: ShipmentNotificationWatermarkRow;
+        Insert: Insertable<ShipmentNotificationWatermarkRow, "id">;
+        Update: Partial<ShipmentNotificationWatermarkRow>;
+        Relationships: [];
+      };
+      notification_suppressions: {
+        Row: NotificationSuppressionRow;
+        Insert: Insertable<NotificationSuppressionRow, "email">;
+        Update: Partial<NotificationSuppressionRow>;
+        Relationships: [];
+      };
       broker_partners: {
         Row: BrokerPartnerRow;
         Insert: Insertable<BrokerPartnerRow, "company_name">;
@@ -1263,6 +1401,65 @@ export type Database = {
       backfill_shipment_exceptions: {
         Args: Record<string, never>;
         Returns: number;
+      };
+
+      /* ---------- M-79 (0026) — §17's background notification path ----------
+       *
+       * All four are SECURITY DEFINER with EXECUTE granted to `service_role`
+       * only, and `src/lib/shipments/notification-queue.ts` is the ONLY caller
+       * in `src/`. Each exists because the operation is two-to-three writes
+       * that must be one transaction — the same argument M-72 made for the
+       * transition engine. */
+
+      /** Map new shipment_events (and shipper invoices) onto queue rows.
+       *  Idempotent: every insert conflicts against the unique idempotency
+       *  key. Returns `{scanned, enqueued, from, through}`. */
+      harvest_shipment_notifications: {
+        Args: { p_limit?: number; p_overlap?: string };
+        Returns: {
+          scanned: number;
+          enqueued: number;
+          from: string;
+          through: string;
+        };
+      };
+      /** Idempotent single enqueue. Returns `{id, deduped}` — §17's dedupe is
+       *  OBSERVABLE, the same doctrine as 0019's `replayed`. */
+      enqueue_shipment_notification: {
+        Args: {
+          p_shipment_id: string;
+          p_event: ShipmentNotificationEventDb;
+          p_channel: NotificationChannelDb;
+          p_recipient_profile_id: string;
+          p_idempotency_key: string;
+          p_payload?: Record<string, unknown>;
+          p_source_event_id?: string | null;
+        };
+        Returns: { id: string; deduped: boolean };
+      };
+      /** Claim due rows with `for update skip locked`, marking them `sending`
+       *  and counting the attempt. Two concurrent workers split the batch
+       *  rather than double-sending it. */
+      claim_shipment_notifications: {
+        Args: { p_limit?: number; p_lock_ttl?: string };
+        Returns: ShipmentNotificationQueueRow[];
+      };
+      /** Close one attempt: append the ledger row and move the queue row
+       *  (sent / suppressed / retry-with-backoff / dead) in ONE transaction. */
+      settle_shipment_notification: {
+        Args: {
+          p_id: string;
+          p_outcome: "sent" | "failed" | "suppressed" | "skipped";
+          p_provider_message_id?: string | null;
+          p_error?: string | null;
+          p_retry_after_seconds?: number | null;
+        };
+        Returns: {
+          id: string;
+          state: NotificationDeliveryStateDb;
+          attempts: number;
+          available_at: string;
+        };
       };
     };
   };

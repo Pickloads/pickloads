@@ -6,7 +6,22 @@ degrades gracefully when a secret is missing (dev warnings, honest pending
 states) — so a partial deploy never crashes, it just quietly disables the
 affected integration. **Production must have every var set.**
 
-*Last revised for M-78 (ETA architecture + exceptions/delays): migration
+*Last revised for M-79 (shipment notifications): migration **0026** added to
+the order-and-rollback table, the `0001 → 0026` chain, refreshed gate counts
+(1238 unit / 588 RLS / 263 integration / 264 e2e / 373 pages), a **SECOND
+CRON ENTRY** (`/api/cron/notifications`, every 5 minutes — §9 below), and a
+**notification smoke test**. **No new environment variable and no new
+`company_settings` key** — the worker reuses `CRON_SECRET`, and delivery
+reuses `RESEND_API_KEY` / `EMAIL_FROM`. Three operational notes worth reading
+before go-live: (1) **without `CRON_SECRET` the worker returns 503 and no
+shipment email is ever sent** — the queue still fills, so the backlog is
+recoverable, but nothing goes out until the secret is set; (2) 0026 is the
+first migration since 0005 to **touch a shipped table** — it ADDS three
+defaulted columns to `user_preferences`, drops nothing and changes no policy;
+(3) §17's eleventh notification, *invoice available*, is wired and will find
+**no rows** until M-96 ships shipper invoicing — that is the honest state, not
+a defect.
+Previously revised for M-78 (ETA architecture + exceptions/delays): migration
 **0025** added to the order-and-rollback table, the `0001 → 0025` chain,
 refreshed gate counts (1148 unit / 552 RLS / 222 integration / 253 e2e /
 368 pages), a **one-command backfill an operator can safely re-run**, and an
@@ -112,6 +127,8 @@ region `us-east-1` (closest to NJ ops). For **each** project, in order:
    | 0023 | `0023_driver_update_tokens.sql` | **M-76.** Enum `driver_token_outcome`; `shipment_driver_tokens` (the platform's first bearer credential — stores an **HMAC** of the token under `DRIVER_TOKEN_SECRET` and never the token; `expires_at` NOT NULL so a permanent link cannot exist) and `shipment_driver_token_access` (append-only ledger that doubles as the rate limiter's memory, so "rate limited" and "audit logged" are ONE write); 6 indexes; `trg_driver_tokens_immutable` (shipment/carrier/hash frozen, revocation one-way) and `trg_driver_token_access_append_only`; RLS + 3 policies, **no anon policy** even though the driver page is anonymous; **the repo's first COLUMN-level privilege revoke** — `token_hash` is unreadable by `authenticated` and `anon`; 4 `security definer` functions (`issue_shipment_driver_token`, `revoke_shipment_driver_token`, `redeem_shipment_driver_token`, `set_driver_token_consent`) with **EXECUTE granted to `service_role` only** | Full script in [`docs/modules/M-76-carrier-driver-updates.md`](modules/M-76-carrier-driver-updates.md) §DB changes. Drop the 3 policies, disable RLS, drop the 4 functions (signatures in the doc), drop each trigger **before** its table, then the 2 trigger functions, the 2 tables `cascade`, then the enum. **Destructive** — it drops every issued driver link and the entire record of who presented one; `pg_dump -t shipment_driver_tokens -t shipment_driver_token_access` first. Roll back `src/lib/supabase/database.types.ts`, delete `src/lib/shipments/driver-*.ts` and the `/driver/update/[token]` route in the same deploy; the failure mode if you don't is **closed** (an unreachable redeem is an "unavailable" refusal, never an unlogged grant). **The carrier surface survives this rollback** — `/portal/carrier/shipments` reads only `shipments` and `shipment_events`; remove the driver-link block from `CarrierShipmentDetailView` and the two link actions and §13's status/ETA/exception updates keep working. 0017–0022 are untouched. |
    | 0024 | `0024_shipment_documents.sql` | **M-77.** The private **`shipment-docs` bucket** (created by the migration itself — `public = false`, 10 MB, pdf/jpeg/png/heic); `shipment_document_audiences` (the §16 document-type → audience MATRIX as 22 rows, with CHECKs forbidding a `public` or `staff_only` cell); `shipment_documents` (4 CHECKs incl. `(status='approved') = (approved_at is not null)` and a path-prefix constraint; `storage_path` unique); 3 indexes (one partial, serving §20's POD lookup); `trg_shipment_documents_immutable` (what a document IS cannot change → PL409) and `trg_shipment_documents_visibility` (a row's band may NARROW, never widen → PL422); RLS + 4 policies (staff/shipper/carrier/**broker**), **no customer write policy** and a `revoke all … from authenticated, anon` before the SELECT grant, because Supabase's default privileges hand new tables full DML; 4 `security definer` functions — `shipment_document_reaches_audience` (`authenticated`), `add_shipment_document` + `review_shipment_document` (**`service_role` only**), `count_shipment_documents_awaiting_review` (`authenticated`, returns a COUNT and nothing else). **AND it REPLACES `shipment_transition_facts()` from 0019** — the one function in the chain a later migration was *instructed* to rewrite: 0019 shipped `approved_pod_document_id` as a literal `null` with the replacement SQL in the comment above it, addressed to M-77 by name. `pod_uploaded` becomes reachable, and only with an approved POD. | Full script in [`docs/modules/M-77-shipment-documents.md`](modules/M-77-shipment-documents.md) §Deployment. **THE ORDER MATTERS: re-run 0019's `create or replace function public.shipment_transition_facts(uuid)` block FIRST**, before dropping anything — it has the literal `null`, and doing it after the table is gone leaves every transition failing on a missing relation. Then drop the 5 policies (4 on `shipment_documents`, 1 on the matrix), the storage policy, the 4 functions, each trigger **before** its table, the 2 trigger functions, the 2 tables `cascade`, and finally `delete from storage.buckets where id = 'shipment-docs'` — **only if empty**. **Destructive** — it drops every BOL and POD filed against a shipment, and with them the evidence a delivery happened; `pg_dump -t shipment_documents` first. The **objects survive in the bucket**; the rows naming them do not, so they become unreachable rather than deleted, and emptying the bucket is a separate deliberate act. Roll back `src/lib/supabase/database.types.ts`, delete `src/lib/shipments/document*.ts`, `src/app/actions/shipment-documents.ts` and the two document components, and revert the four surface edits in the same deploy. It fails **CLOSED** either way: with the table gone and 0019's function restored, `pod_uploaded` is refused again — M-72's documented behaviour, not a new failure mode. 0017–0023 are otherwise untouched, and `carrier-docs` is untouched entirely. |
    | 0025 | `0025_shipment_eta_exceptions.sql` | **M-78.** The TWO tables M-71 deliberately left: `shipment_eta_history` (§10's previous-ETA record; `trg_shipment_eta_history_append_only` refuses UPDATE/DELETE for **every** role, owner included) and `shipment_exceptions` (§21's 13 types over the enum 0017 already created, its 10 fields, plus `source_event_id` **unique** and `resolution_event_id`; 3 CHECKs; 3 indexes, two partial). `trg_shipment_exceptions_lifecycle` enforces the rules §21 implies but does not spell: what an exception IS is frozen, resolution is one-way, notification is one-way, a closed exception is read-only for triage — all `PL409`. RLS + **one policy each** (staff), a `revoke all … from authenticated, anon` followed by **SELECT only** — the grant is required because `is_staff()` evaluates inside an `authenticated` session, and the customer holds the same grant and reads **zero rows**. FIVE `security definer` functions: `my_shipment_exceptions(uuid)` (**`authenticated`** — the customer projection, seven OUT columns with no `internal_description` and no `resolution`, audience resolved from the caller's own memberships and never from an argument), and `open_shipment_exception` / `resolve_shipment_exception` / `update_shipment_exception` / `backfill_shipment_exceptions` (**`service_role` only**). **AND it REPLACES `set_shipment_eta()` from 0022** — same 13-parameter signature (so grants and callers are untouched), body grows one INSERT so the column, the `eta_update` event and the history row land in ONE transaction. **It also RUNS THE BACKFILL once**, migrating M-75/M-76's event-only exceptions into rows and `RAISE NOTICE`-ing the count; it deletes nothing. | Full script in [`docs/modules/M-78-eta-exceptions.md`](modules/M-78-eta-exceptions.md) §Deployment. **THE ORDER MATTERS: re-run 0022's `create or replace function public.set_shipment_eta(...)` block FIRST**, before dropping anything — it is the same body minus the history INSERT, and doing it after the table is gone leaves every ETA update failing on a missing relation. Then drop the 2 policies, the 5 functions (signatures in the doc), each trigger **before** its table, the 2 trigger functions, and the 2 tables `cascade`. **Destructive for the LIFECYCLE, not for the HISTORY** — every exception ever opened survives as an `exception_opened` event and every resolution as an `exception_resolved` event, which is exactly why both functions write an event as well as a row; what is lost is `assigned_to`, `customer_notified_at`, the resolution text and the open/closed state. `pg_dump -t shipment_exceptions -t shipment_eta_history` first. ETA history reverts to the event metadata M-75 already wrote. Roll back `src/lib/supabase/database.types.ts`, delete `src/lib/shipments/{exceptions,eta-estimate}.ts`, revert `src/lib/shipments/eta.ts` to M-75's version, and revert the four surface edits and three action files in the same deploy. It fails **CLOSED** either way: with the table gone the accessor is gone too, the customer DTOs receive an empty exception list, and the banner disappears rather than erroring. 0017–0024 are otherwise untouched. |
+   | 0026 | `0026_shipment_notifications.sql` | **M-79.** §17's notifications and §25's **background processing architecture**. 3 enums (`shipment_notification_event` — the eleven, in the directive's order; `notification_channel` — `email`/`in_app`, with **no `sms` value** because §17 permits SMS only with an approved provider and compliant opt-in, and a value nothing can deliver is a fake capability; `notification_delivery_state`). 5 tables: `shipment_notification_rules` (the event → notification mapping as DATA, 11 seeded rows, mirrored by `SHIPMENT_NOTIFICATION_RULES` in TypeScript and pinned cell-for-cell in both directions by the integration lane), `shipment_notification_queue` (**unique `idempotency_key`** — §17's key requirement made a database fact; a payload-safety CHECK refusing `signed_url`/`access_code`/`internal_message`/`gross_shipper_amount`/`carrier_pay` **at the writer**; a `(state='sent') = (sent_at is not null)` CHECK; 3 indexes, one partial on the hot worker read), `shipment_notification_attempts` (**append-only** for every role including the owner — a delivery ledger somebody can edit is not a ledger), `shipment_notification_watermark` (single-row harvest watermark; an optimisation, not the correctness mechanism — the harvest deliberately re-reads a 10-minute overlap and every re-read conflict-do-nothings), and `notification_suppressions` (address-level opt-out, lowercase enforced by CHECK). **THE ONE SHIPPED TABLE THIS TOUCHES is `user_preferences` (0005)** — three columns ADDED (`email_shipment_updates`, `inapp_shipment_updates`, both `default true`; `notification_token uuid` uniquely indexed), nothing dropped, no default changed, and 0009's four `user_preferences` policies byte-identical afterwards. RLS on all five tables, `revoke all … from authenticated, anon` then **SELECT only**, then **one staff-read policy each — five in total, and NO write policy for any role**. 4 `security definer` functions with **EXECUTE granted to `service_role` ALONE**: `enqueue_shipment_notification` (idempotent, reports whether it deduped), `harvest_shipment_notifications` (maps new `shipment_events` **and** shipper `invoices` onto queue rows), `claim_shipment_notifications` (`for update skip locked` + a lock TTL, so two workers split a batch rather than double-send it), `settle_shipment_notification` (writes the append-only attempt row **and** moves the queue row in ONE transaction). | Full script in [`docs/modules/M-79-shipment-notifications.md`](modules/M-79-shipment-notifications.md) §DB changes. **STOP THE WORKER FIRST** — remove the `/api/cron/notifications` entry from `vercel.json` or unset `CRON_SECRET` — so nothing claims rows mid-teardown. Then drop the 4 functions (signatures in the doc), the 2 triggers **before** their tables, the trigger function, the 5 tables `cascade`, the 3 `user_preferences` columns, and the 3 enums. **Destructive for the QUEUE and the ATTEMPT LEDGER, not for the history** — every notification the worker sent survives in `email_log` (M-14) and `notifications` (M-60), and every fact that produced one survives as a `shipment_events` row; what is lost is the retry state of anything in flight and the per-attempt provider answers. `pg_dump -t shipment_notification_queue -t shipment_notification_attempts` first. **EXPORT THE OPT-OUTS BEFORE DROPPING THE COLUMNS** — `select profile_id from user_preferences where not email_shipment_updates` — because dropping them re-subscribes everyone who unsubscribed, and keep `notification_suppressions` if you can: an address-level opt-out you cannot reproduce is the one piece of state whose loss is visible to a customer. Roll back `src/lib/supabase/database.types.ts`, delete `src/lib/shipments/notification-{rules,queue,worker}.ts`, `src/lib/notification-preferences.ts`, `src/app/actions/notification-preferences.ts`, `src/emails/{shipment-templates.tsx,phrases.ts}`, the cron route and the unsubscribe page, and revert the `resendNotificationAction` block in `src/app/actions/dispatcher-shipments.ts` to its M-75 text, in the same deploy. `sendEmail`'s and `notifyCustomer`'s new return values may STAY — they are additive and every other caller ignores them. It fails **CLOSED**: with the queue gone the worker route returns 503 and **no shipment email is sent at all**, rather than an unthrottled inline send appearing in its place. M-60's fan-out for every non-shipment flow is untouched throughout, and 0017–0025 are untouched entirely. |
+
 
    After applying, sanity-check the chain the same way CI does:
 
@@ -298,7 +315,7 @@ which is exactly why a half-configured deploy is dangerous rather than loud.
 | `DROPBOX_SIGN_TEST_MODE` | server only | `true` on staging, **unset/`false` in production** | live signatures on staging (or test-mode docs in prod — check this one) |
 | `STRIPE_SECRET_KEY` | server only | Stripe → Developers → API keys (test on staging, live on prod) | "Generate invoice" disabled with a tooltip naming the var |
 | `STRIPE_WEBHOOK_SECRET` | server only | signing secret from step 8 | payments never mark invoices paid; the `invoices` mirror stalls at `open` |
-| `CRON_SECRET` | server only | generate: `openssl rand -hex 32` — Vercel Cron sends it as the Bearer token automatically | `/api/cron/daily` refuses every call → **no insurance-expiry alerts, no callback digest** |
+| `CRON_SECRET` | server only | generate: `openssl rand -hex 32` — Vercel Cron sends it as the Bearer token automatically. **Guards BOTH cron routes** since M-79 | `/api/cron/daily` refuses every call → **no insurance-expiry alerts, no callback digest**; `/api/cron/notifications` refuses every call → **no shipment notification is ever sent** (the queue still fills, so the backlog is recoverable) |
 | `NEXT_PUBLIC_GA4_MEASUREMENT_ID` | build/public | GA4 admin (step 10) — fires only after cookie consent (S-05) | no analytics; admin marketing tiles keep their honest placeholders |
 | `TRACKING_ACCESS_SECRET` | server only | generate: `openssl rand -hex 32` — HMAC key for the §4 public-tracking secondary credential (recipient ZIP / access code) | **`/track` refuses EVERY lookup** ("tracking is temporarily unavailable"). This is the one secret in this table that fails **closed**, deliberately: "cannot verify the credential" is not "the credential is correct". Rotating it invalidates every stored `public_access_hash` — every shipment then needs its access code re-issued by dispatch. |
 | `DRIVER_TOKEN_SECRET` | server only | generate: `openssl rand -base64 48` — HMAC key for the §13 driver update link. **M-76** | **No driver link can be minted or verified.** Both issuing surfaces (carrier portal and dispatcher detail) render an honest "not configured" notice instead of a form, and `/driver/update/<anything>` renders "updates are temporarily unavailable". Fails **closed**, like `TRACKING_ACCESS_SECRET` and for the same reason. **Rotating it is a MASS REVOCATION** — every live driver link stops working immediately and every driver needs a new one. There is no dual-key verifier today (M-76 residual risk R-4); the `v1:` prefix and the column CHECK exist so one can be added without a migration. |
@@ -325,14 +342,14 @@ sets them expecting an effect:
 
 ```bash
 npm run typecheck && npm run lint && npm run build   # module gate (CLAUDE.md)
-npm test                 # 1148 unit assertions
-npm run test:rls         # 552 RLS isolation assertions — see below
-npm run test:integration # 222 integration tests against local PG16 — see below
-npm run test:e2e         # 253 chromium tests against the production build
+npm test                 # 1238 unit assertions
+npm run test:rls         # 588 RLS isolation assertions — see below
+npm run test:integration # 263 integration tests against local PG16 — see below
+npm run test:e2e         # 264 chromium tests against the production build
 ```
 
 **`npm run test:rls` is a release gate, not an optional extra.** It rebuilds
-a throwaway database from `0001 → 0025` + seed + two/three-tenant fixtures and
+a throwaway database from `0001 → 0026` + seed + two/three-tenant fixtures and
 asserts that carrier A cannot reach carrier B, shipper A cannot reach shipper
 B (including *unclaimed* public quotes), anon reaches nothing but
 `company_settings` and published posts, and no session — staff or admin — can
@@ -383,7 +400,7 @@ the tracking directive's §27 integration tier, which
 [`docs/FINAL-IMPLEMENTATION-PLAN.md`](FINAL-IMPLEMENTATION-PLAN.md) §4 records
 as *"diagnosed absent, then dropped entirely"* by the extension audit and
 restores as M-83b; M-72 ships the lane plus the four tests it can prove today.
-It builds its own throwaway database (`0001 → 0025` + seed, **not** the RLS
+It builds its own throwaway database (`0001 → 0026` + seed, **not** the RLS
 fixtures — it creates shipments through the engine) and then runs vitest
 against it, so the real TypeScript transition engine drives the real SQL write
 path: create → assign carrier → create event → update status, idempotent
@@ -482,15 +499,49 @@ wider) — sliding window, fail-open on outage by design.
 3. Compliance guard is code-enforced: invoices carry ONLY the dispatch fee
    line (never freight charges) — see `src/lib/stripe.ts`.
 
-## 9. Cron (O-01 daily ops alerts)
+## 9. Cron (O-01 daily ops alerts + M-79 notification worker)
 
-Set `CRON_SECRET` in Vercel and deploy — `vercel.json` schedules
-`GET /api/cron/daily` at 11:00 UTC (insurance-expiry threshold alerts +
-callback digest). Verify once manually:
+`vercel.json` now schedules **two** jobs, and **both** authenticate with the
+same `CRON_SECRET` bearer token, compared in constant time. Set it once in
+Vercel and deploy.
+
+| Schedule | Path | What it does |
+|---|---|---|
+| `0 11 * * *` | `/api/cron/daily` | M-35: insurance-expiry threshold alerts + callback digest |
+| `*/5 * * * *` | `/api/cron/notifications` | **M-79**: harvest new `shipment_events` into the notification queue, claim a bounded batch (25), deliver, settle |
+
+Verify each once manually:
 
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" https://pickloads.com/api/cron/daily
+curl -H "Authorization: Bearer $CRON_SECRET" https://pickloads.com/api/cron/notifications
 ```
+
+The notification worker answers with **counts only** — no addresses, no
+tracking numbers, no payloads, no provider text (§26's never-log list applies
+to a response body that lands in a Vercel log):
+
+```json
+{"ok":true,"harvested":{"scanned":0,"enqueued":0},"claimed":0,
+ "sent":0,"suppressed":0,"failed":0,"dead":0,"notes":[]}
+```
+
+**Read the status code, not the body.** A run that could not reach the
+database answers **503**, not a green 200 with zeros in it. Without
+`CRON_SECRET` it answers 503 before doing any work; with a wrong token, 401.
+
+**If `CRON_SECRET` is unset, no shipment notification is ever sent.** The
+queue still fills whenever a harvest runs, so the backlog is recoverable —
+set the secret and the next pass drains it — but nothing goes out until then.
+This is the honest failure mode, deliberately chosen over an inline send that
+would bypass the opt-out check with it.
+
+**Throughput.** 25 notifications per invocation × 12 invocations/hour = 300/h.
+The bound is deliberate: a serverless invocation has a wall clock, and a
+worker that tries to drain an unbounded backlog times out and settles nothing,
+leaving every claimed row to its lock TTL. If volume outgrows it, raise
+`WORKER_BATCH` in `src/lib/shipments/notification-worker.ts` **and** the
+schedule together.
 
 ## 10. GA4 + Search Console
 
@@ -804,9 +855,10 @@ effect site-wide immediately — **no deploy**.
          new one. Try `update shipment_eta_history set new_eta_at = now()` —
          it must fail with `PL409`. That table is append-only for everyone.
       10. Confirm the shipper's **portal feed** has an "Updated delivery
-          estimate" notification. There is **no email** — that is M-79, and
-          the dispatcher card says so in words. Do not promise a customer an
-          email until it ships.
+          estimate" notification. **Since M-79 there is also an email** — it
+          is enqueued by the harvest and sent by the notification worker
+          within about five minutes, not inline. Verify it with the M-79
+          smoke test below rather than waiting on this page.
 - [ ] **Backfill re-run (M-78, safe and idempotent).** Migration 0025 runs it
       once and prints the count. If exceptions were logged against a lagging
       replica, or a surface was rolled back and re-applied, re-run it as the
@@ -821,6 +873,64 @@ effect site-wide immediately — **no deploy**.
       **cannot duplicate** — `source_event_id` is unique. A second run on a
       clean database returns `0`. Anything other than `0` on a re-run means
       new event-only exceptions arrived, which is exactly what it is for.
+- [ ] **Notifications smoke test (M-79).** Needs `brokerage_active` **true**,
+      `CRON_SECRET` and `RESEND_API_KEY` set, and a shipment with a shipper
+      portal account whose profile has a reachable address:
+      1. As **dispatcher**, move the shipment to **Picked up** on
+         `/portal/admin/shipments/<id>`.
+      2. Fire the worker by hand rather than waiting five minutes:
+         `curl -H "Authorization: Bearer $CRON_SECRET"
+         https://pickloads.com/api/cron/notifications`. Expect **200** with
+         `harvested.enqueued` ≥ 2 (one email, one in-app) and `sent` ≥ 2.
+      3. **Run it a second time immediately.** `enqueued` and `sent` must both
+         be **0** — §17's *avoid duplicate notifications*, enforced by the
+         unique `idempotency_key`, not by a flag somebody can clear. **If the
+         second run sends anything, stop and do not go live.**
+      4. Check the customer's inbox. The email must carry: the tracking
+         number; the **"Track this shipment"** link resolving to
+         `/track?number=PL-…` with the number prefilled and the **ZIP field
+         empty**; the honest foot note *"Milestone tracking — updates are
+         entered by our dispatch team as the shipment moves"*; and a **"Stop
+         shipment update emails"** link. It must carry **no amount, no
+         internal note, no document link and no access code** — if any appears,
+         stop.
+      5. Confirm the delivery is logged twice, as it should be:
+         ```sql
+         select state, attempts, provider_message_id, sent_at
+           from shipment_notification_queue where shipment_id = '<id>';
+         select attempt_no, outcome, provider_message_id
+           from shipment_notification_attempts a
+           join shipment_notification_queue q on q.id = a.queue_id
+          where q.shipment_id = '<id>' order by a.created_at;
+         ```
+         Then try `update shipment_notification_attempts set outcome = 'sent'`
+         — it must fail with **`PL409`**. That ledger is append-only for every
+         role, owner included.
+      6. **Prove the opt-out.** Click the "Stop shipment update emails" link.
+         The page must load **with no session**. Confirm on the page (the GET
+         alone must change nothing — corporate link scanners prefetch every
+         URL in an email). Now move the shipment to **In transit** and fire
+         the worker again: the in-app feed row still appears, and **no email
+         is sent**. The queue row for the email channel reads `suppressed`,
+         **not** `failed` — an honoured opt-out is a success, and a dashboard
+         that showed it as an outage would be lying. Turn it back on from the
+         same page and confirm the next milestone mails again.
+      7. **Prove a dispatcher cannot override it.** With the customer opted
+         out, use **Resend notification** on the dispatcher page. It reports
+         the email was queued; the worker then **suppresses** it. "We mailed
+         somebody who had unsubscribed because a dispatcher pressed Resend" is
+         the exact failure §17's preference rule exists to prevent.
+      8. **Check the language.** Set the customer's `preferred_language` to
+         `es` or `fr` and trigger another milestone. The email arrives in that
+         language, and a **standard phrase** picked by dispatch arrives
+         translated. Genuinely free-typed dispatcher text arrives in English
+         under the label *"Written by dispatch, in English"* — that label is
+         required and must not be removed; §24 forbids silently
+         machine-translating operator text.
+      9. **Confirm the queue is staff-only.** As the shipper, in a SQL session
+         with their JWT: `select count(*) from shipment_notification_queue`
+         returns **0**. As a dispatcher it returns the real count — the zero is
+         a policy decision, not an empty table.
 - [ ] Stripe + Dropbox Sign webhook test deliveries show in
       `webhook_events`.
 

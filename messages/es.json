@@ -1141,6 +1141,23 @@
       "field_type": "Tipo de documento",
       "field_file": "Archivo",
       "field_hint": "PDF, JPG, PNG o HEIC · máx. 10 MB"
+    },
+    "optout": {
+      "meta_title": "Preferencias de notificaciones de envío — PickLoads",
+      "eyebrow": "Notificaciones de envío",
+      "title": "Correos de actualización de envíos",
+      "intro": "Desactiva los correos que enviamos mientras tu carga avanza. Tus envíos siguen actualizándose en el portal y en la página de rastreo.",
+      "invalid": "Este enlace no está completo o ya no es válido. Escribe a support@pickloads.com y actualizamos tus preferencias a mano — sin necesidad de cuenta.",
+      "unavailable": "No podemos acceder a tus preferencias en este momento, así que no se cambió nada. Inténtalo en unos minutos o escribe a support@pickloads.com.",
+      "confirm": "Confirma abajo y dejaremos de enviarte correos de actualización de envíos a esta dirección. Toma efecto de inmediato.",
+      "already": "Los correos de actualización de envíos ya están desactivados para esta dirección — no hay nada más que hacer.",
+      "stop_cta": "Sí, dejar de enviar estos correos",
+      "stopping": "Actualizando…",
+      "stopped": "✓ DESACTIVADO — No te enviaremos correos de actualización de envíos a esta dirección.",
+      "resume_cta": "Volver a activar los correos de envíos",
+      "resuming": "Actualizando…",
+      "resumed": "✓ REACTIVADO — Los correos de actualización de envíos están activos otra vez para esta dirección.",
+      "scope_note": "Esto solo cubre los correos de actualización de envíos. Freight Insights (nuestro boletín) tiene su propio enlace para darse de baja, y los correos de cuenta, facturación y soporte que pediste siguen funcionando."
     }
   }
 }

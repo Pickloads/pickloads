@@ -34,18 +34,42 @@ export interface SendEmailArgs {
   headers?: Record<string, string>;
 }
 
+/**
+ * M-79 — what `sendEmail` now RETURNS.
+ *
+ * §17 requires the provider response to be recorded per notification attempt,
+ * and the durable queue cannot record what the sender does not hand back. The
+ * return is purely ADDITIVE: every M-14/M-60 caller `await`s the promise and
+ * ignores its value, so no existing behaviour changes and no call site needed
+ * editing. `email_log` is still written here, unchanged — the queue records
+ * the same answer beside the retry state rather than instead of it.
+ *
+ * `skipped` is its own status and not a lie about success: without
+ * `RESEND_API_KEY` nothing was transmitted, and a queue row that read `sent`
+ * in a secretless environment would make every local run look delivered.
+ */
+export interface EmailSendResult {
+  status: "sent" | "failed" | "skipped";
+  providerMessageId: string | null;
+  error: string | null;
+}
+
 export const EMAIL_FROM =
   process.env.EMAIL_FROM ?? "PickLoads <notifications@pickloads.com>";
 export const EMAIL_INTERNAL_TO =
   process.env.EMAIL_INTERNAL_TO ?? "support@pickloads.com";
 
-export async function sendEmail(args: SendEmailArgs): Promise<void> {
+export async function sendEmail(
+  args: SendEmailArgs,
+): Promise<EmailSendResult> {
   const apiKey = process.env.RESEND_API_KEY;
   let status: "sent" | "failed" = "sent";
+  let skipped = false;
   let providerMessageId: string | null = null;
   let errorMessage: string | null = null;
 
   if (!apiKey) {
+    skipped = true;
     console.info(
       `[email] RESEND_API_KEY unset — log-only mode: "${args.template}" → ${args.to} (${args.subject})`,
     );
@@ -94,4 +118,10 @@ export async function sendEmail(args: SendEmailArgs): Promise<void> {
   } catch (err) {
     console.error("[email] email_log write failed", err);
   }
+
+  return {
+    status: skipped ? "skipped" : status,
+    providerMessageId,
+    error: errorMessage,
+  };
 }

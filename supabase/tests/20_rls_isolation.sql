@@ -2253,3 +2253,225 @@ select rls_test.affects(
   $$update shipment_exceptions set severity = 'critical'
      where id = 'fbfbfbfb-fbfb-fbfb-fbfb-fbfbfbfb0a01'$$, 1,
   'NON-VACUITY: re-severitying an OPEN exception IS allowed — the trigger blocks rules, not writes');
+
+-- ===========================================================================
+-- §15 · M-79 — shipment notifications (migration 0026)
+--
+-- The section exists to prove FOUR things this module is accountable for:
+--
+--   1. THE QUEUE IS STAFF-ONLY INFRASTRUCTURE. §19 lists no customer
+--      permission over it and no surface needs one: a shipper sees the RESULT
+--      (a `notifications` row, an email) and never the machinery. Asserted by
+--      reading all five tables as five different sessions — including the
+--      shipper who OWNS the shipment the rows are about, which is what makes
+--      the zero a policy decision rather than an empty table.
+--   2. NO WRITE POLICY EXISTS FOR ANY ROLE. Every write goes through the four
+--      `security definer` functions, so a permissive policy arriving later
+--      cannot inherit a write privilege nobody meant to give.
+--   3. THE DELIVERY LEDGER IS APPEND-ONLY FOR EVERY ROLE, THE OWNER INCLUDED
+--      — the same guard 0019 and 0025 use, and for the same reason: a
+--      delivery record somebody can edit is not a record.
+--   4. §17'S SAFETY INVARIANTS ARE DATABASE FACTS: a duplicate idempotency
+--      key is refused, a forbidden payload key is refused, and a suppression
+--      cannot be defeated by capitalisation.
+--
+-- Non-vacuity throughout: every zero is mirrored by a staff read that is not
+-- zero, and every refusal by a legal write that succeeds.
+-- ===========================================================================
+
+reset role;
+set request.jwt.claim.sub = '';
+
+-- ---- 1 · Catalog facts ------------------------------------------------
+
+select rls_test.ok(
+  (select bool_and(relrowsecurity) from pg_class
+    where relname in ('shipment_notification_rules','shipment_notification_queue',
+      'shipment_notification_attempts','shipment_notification_watermark',
+      'notification_suppressions')),
+  'RLS is ENABLED on all five M-79 tables');
+
+select rls_test.eq((select count(*) from pg_policies
+   where tablename in ('shipment_notification_rules','shipment_notification_queue',
+     'shipment_notification_attempts','shipment_notification_watermark',
+     'notification_suppressions')), 5,
+  'exactly FIVE policies across the five M-79 tables — one staff read each');
+
+select rls_test.eq((select count(*) from pg_policies
+   where tablename in ('shipment_notification_rules','shipment_notification_queue',
+     'shipment_notification_attempts','shipment_notification_watermark',
+     'notification_suppressions') and cmd <> 'SELECT'), 0,
+  '§19: NO write policy exists on any M-79 table, for any role — the four service-role functions are the only write path');
+
+select rls_test.ok(
+  (select bool_or(has_table_privilege('authenticated', t, p))
+     from unnest(array['shipment_notification_queue','shipment_notification_attempts',
+       'notification_suppressions','shipment_notification_rules',
+       'shipment_notification_watermark']) t,
+       unnest(array['INSERT','UPDATE','DELETE']) p) = false,
+  'authenticated holds NO WRITE privilege on any M-79 table');
+
+select rls_test.ok(
+  has_table_privilege('authenticated', 'shipment_notification_queue', 'SELECT'),
+  'NON-VACUITY: authenticated DOES hold SELECT on the queue, so every customer zero below is a POLICY result and not a permission error');
+
+select rls_test.ok(
+  (select bool_or(has_table_privilege('anon', t, p))
+     from unnest(array['shipment_notification_queue','shipment_notification_attempts',
+       'notification_suppressions']) t,
+       unnest(array['SELECT','INSERT','UPDATE','DELETE']) p) = false,
+  'anon holds NO privilege at all on the queue, the attempt ledger or the suppression list');
+
+-- The eleven §17 notifications exist as an ENUM, and SMS does not.
+select rls_test.eq((select count(*) from pg_enum e join pg_type t
+    on t.oid = e.enumtypid where t.typname = 'shipment_notification_event'), 11,
+  '§17: the notification enum carries exactly ELEVEN values');
+select rls_test.eq((select count(*) from pg_enum e join pg_type t
+    on t.oid = e.enumtypid where t.typname = 'notification_channel'), 2,
+  '§17: exactly TWO launch channels — SMS is absent, not present-and-disabled');
+
+-- ---- 2 · The queue reaches NO customer --------------------------------
+
+set role authenticated;
+
+-- SHIPPER A owns the shipment these queue rows are ABOUT, and is the
+-- recipient named on them. Still nothing.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1';
+select rls_test.reads_nothing('shipment_notification_queue',
+  '§19 PROOF: the SHIPPER named as recipient reads NOTHING from the queue — provider ids and retry state are operational, not customer, data');
+select rls_test.reads_nothing('shipment_notification_attempts',
+  'the shipper reads NOTHING from the delivery attempt ledger');
+select rls_test.reads_nothing('notification_suppressions',
+  'the shipper reads NOTHING from the suppression list — it is an address list, and an address list a customer can read is an enumeration oracle');
+select rls_test.reads_nothing('shipment_notification_rules',
+  'the shipper reads nothing from the mapping table either');
+
+-- CARRIER A hauls the shipment. Same answer.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';
+select rls_test.reads_nothing('shipment_notification_queue',
+  'the assigned CARRIER reads nothing from the queue');
+
+-- BROKER A is linked to the shipment. Same answer.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab01';
+select rls_test.reads_nothing('shipment_notification_queue',
+  'the linked BROKER PARTNER reads nothing from the queue');
+
+-- ANON — refused at the PRIVILEGE layer, before RLS is consulted.
+set role anon;
+set request.jwt.claim.sub = '';
+select rls_test.rejects_with($$select count(*) from shipment_notification_queue$$,
+  '42501', 'ANON cannot select the notification queue AT ALL');
+select rls_test.rejects_with($$select count(*) from notification_suppressions$$,
+  '42501', 'ANON cannot select the suppression list — it would answer "is this address a customer?"');
+
+-- STAFF — which is what makes every zero above a POLICY result.
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000e1';
+select rls_test.eq((select count(*) from shipment_notification_queue), 4,
+  'a DISPATCHER reads all four queue rows — every customer zero above is a policy decision, not an empty table');
+select rls_test.eq((select count(*) from shipment_notification_attempts), 4,
+  'a DISPATCHER reads all four attempt rows');
+select rls_test.eq((select count(*) from notification_suppressions), 1,
+  'a DISPATCHER reads the suppression row');
+select rls_test.eq((select count(*) from shipment_notification_rules), 11,
+  'a DISPATCHER reads all eleven mapping rules');
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000f1';
+select rls_test.eq((select count(*) from shipment_notification_queue), 4,
+  'an ADMIN reads all four queue rows');
+
+-- The SENTINELS staff can see, customers cannot. Stated as a positive read so
+-- the negative ones above are about a specific reachable string.
+select rls_test.eq((select count(*) from shipment_notification_queue
+   where last_error like 'SENTINEL-QUEUE-ERROR%'), 1,
+  'NON-VACUITY: the staff session DOES read the sentinel error string the customer sessions returned zero rows for');
+
+-- ---- 3 · Writes are refused for customers AND staff alike -------------
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1';
+select rls_test.writes_nothing(
+  $$insert into shipment_notification_queue (shipment_id, notification_event,
+      channel, recipient_profile_id, idempotency_key)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','delivered','email',
+      '00000000-0000-0000-0000-0000000000c1','m79:customer:forged')$$,
+  'a customer cannot forge a notification into the queue');
+select rls_test.writes_nothing(
+  $$delete from notification_suppressions$$,
+  'a customer cannot delete themselves back onto the mailing list by hand');
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000e1';
+select rls_test.writes_nothing(
+  $$update shipment_notification_queue set state = 'sent'$$,
+  'even a DISPATCHER cannot hand-mark a notification as sent — the state machine is the service-role functions');
+
+-- ---- 4 · The delivery ledger is append-only, as the OWNER --------------
+--
+-- Asserted as the table owner, so a refusal can ONLY be the trigger and never
+-- a policy — the same technique §11 uses for tracking-number immutability.
+
+reset role;
+set request.jwt.claim.sub = '';
+
+select rls_test.rejects_with(
+  $$update shipment_notification_attempts set outcome = 'sent' where outcome = 'failed'$$,
+  'PL409', '§17: the delivery ATTEMPT LEDGER is append-only — an attempt that happened cannot be un-happened, even by the owner');
+select rls_test.rejects_with(
+  $$delete from shipment_notification_attempts$$,
+  'PL409', 'nor can an attempt row be deleted');
+
+-- ---- 5 · §17's invariants as database facts ---------------------------
+
+select rls_test.rejects_with(
+  $$insert into shipment_notification_queue (shipment_id, notification_event,
+      channel, recipient_profile_id, idempotency_key)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','picked_up','email',
+      '00000000-0000-0000-0000-0000000000c1',
+      'm79:picked_up:ffffffff-ffff-ffff-ffff-ffffffff0a01:once:email')$$,
+  '23505', '§17 DEDUPE: a duplicate idempotency key is refused by a UNIQUE INDEX, not by a convention the caller might skip');
+
+select rls_test.rejects_with(
+  $$insert into shipment_notification_queue (shipment_id, notification_event,
+      channel, recipient_profile_id, idempotency_key, payload)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','delivered','email',
+      '00000000-0000-0000-0000-0000000000c1','m79:payload:signed',
+      '{"signed_url":"https://storage.example/x?token=abc"}'::jsonb)$$,
+  '23514', '§16/§17: a payload carrying a SIGNED URL is refused — a 300-second link outlives its expiry in a mail archive');
+select rls_test.rejects_with(
+  $$insert into shipment_notification_queue (shipment_id, notification_event,
+      channel, recipient_profile_id, idempotency_key, payload)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','delivered','email',
+      '00000000-0000-0000-0000-0000000000c1','m79:payload:money',
+      '{"gross_shipper_amount":"48250.00"}'::jsonb)$$,
+  '23514', '§18/§17: a payload carrying the SHIPPER GROSS is refused — the financial fields are staff-only');
+select rls_test.rejects_with(
+  $$insert into shipment_notification_queue (shipment_id, notification_event,
+      channel, recipient_profile_id, idempotency_key, payload)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','delivered','email',
+      '00000000-0000-0000-0000-0000000000c1','m79:payload:access',
+      '{"access_code":"ZQ7T4M"}'::jsonb)$$,
+  '23514', 'M-73 threat model: a payload carrying the SECOND FACTOR is refused');
+
+select rls_test.rejects_with(
+  $$insert into notification_suppressions (email) values ('Dock@Shipper-A.test')$$,
+  '23514', 'a suppression must be stored lowercased — capitalisation cannot defeat an opt-out');
+
+select rls_test.rejects_with(
+  $$update shipment_notification_queue set sent_at = null
+     where id = 'fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a01'$$,
+  '23514', 'a SENT notification cannot lose its timestamp — "we told them" and "when" must not be able to disagree');
+
+-- NON-VACUITY: the legal versions of the four refusals above all succeed, so
+-- they are rules and not a broken constraint.
+select rls_test.affects(
+  $$insert into shipment_notification_queue (shipment_id, notification_event,
+      channel, recipient_profile_id, idempotency_key, payload)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','delivered','email',
+      '00000000-0000-0000-0000-0000000000c1','m79:nonvacuity:ok',
+      '{"tracking_number":"PL-2026-000101"}'::jsonb)$$, 1,
+  'NON-VACUITY: the allow-listed payload IS accepted — the four refusals above are about their keys, not about jsonb');
+select rls_test.affects(
+  $$insert into notification_suppressions (email) values ('ops@shipper-a.test')$$, 1,
+  'NON-VACUITY: a lowercased address IS accepted');
+select rls_test.affects(
+  $$insert into shipment_notification_attempts (queue_id, attempt_no, outcome)
+    values ('fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a02', 3, 'failed')$$, 1,
+  'NON-VACUITY: APPENDING an attempt IS allowed — the trigger blocks rewrites, not writes');

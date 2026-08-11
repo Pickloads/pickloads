@@ -3,7 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 import { tryCreateAdminClient } from "@/lib/supabase/admin";
-import { sendEmail } from "@/lib/email/send";
+import { sendEmail, type EmailSendResult } from "@/lib/email/send";
 import { resolveEmailLocale, type EmailLocale } from "@/emails/i18n";
 import type { BuiltEmail } from "@/emails/i18n";
 
@@ -110,8 +110,23 @@ export interface NotifyArgs {
   quoteId?: string;
 }
 
+/**
+ * M-79 — what the fan-out now REPORTS.
+ *
+ * Purely additive: every M-60 caller `await`s `notifyCustomer` and ignores the
+ * value, so behaviour is unchanged and no existing call site was edited. The
+ * durable queue needs it — §17 requires an attempt to be logged with its
+ * outcome, and a helper that swallows its own failures cannot be retried
+ * against. Best-effort is preserved: this still never throws.
+ */
+export interface NotifyResult {
+  notification: "written" | "failed" | "skipped";
+  email: EmailSendResult | null;
+}
+
 /** Write the portal notification row, then send the email. Best-effort. */
-export async function notifyCustomer(args: NotifyArgs): Promise<void> {
+export async function notifyCustomer(args: NotifyArgs): Promise<NotifyResult> {
+  const result: NotifyResult = { notification: "skipped", email: null };
   const admin = tryCreateAdminClient();
   if (admin) {
     const { error } = await admin.from("notifications").insert({
@@ -123,13 +138,16 @@ export async function notifyCustomer(args: NotifyArgs): Promise<void> {
     });
     if (error) {
       console.error("[notify] notification insert failed", error.message);
+      result.notification = "failed";
+    } else {
+      result.notification = "written";
     }
   } else {
     console.warn("[notify] no service key — notification row skipped");
   }
 
   if (args.email && args.recipient.email) {
-    await sendEmail({
+    result.email = await sendEmail({
       to: args.recipient.email,
       subject: args.email.subject,
       template: args.email.template,
@@ -138,4 +156,6 @@ export async function notifyCustomer(args: NotifyArgs): Promise<void> {
       ...(args.quoteId ? { quoteId: args.quoteId } : {}),
     });
   }
+
+  return result;
 }

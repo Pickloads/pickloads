@@ -7,6 +7,12 @@ import { field } from "@/lib/forms/guard";
 import { createClient } from "@/lib/supabase/server";
 import { tryCreateAdminClient } from "@/lib/supabase/admin";
 import { getShipperOwnerRecipient, notifyCustomer } from "@/lib/notify";
+/* M-79 — the resend action now puts a REAL localized email on the durable
+ * queue instead of saying "emails are M-79". Nothing else in this file
+ * enqueues: the other thirteen actions produce `shipment_events`, and M-79's
+ * harvest maps those onto notifications centrally (one mapping, as data). */
+import { enqueueShipmentNotification } from "@/lib/shipments/notification-queue";
+import type { ShipmentNotificationEvent } from "@/lib/shipments/notification-rules";
 import type { FormState } from "@/lib/form-state";
 import { firstIssueMessage } from "@/lib/validation/shared";
 import {
@@ -23,6 +29,7 @@ import {
   recordEmailSchema,
   releaseCarrierSchema,
   requestPodSchema,
+  RESENDABLE_NOTIFICATIONS,
   resendNotificationSchema,
   resolveExceptionSchema,
   statusUpdateSchema,
@@ -1019,25 +1026,48 @@ export async function requestPodAction(
  * ================================================================== */
 
 /**
- * HONEST SCOPE, because §30 applies to internal surfaces too.
+ * HONEST SCOPE — updated by M-79, which now owns notifications for real.
  *
- * **M-79 owns notifications** — the 11 customer events, idempotency keys,
- * dedupe, retry with backoff, preference respect, ×5 localisation and the
- * background worker. None of that exists yet, and there is no shipment email
- * template in `src/emails/` to resend.
+ * M-75 shipped this as portal-feed-only and said so in the UI, because there
+ * was no shipment email template and no durable send path. Both now exist, so
+ * this action does three things:
  *
- * So what this action does, exactly: it writes the shipper's IN-PORTAL
- * notification row pointing at their shipment, and records a
- * `notification_sent` event with an idempotency key derived from the shipment,
- * the kind and the day. The UI says so in those words. It does NOT send an
- * email, and it does not claim to.
+ *   1. records the `notification_sent` event, exactly as before, with the
+ *      same shipment+kind+day idempotency key (0019's unique index absorbs a
+ *      double-click);
+ *   2. writes the shipper's IN-PORTAL notification row, exactly as before;
+ *   3. ENQUEUES the localized email on M-79's queue, where preference gating,
+ *      the address suppression list, retry-with-backoff and the attempt
+ *      ledger all apply. The worker sends it on its next pass.
  *
- * The idempotency key is the useful part for M-79: a resend of the same kind
- * on the same day is absorbed by 0019's global unique index rather than
- * producing a second notification, which is the dedupe behaviour M-79 will
- * generalise. The mandatory reason is on the record because a duplicate
- * customer notification is a thing somebody will ask about.
+ * The email is enqueued and not sent inline on purpose: a resend that
+ * bypassed the queue would bypass the opt-out check with it, and "we mailed
+ * somebody who had unsubscribed because a dispatcher pressed Resend" is the
+ * exact failure §17's preference rule exists to prevent.
+ *
+ * The queue key is `per_source` on the EVENT id, so a resend is a genuinely
+ * new delivery rather than a duplicate the queue would swallow — which is
+ * what "resend" has to mean — while the event's own daily key is what stops
+ * the dispatcher from doing it five times in a row by accident.
  */
+/**
+ * §14's three resendable kinds → §17's eleven notifications.
+ *
+ * A full `Record` over `RESENDABLE_NOTIFICATIONS`, so widening that list is a
+ * compile error until the new kind has a template to resend. `shipment_status`
+ * maps to `in_transit` — the generic "here is where your freight is" template,
+ * which is what a dispatcher means when they resend a status update without
+ * naming one.
+ */
+const RESEND_KIND_TO_NOTIFICATION: Record<
+  (typeof RESENDABLE_NOTIFICATIONS)[number],
+  ShipmentNotificationEvent
+> = {
+  shipment_status: "in_transit",
+  shipment_eta: "delivery_eta_updated",
+  shipment_delivered: "delivered",
+};
+
 export async function resendNotificationAction(
   _prev: FormState,
   formData: FormData,
@@ -1075,7 +1105,7 @@ export async function resendNotificationAction(
     visibility: "staff_only",
     internalMessage: `Re-sent ${d.kind} notification. Reason: ${d.reason}`,
     idempotencyKey: `m75:notify:${access.shipmentId}:${d.kind}:${day}`,
-    metadata: { kind: d.kind, reason: d.reason, channel: "portal_feed" },
+    metadata: { kind: d.kind, reason: d.reason, channel: "portal_feed+email" },
   });
 
   if (!result.ok) return fromWrite(result, "");
@@ -1093,16 +1123,42 @@ export async function resendNotificationAction(
     href: `/portal/shipper/shipments/${access.shipmentId}`,
   });
 
+  // M-79: the localized email, on the durable queue. Best-effort in the same
+  // sense the in-portal row above is — the event is already written, and a
+  // queue that is unreachable must not roll back a notification the customer
+  // can already see in their portal.
+  const queued = await enqueueShipmentNotification({
+    shipmentId: access.shipmentId,
+    event: RESEND_KIND_TO_NOTIFICATION[d.kind],
+    channel: "email",
+    recipientProfileId: recipient.profileId,
+    sourceId: result.eventId,
+    sourceEventId: result.eventId,
+    payload: {
+      tracking_number: access.trackingNumber,
+      event_time: new Date().toISOString(),
+    },
+  });
+
   await recordAuditEvent({
     actorId: access.session.userId,
     action: "shipment.notification_resent",
     targetTable: "shipments",
     targetId: access.shipmentId,
-    detail: { kind: d.kind, reason: d.reason, recipient_profile: recipient.profileId },
+    detail: {
+      kind: d.kind,
+      reason: d.reason,
+      recipient_profile: recipient.profileId,
+      email_queued: queued.ok,
+    },
   });
 
   refresh(access.shipmentId);
-  return ok("In-portal notification sent. (Emails are M-79 — call them if it is urgent.)");
+  return ok(
+    queued.ok
+      ? "Notification sent to their portal, and the email is queued — it goes out within a few minutes."
+      : "Notification sent to their portal. The email could NOT be queued — call them if it is urgent.",
+  );
 }
 
 /* ================================================================== *

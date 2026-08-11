@@ -6,6 +6,7 @@ import {
   Heading,
   Hr,
   Html,
+  Link,
   Preview,
   Section,
   Text,
@@ -26,6 +27,25 @@ export interface CustomerEmailRow {
   value: string;
 }
 
+/**
+ * M-79 — the opt-out line. OPTIONAL and absent by default, so every M-60
+ * template renders byte-identically to before this prop existed.
+ *
+ * It is a visible link in the body rather than an RFC 8058 `List-Unsubscribe`
+ * header: `src/lib/email/send.ts` restricts that header pair to
+ * MARKETING-class sends (M-69/P-1), and shipment notifications are
+ * transactional mail about freight the recipient is paying for. §17 still
+ * requires the preference to be respected and the plan requires the opt-out to
+ * be *honest and reachable* — a link every notification carries, resolving to
+ * a page that works without a login, is exactly that.
+ */
+export interface CustomerEmailOptOut {
+  /** e.g. "Stop shipment update emails". */
+  label: string;
+  /** Tokenized `/notifications/unsubscribe` URL. Never carries an address. */
+  url: string;
+}
+
 export function CustomerEmail({
   locale,
   eyebrow,
@@ -35,6 +55,7 @@ export function CustomerEmail({
   rows,
   cta,
   footNote,
+  optOut,
 }: {
   locale: EmailLocale;
   eyebrow: string;
@@ -44,6 +65,7 @@ export function CustomerEmail({
   rows?: CustomerEmailRow[];
   cta?: { label: string; url: string };
   footNote?: string;
+  optOut?: CustomerEmailOptOut;
 }) {
   const footer = pick(FOOTER_DICT, locale);
   return (
@@ -189,6 +211,23 @@ export function CustomerEmail({
             >
               {footNote ?? footer.hours}
             </Text>
+            {optOut ? (
+              <Text
+                style={{
+                  fontFamily: f.sans,
+                  fontSize: "12px",
+                  color: c.slateMid,
+                  margin: "10px 0 0",
+                }}
+              >
+                <Link
+                  href={optOut.url}
+                  style={{ color: c.slateMid, textDecoration: "underline" }}
+                >
+                  {optOut.label}
+                </Link>
+              </Text>
+            ) : null}
           </Section>
         </Container>
         <Container style={{ maxWidth: "560px" }}>
