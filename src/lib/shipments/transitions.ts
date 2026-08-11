@@ -410,6 +410,23 @@ const ALL_TARGETS = "*" as const;
  * nothing else. `system` may raise a delay, which is what M-79's late-delivery
  * sweep needs; M-77 and M-79 widen it EXPLICITLY when they land, by editing
  * this table in a reviewed diff.
+ *
+ * ── M-76's ONE WIDENING, AND WHY `driver` DID NOT GET IT ──────────────────
+ *
+ * §13's carrier list opens with **"confirm dispatch"**, which is the
+ * `carrier_assigned → dispatched` edge. M-72 shipped `carrier` starting at
+ * `en_route_to_pickup`, so that action was unreachable; M-76 adds `dispatched`
+ * to `carrier` — the reviewed diff M-72's own doc asks for, rather than a
+ * carrier surface passing `actor: "dispatcher"`.
+ *
+ * `driver` does NOT get it, and the asymmetry is the point of having two
+ * actors at all. Confirming dispatch is a CARRIER OFFICE act — it asserts the
+ * company has committed a truck to a load — while the driver token exists for
+ * the person at the dock reporting what is physically happening. A driver who
+ * could confirm dispatch could commit their employer to freight from a phone,
+ * on a link that leaks by design (see M-76's threat model). Everything from
+ * `en_route_to_pickup` onward is identical for both, because from there on
+ * they are reporting the same truck.
  */
 export const ACTOR_PERMITTED_TARGETS: Record<
   TransitionActor,
@@ -418,6 +435,8 @@ export const ACTOR_PERMITTED_TARGETS: Record<
   admin: ALL_TARGETS,
   dispatcher: ALL_TARGETS,
   carrier: [
+    // M-76/§13 "confirm dispatch" — carrier only, never the driver token.
+    "dispatched",
     "en_route_to_pickup",
     "arrived_at_pickup",
     "loading",
@@ -425,6 +444,10 @@ export const ACTOR_PERMITTED_TARGETS: Record<
     "in_transit",
     "delayed",
     "arrived_at_delivery",
+    // Not named in §13's list, and required by it: §6's graph routes
+    // `arrived_at_delivery → unloading → delivered`, so withholding
+    // `unloading` would make §13's "delivered" unreachable from §13's
+    // "arrived at delivery". The directive's list says "may include".
     "unloading",
     "delivered",
   ],

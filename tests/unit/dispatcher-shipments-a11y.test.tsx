@@ -79,6 +79,9 @@ vi.mock("@/app/actions/dispatcher-shipments", () => {
     convertQuoteAction: noop,
     correctStatusAction: noop,
     createShipmentAction: noop,
+    // M-76 — §13's two driver-link actions.
+    issueDriverTokenAction: noop,
+    revokeDriverTokenAction: noop,
     logExceptionAction: noop,
     recordCallAction: noop,
     recordEmailAction: noop,
@@ -253,6 +256,28 @@ const PARTIES: ShipmentPartyRow[] = [
   },
 ];
 
+const DRIVER_TOKENS = [
+  {
+    id: "dt-1",
+    shipment_id: SHIPMENT.id,
+    carrier_id: "c-1",
+    driver_id: "d-1",
+    driver_name: "A Driver",
+    issued_by: "u-1",
+    issued_by_role: "dispatcher" as const,
+    issued_at: "2026-09-01T12:00:00.000Z",
+    expires_at: "2099-09-02T12:00:00.000Z",
+    revoked_at: null,
+    revoked_by: null,
+    revoke_reason: null,
+    consent_status: "pending" as const,
+    consent_at: null,
+    last_used_at: null,
+    use_count: 0,
+    created_at: "2026-09-01T12:00:00.000Z",
+  },
+];
+
 function detail(overrides: Partial<Parameters<typeof ShipmentStaffDetailView>[0]> = {}) {
   return (
     <ShipmentStaffDetailView
@@ -269,6 +294,12 @@ function detail(overrides: Partial<Parameters<typeof ShipmentStaffDetailView>[0]
       availableTransitions={["arrived_at_delivery", "delayed", "cancelled"]}
       isAdmin
       carrierNames={{ "c-1": "Probe Carrier" }}
+      /* M-76 — §13's driver links. One ACTIVE link by default so the block is
+         non-vacuous: with an empty list every assertion about the table would
+         be true whether or not it rendered. */
+      driverTokens={DRIVER_TOKENS}
+      driverTokensFailed={false}
+      driverLinksEnabled
       {...overrides}
     />
   );
@@ -758,6 +789,11 @@ describe("CLAUDE.md — the visual layer is reused, not invented", () => {
       "err-msg",
       "mono",
       "crumb",
+      // M-73 added `.sr-only` to v4.css (globals.css imports it) because §23's
+      // text equivalents needed it and the repo had no such utility. M-76's
+      // driver-link table uses it for the revoke column's header, so it joins
+      // the globally-owned list rather than being duplicated into portal.css.
+      "sr-only",
     ]);
     for (const cls of used) {
       if (globalOwned.has(cls)) continue;

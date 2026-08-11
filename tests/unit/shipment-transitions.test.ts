@@ -438,10 +438,35 @@ describe("§19 actor gate", () => {
     if (!decision.ok) expect(decision.code).toBe("actor_not_permitted");
   });
 
-  it("gives a driver the carrier's set and nothing more", () => {
-    expect(ACTOR_PERMITTED_TARGETS.driver).toEqual(
-      ACTOR_PERMITTED_TARGETS.carrier,
-    );
+  /*
+   * M-76 broke the identity this test used to assert, deliberately. §13's
+   * carrier list opens with "confirm dispatch" (`carrier_assigned →
+   * dispatched`), which M-72 had not granted to either actor; M-76 grants it
+   * to `carrier` ONLY, because confirming dispatch commits a company to
+   * freight and the driver token is a leakable bearer credential in a truck.
+   *
+   * The assertion is therefore now the STRICT-SUBSET one, plus the single
+   * named difference — which is stronger than the equality it replaces: an
+   * accidental widening of `driver` fails here, and so does a second
+   * divergence somebody adds without saying so.
+   */
+  it("gives a driver a STRICT SUBSET of the carrier's set — dispatch is the only difference", () => {
+    const carrier = ACTOR_PERMITTED_TARGETS.carrier as readonly string[];
+    const driver = ACTOR_PERMITTED_TARGETS.driver as readonly string[];
+    for (const to of driver) expect(carrier).toContain(to);
+    expect(carrier.filter((to) => !driver.includes(to))).toEqual([
+      "dispatched",
+    ]);
+    expect(actorMayAssert("carrier", "dispatched")).toBe(true);
+    expect(actorMayAssert("driver", "dispatched")).toBe(false);
+    const decision = evaluateTransition({
+      from: "carrier_assigned",
+      to: "dispatched",
+      actor: "driver",
+      facts: ALL_FACTS,
+    });
+    expect(decision.ok).toBe(false);
+    if (!decision.ok) expect(decision.code).toBe("actor_not_permitted");
   });
 
   it("lets a shipper accept a quote and nothing else", () => {

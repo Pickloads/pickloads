@@ -844,9 +844,25 @@ describe("§5 search — a pasted number is findable, and the scope still applie
     // is a harmless two-digit tail — never `%`, never a quote, never a clause.
     const term = parseTrackingSearch("' or 1=1 --");
     expect(term.pattern).toBe("PL%11");
-    expect(count(
+    /*
+     * The claim is that the hostile string became a BOUNDED TAIL MATCH and
+     * not a wildcard — so the assertion is that it matches strictly fewer
+     * rows than `PL%` does, and that the query runs at all (an injection
+     * would have errored or dropped the table).
+     *
+     * It used to assert exactly zero, which was a statement about the FIXTURE
+     * POPULATION rather than about the parser: this lane shares one database,
+     * `generateTrackingNumber()` is random, and M-76 added ~25 shipments —
+     * about a one-in-five chance per run that one legitimately ended in `11`.
+     * Caught on a repeat run before ship.
+     */
+    const hostile = count(
       `select count(*) from shipments where tracking_number ilike ${lit(term.pattern!)}`,
-    )).toBe(0);
+    );
+    const everything = count(
+      `select count(*) from shipments where tracking_number ilike 'PL%'`,
+    );
+    expect(hostile).toBeLessThan(everything);
     expect(parseTrackingSearch("%").kind).toBe("none");
     expect(parseTrackingSearch("'; drop table shipments; --").kind).toBe("none");
     // The control: the table is still there.

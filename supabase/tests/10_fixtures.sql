@@ -337,3 +337,68 @@ insert into invoices (id, carrier_id, load_id, shipment_id, shipper_id,
   ('7a7a7a7a-7a7a-7a7a-7a7a-7a7a7a7a0b01', null,
    null, 'ffffffff-ffff-ffff-ffff-ffffffff0b01', '22222222-2222-2222-2222-2222222bbbbb',
    'in_test_shipper_b', 310000, 'paid', now() - interval '9 days', now() + interval '21 days');
+
+-- ===========================================================================
+-- M-76 — driver update links (migration 0023)
+--
+-- FOUR links, and the shape is the point:
+--
+--   * shipment A gets THREE — one active, one revoked, one expired — so
+--     "carrier A sees exactly 3" is a statement about the POLICY rather than
+--     about the table, and so the lifecycle assertions have something to
+--     distinguish;
+--   * shipment B gets ONE, so every "carrier A sees nothing of B" assertion
+--     is non-vacuous.
+--
+-- The hashes are literals in 0023's `v1:<64 hex>` format, which is all the
+-- CHECK constraint requires. They are NOT hashes of any real token — there is
+-- no token here at all, which is the fixture-level version of the guarantee
+-- the migration makes: a driver link cannot be exercised from this file.
+--
+-- `expires_at > issued_at` is a CHECK, so the expired row backdates BOTH.
+-- ===========================================================================
+
+insert into shipment_driver_tokens (
+  id, shipment_id, carrier_id, token_hash, driver_id, driver_name,
+  issued_by, issued_by_role, issued_at, expires_at, revoked_at, revoked_by,
+  revoke_reason, consent_status, consent_at, use_count
+) values
+  -- ACTIVE, consent granted.
+  ('fdfdfdfd-fdfd-fdfd-fdfd-fdfdfdfd0a01', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   '11111111-1111-1111-1111-11111111aaaa', 'v1:' || repeat('a', 64),
+   '66666666-6666-6666-6666-66666666aaaa', 'Driver A One',
+   '00000000-0000-0000-0000-0000000000e1', 'dispatcher',
+   now() - interval '1 hour', now() + interval '23 hours',
+   null, null, null, 'granted', now() - interval '50 minutes', 2),
+  -- REVOKED (still inside its window — revocation outranks expiry).
+  ('fdfdfdfd-fdfd-fdfd-fdfd-fdfdfdfd0a02', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   '11111111-1111-1111-1111-11111111aaaa', 'v1:' || repeat('b', 64),
+   null, 'Driver A Two',
+   '00000000-0000-0000-0000-0000000000e1', 'carrier',
+   now() - interval '2 hours', now() + interval '22 hours',
+   now() - interval '90 minutes', '00000000-0000-0000-0000-0000000000e1',
+   'wrong driver', 'pending', null, 0),
+  -- EXPIRED.
+  ('fdfdfdfd-fdfd-fdfd-fdfd-fdfdfdfd0a03', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   '11111111-1111-1111-1111-11111111aaaa', 'v1:' || repeat('c', 64),
+   null, 'Driver A Three',
+   '00000000-0000-0000-0000-0000000000e1', 'dispatcher',
+   now() - interval '3 days', now() - interval '2 days',
+   null, null, null, 'denied', now() - interval '3 days', 5),
+  -- Carrier B's, on shipment B.
+  ('fdfdfdfd-fdfd-fdfd-fdfd-fdfdfdfd0b01', 'ffffffff-ffff-ffff-ffff-ffffffff0b01',
+   '11111111-1111-1111-1111-11111111bbbb', 'v1:' || repeat('d', 64),
+   '66666666-6666-6666-6666-66666666bbbb', 'Driver B One',
+   '00000000-0000-0000-0000-0000000000e1', 'dispatcher',
+   now() - interval '1 hour', now() + interval '23 hours',
+   null, null, null, 'pending', null, 1);
+
+-- The access ledger: one granted, one enumeration miss (no token, no
+-- shipment), one rate-limited burst. The middle row is what makes "a carrier
+-- cannot read the enumeration feed" a meaningful assertion.
+insert into shipment_driver_token_access
+  (token_id, shipment_id, outcome, detail, ip, user_agent) values
+  ('fdfdfdfd-fdfd-fdfd-fdfd-fdfdfdfd0a01', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'granted', null, '198.51.100.10', 'itest-ua'),
+  (null, null, 'not_found', null, '203.0.113.4', 'scanner/1.0'),
+  (null, null, 'rate_limited', 'fails=8 total=9', '203.0.113.4', 'scanner/1.0');

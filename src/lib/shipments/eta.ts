@@ -96,7 +96,14 @@ export interface SetEtaInput {
   reasonPublic?: string | null;
   reasonInternal?: string | null;
   actorId: string | null;
-  actorRole: "admin" | "dispatcher";
+  /**
+   * M-76 widened this from `"admin" | "dispatcher"`. §13 lists "update ETA"
+   * among a CARRIER's allowed actions, and the driver link inherits it, so
+   * the two new values are the ones §13 names. It changes no behaviour beyond
+   * the default event source below and the `actor_role` recorded in the audit
+   * row — which is exactly the point of recording it.
+   */
+  actorRole: "admin" | "dispatcher" | "carrier" | "driver";
   source?: ShipmentEventSource;
   /** Defaults to `shipper`: an ETA change is the customer's own logistics. */
   visibility?: ShipmentEventVisibility;
@@ -107,6 +114,29 @@ export interface SetEtaInput {
 interface PostgrestLikeError {
   code?: string | null;
   message?: string | null;
+}
+
+/**
+ * The §7 event source that matches the actor, when the caller does not pick
+ * one. A `Record` over the union rather than a ternary chain, so a fifth actor
+ * is a compile error here instead of silently landing on "dispatcher" — an
+ * event source is how §15 answers "who recorded this", and a wrong default
+ * would put a driver's ETA in the dispatcher's name.
+ */
+const ETA_EVENT_SOURCE: Record<
+  SetEtaInput["actorRole"],
+  ShipmentEventSource
+> = {
+  admin: "admin",
+  dispatcher: "dispatcher",
+  carrier: "carrier",
+  driver: "driver",
+};
+
+function defaultEtaSource(
+  actorRole: SetEtaInput["actorRole"],
+): ShipmentEventSource {
+  return ETA_EVENT_SOURCE[actorRole];
 }
 
 export async function setShipmentEta(input: SetEtaInput): Promise<EtaResult> {
@@ -130,7 +160,7 @@ export async function setShipmentEta(input: SetEtaInput): Promise<EtaResult> {
     p_reason_public: input.reasonPublic ?? null,
     p_reason_internal: input.reasonInternal ?? null,
     p_actor: input.actorId,
-    p_source: input.source ?? (input.actorRole === "admin" ? "admin" : "dispatcher"),
+    p_source: input.source ?? defaultEtaSource(input.actorRole),
     p_visibility: input.visibility ?? "shipper",
     p_idempotency_key: input.idempotencyKey ?? null,
     p_public_message: input.publicMessage ?? null,

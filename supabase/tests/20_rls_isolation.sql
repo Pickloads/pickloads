@@ -1388,3 +1388,271 @@ select rls_test.ok(
 -- the refusal can only be the 0017 trigger.
 select rls_test.rejects_with($$update shipments set tracking_number = 'PL-2026-123456' where tracking_number = 'PL-2026-000101'$$,
   'P0001', 'no M-75 path changes a tracking number — the 0017 immutability trigger still refuses the table owner (§5)');
+
+-- ===========================================================================
+-- §12 · M-76 — driver update links (migration 0023)
+--
+-- The section exists to prove FOUR things the module is accountable for:
+--
+--   1. THE CARRIER READ POLICY ON `shipments` WAS NOT WIDENED.
+--      `docs/modules/M-71-shipment-schema.md` says it in those words: *"Do
+--      not widen 'carrier member read shipments' into a FOR ALL."* Asserted
+--      as a CATALOG FACT (`pg_policies.cmd`), not inferred from a refusal, so
+--      a future `for all` fails here even if every behavioural assertion
+--      still happened to pass.
+--   2. `token_hash` IS UNREACHABLE from any browser role — at the COLUMN
+--      privilege level, which is stronger than any policy.
+--   3. Carrier A reads its own links and nothing of carrier B's; anon reads
+--      nothing at all; nobody writes.
+--   4. All four 0023 functions are service_role-only, read out of `pg_proc`.
+-- ===========================================================================
+
+reset role;
+set request.jwt.claim.sub = '';
+
+-- ---- 1 · the policy was not widened ---------------------------------------
+select rls_test.ok(
+  (select cmd from pg_policies
+    where schemaname = 'public' and tablename = 'shipments'
+      and policyname = 'carrier member read shipments') = 'SELECT',
+  'M-76 did NOT widen "carrier member read shipments" — it is still FOR SELECT (M-71''s explicit instruction)');
+
+select rls_test.ok(
+  (select count(*) from pg_policies
+    where schemaname = 'public'
+      and tablename in ('shipments','shipment_events','shipment_parties','shipment_assignments')
+      and cmd <> 'SELECT'
+      and policyname not like 'staff %') = 0,
+  'no NON-staff policy on any shipment table is anything but SELECT — carriers still have no write surface');
+
+select rls_test.ok(
+  (select count(*) from pg_policies
+    where schemaname = 'public' and tablename = 'shipments') = 4,
+  'shipments still carries exactly 4 policies (staff/shipper/carrier/broker) — M-76 added none');
+
+-- ---- 2 · the credential column -------------------------------------------
+select rls_test.ok(
+  has_column_privilege('authenticated', 'shipment_driver_tokens', 'token_hash', 'SELECT') = false,
+  'authenticated CANNOT select shipment_driver_tokens.token_hash — column-level REVOKE, stronger than any policy');
+select rls_test.ok(
+  has_column_privilege('anon', 'shipment_driver_tokens', 'token_hash', 'SELECT') = false,
+  'anon cannot select token_hash either');
+select rls_test.ok(
+  has_column_privilege('authenticated', 'shipment_driver_tokens', 'expires_at', 'SELECT'),
+  'authenticated CAN select expires_at — the non-vacuity control for the two refusals above');
+select rls_test.ok(
+  has_table_privilege('authenticated', 'shipment_driver_tokens', 'INSERT') = false
+    and has_table_privilege('authenticated', 'shipment_driver_tokens', 'UPDATE') = false
+    and has_table_privilege('authenticated', 'shipment_driver_tokens', 'DELETE') = false,
+  'authenticated holds NO write privilege on shipment_driver_tokens at all');
+-- The ledger keeps a table-level SELECT for `authenticated` on purpose: its
+-- policy is `is_staff()`, and revoking the privilege would make that policy
+-- dead code and §15''s "view access history" unimplementable. What matters is
+-- that a CARRIER session reaching the table reads ZERO rows — a policy result,
+-- asserted below — while anon cannot reach it at all.
+select rls_test.ok(
+  has_table_privilege('anon', 'shipment_driver_token_access', 'SELECT') = false,
+  'ANON holds no SELECT on the driver-link access ledger — it is the platform''s own enumeration telemetry');
+select rls_test.ok(
+  has_table_privilege('authenticated', 'shipment_driver_token_access', 'INSERT') = false
+    and has_table_privilege('authenticated', 'shipment_driver_token_access', 'UPDATE') = false
+    and has_table_privilege('authenticated', 'shipment_driver_token_access', 'DELETE') = false,
+  'no browser role can WRITE the ledger — a staff session that could would be able to forge the evidence');
+
+-- The exact column list of both tables. Adding a column able to carry a token
+-- (a prefix, "the last four", a hash of an attempt) is a TEST FAILURE.
+select rls_test.ok(
+  (select string_agg(column_name, ',' order by ordinal_position)
+     from information_schema.columns
+    where table_schema = 'public' and table_name = 'shipment_driver_tokens')
+  = 'id,shipment_id,carrier_id,token_hash,driver_id,driver_name,issued_by,'
+    'issued_by_role,issued_at,expires_at,revoked_at,revoked_by,revoke_reason,'
+    'consent_status,consent_at,last_used_at,use_count,created_at',
+  'shipment_driver_tokens has EXACTLY the M-70 column list — no second credential column crept in');
+select rls_test.ok(
+  (select string_agg(column_name, ',' order by ordinal_position)
+     from information_schema.columns
+    where table_schema = 'public' and table_name = 'shipment_driver_token_access')
+  = 'id,token_id,shipment_id,outcome,detail,ip,user_agent,accessed_at',
+  'the access ledger has no column a presented token could arrive through');
+
+-- ---- 3 · who reads what ---------------------------------------------------
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';  -- carrier A owner
+
+select rls_test.eq((select count(*) from shipment_driver_tokens),
+  3, 'carrier A reads its OWN three driver links (active + revoked + expired)');
+select rls_test.eq((select count(*) from shipment_driver_tokens
+                     where carrier_id = '11111111-1111-1111-1111-11111111bbbb'),
+  0, 'carrier A reads NONE of carrier B''s driver links (§13 "no access to other carrier records")');
+select rls_test.eq((select count(*) from shipment_driver_tokens where revoked_at is null and expires_at > now()),
+  1, 'carrier A sees exactly one LIVE link — the lifecycle is legible, not just the row count');
+select rls_test.reads_nothing('shipment_driver_token_access',
+  'carrier A reads NOTHING of the access ledger — it carries other people''s IPs, and §15 makes access history ADMIN business');
+select rls_test.writes_nothing(
+  $$update shipment_driver_tokens set expires_at = now() + interval '30 days'$$,
+  'carrier A cannot extend a driver link''s expiry (no UPDATE policy, no UPDATE privilege)');
+select rls_test.writes_nothing(
+  $$update shipment_driver_tokens set revoked_at = null$$,
+  'carrier A cannot un-revoke a link by writing the column directly');
+select rls_test.denied(
+  $$insert into shipment_driver_tokens (shipment_id, carrier_id, token_hash, issued_by_role, expires_at)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','11111111-1111-1111-1111-11111111aaaa',
+            'v1:' || repeat('e', 64), 'carrier', now() + interval '1 day')$$,
+  'carrier A cannot mint a driver link with a hash it chose — issuance is a service-role function');
+
+-- A carrier MEMBER (not the owner) gets the same view: membership, not
+-- ownership, is the key — the same rule 0018 applies to shipments.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a2';
+select rls_test.eq((select count(*) from shipment_driver_tokens),
+  3, 'a carrier A MEMBER reads the same three links — membership, not ownership');
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000b1';  -- carrier B owner
+select rls_test.eq((select count(*) from shipment_driver_tokens),
+  1, 'carrier B reads exactly its own one link');
+select rls_test.eq((select count(*) from shipment_driver_tokens
+                     where shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'),
+  0, 'carrier B reads none of shipment A''s links');
+
+-- A shipper is not a party to the carrier's crew logistics at all.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1';
+select rls_test.reads_nothing('shipment_driver_tokens',
+  'a SHIPPER reads no driver link — which truck and which driver is carrier operational data (§12''s must-not-see list, applied to §13)');
+
+-- A broker partner likewise.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab01';
+select rls_test.reads_nothing('shipment_driver_tokens',
+  'a BROKER PARTNER reads no driver link');
+
+-- A non-member.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000d1';
+select rls_test.reads_nothing('shipment_driver_tokens',
+  'an authenticated outsider reads no driver link');
+
+set role anon;
+set request.jwt.claim.sub = '';
+select rls_test.reads_nothing('shipment_driver_tokens',
+  'ANON reads no driver link — §19''s no-anon-SELECT rule holds for the credential table too');
+select rls_test.reads_nothing('shipment_driver_token_access',
+  'ANON reads nothing of the access ledger — it is the platform''s own enumeration telemetry');
+
+-- Staff, which is what makes every zero above a POLICY result rather than an
+-- empty table.
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000e1';  -- dispatcher
+select rls_test.eq((select count(*) from shipment_driver_tokens),
+  4, 'a DISPATCHER reads all four links — the non-vacuity control for every zero above');
+select rls_test.eq((select count(*) from shipment_driver_token_access),
+  3, 'a DISPATCHER reads the whole access ledger, enumeration rows included');
+select rls_test.writes_nothing(
+  $$update shipment_driver_tokens set revoke_reason = 'tampered'$$,
+  'even STAFF cannot edit a driver link directly — revocation is a function, not an UPDATE');
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000f1';  -- admin
+select rls_test.eq((select count(*) from shipment_driver_tokens),
+  4, 'an ADMIN reads all four links');
+
+-- ---- 4 · the function grants ---------------------------------------------
+select rls_test.rejects_with(
+  $$select redeem_shipment_driver_token('v1:' || repeat('a', 64))$$,
+  '42501', 'even an ADMIN session cannot redeem a driver link — EXECUTE is service_role only');
+select rls_test.rejects_with(
+  $$select issue_shipment_driver_token('ffffffff-ffff-ffff-ffff-ffffffff0a01','11111111-1111-1111-1111-11111111aaaa','v1:' || repeat('f', 64), now() + interval '1 day')$$,
+  '42501', 'nor issue one');
+select rls_test.rejects_with(
+  $$select revoke_shipment_driver_token('fdfdfdfd-fdfd-fdfd-fdfd-fdfdfdfd0a01')$$,
+  '42501', 'nor revoke one');
+select rls_test.rejects_with(
+  $$select set_driver_token_consent('v1:' || repeat('a', 64), true)$$,
+  '42501', 'nor record consent on somebody else''s behalf');
+
+set role anon;
+set request.jwt.claim.sub = '';
+select rls_test.rejects_with(
+  $$select redeem_shipment_driver_token('v1:' || repeat('a', 64))$$,
+  '42501', 'ANON cannot redeem a driver link — the page reaches it through a server route holding the service role');
+
+reset role;
+set request.jwt.claim.sub = '';
+
+select rls_test.ok(
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname in ('issue_shipment_driver_token','revoke_shipment_driver_token',
+                        'redeem_shipment_driver_token','set_driver_token_consent')
+      and p.prosecdef) = 4,
+  'all four 0023 functions are SECURITY DEFINER');
+select rls_test.ok(
+  (select bool_and(has_function_privilege('service_role', p.oid, 'EXECUTE'))
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname in ('issue_shipment_driver_token','revoke_shipment_driver_token',
+                        'redeem_shipment_driver_token','set_driver_token_consent')),
+  'service_role CAN execute all four — the non-vacuity control for the 42501s above');
+select rls_test.ok(
+  (select bool_or(has_function_privilege('authenticated', p.oid, 'EXECUTE')
+                  or has_function_privilege('anon', p.oid, 'EXECUTE'))
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname in ('issue_shipment_driver_token','revoke_shipment_driver_token',
+                        'redeem_shipment_driver_token','set_driver_token_consent')) = false,
+  'NEITHER authenticated NOR anon holds EXECUTE on any of the four (the REVOKE FROM PUBLIC held)');
+
+-- ---- Table guarantees, as the table OWNER ---------------------------------
+-- Everything below can only be refused by a trigger or a CHECK: the owner
+-- bypasses RLS entirely, so a pass here is a statement about the SCHEMA.
+select rls_test.rejects_with(
+  $$update shipment_driver_tokens set shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'
+      where id = 'fdfdfdfd-fdfd-fdfd-fdfd-fdfdfdfd0a01'$$,
+  'P0001', 'a driver link is scoped to ONE shipment — the owner cannot re-point it (§13)');
+select rls_test.rejects_with(
+  $$update shipment_driver_tokens set carrier_id = '11111111-1111-1111-1111-11111111bbbb'
+      where id = 'fdfdfdfd-fdfd-fdfd-fdfd-fdfdfdfd0a01'$$,
+  'P0001', 'nor hand it to another carrier');
+select rls_test.rejects_with(
+  $$update shipment_driver_tokens set token_hash = 'v1:' || repeat('9', 64)
+      where id = 'fdfdfdfd-fdfd-fdfd-fdfd-fdfdfdfd0a01'$$,
+  'P0001', 'nor swap the credential under it');
+select rls_test.rejects_with(
+  $$update shipment_driver_tokens set revoked_at = null
+      where id = 'fdfdfdfd-fdfd-fdfd-fdfd-fdfdfdfd0a02'$$,
+  'P0001', 'revocation is ONE-WAY, even for the owner (§13 "revocable" means killed, not paused)');
+select rls_test.rejects_with(
+  $$update shipment_driver_token_access set outcome = 'granted'$$,
+  'P0001', 'the access ledger is APPEND-ONLY for the owner — evidence, not state');
+select rls_test.rejects_with(
+  $$delete from shipment_driver_token_access$$,
+  'P0001', 'and cannot be cleared');
+select rls_test.rejects_with(
+  $$insert into shipment_driver_tokens (shipment_id, carrier_id, token_hash, issued_by_role, expires_at)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','11111111-1111-1111-1111-11111111aaaa',
+            'not-a-hash', 'dispatcher', now() + interval '1 day')$$,
+  '23514', 'the token_hash CHECK refuses anything that is not v<n>:<64 hex>');
+select rls_test.rejects_with(
+  $$insert into shipment_driver_tokens (shipment_id, carrier_id, token_hash, issued_by_role, expires_at)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','11111111-1111-1111-1111-11111111aaaa',
+            'v1:' || repeat('a', 64), 'dispatcher', now() + interval '1 day')$$,
+  '23505', 'token_hash is UNIQUE — one link cannot open two shipments');
+select rls_test.rejects_with(
+  $$insert into shipment_driver_tokens (shipment_id, carrier_id, token_hash, issued_by_role, expires_at)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','11111111-1111-1111-1111-11111111aaaa',
+            'v1:' || repeat('7', 64), 'driver', now() + interval '1 day')$$,
+  '23514', 'issued_by_role is limited to admin/dispatcher/carrier — a DRIVER cannot issue their own link');
+select rls_test.rejects_with(
+  $$insert into shipment_driver_tokens (shipment_id, carrier_id, token_hash, issued_by_role, expires_at)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','11111111-1111-1111-1111-11111111aaaa',
+            'v1:' || repeat('8', 64), 'dispatcher', now() - interval '1 day')$$,
+  '23514', 'expires_at must follow issued_at — a link cannot be born expired');
+select rls_test.rejects_with(
+  $$insert into shipment_driver_tokens (shipment_id, carrier_id, token_hash, issued_by_role, expires_at, consent_status)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','11111111-1111-1111-1111-11111111aaaa',
+            'v1:' || repeat('6', 64), 'dispatcher', now() + interval '1 day', 'granted')$$,
+  '23514', 'consent cannot be GRANTED without a timestamp — an undated consent is not one');
+
+-- The `consent_status` default is the privacy-first one, restated as a fact
+-- about the DDL rather than about any row.
+select rls_test.ok(
+  (select column_default from information_schema.columns
+    where table_schema = 'public' and table_name = 'shipment_driver_tokens'
+      and column_name = 'consent_status') like '%pending%',
+  'consent_status DEFAULTS to pending — §9/§13 consent is actively granted, never inherited');

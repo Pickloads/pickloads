@@ -239,7 +239,7 @@ beforeEach(() => {
 });
 
 describe("§14 actions — the gate, proved per action", () => {
-  it("exports the fifteen §14 actions the plan and directive name", () => {
+  it("exports the fifteen §14 actions the plan and directive name, plus M-76's two §13 driver-link actions", () => {
     expect(ACTION_NAMES.sort()).toEqual(
       [
         "addNoteAction",
@@ -257,6 +257,12 @@ describe("§14 actions — the gate, proved per action", () => {
         "setAppointmentAction",
         "updateEtaAction",
         "updateStatusAction",
+        // M-76 — §13 permits a dispatcher OR the carrier to issue a driver
+        // link, so the dispatcher half lands on this surface. Both go through
+        // the same `resolveShipmentAccess` gate as the fifteen above, which
+        // the scenarios below prove per action rather than by assertion.
+        "issueDriverTokenAction",
+        "revokeDriverTokenAction",
       ].sort(),
     );
   });

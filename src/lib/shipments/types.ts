@@ -449,6 +449,51 @@ export const TRACKING_ACCESS_OUTCOMES = [
   "tracking_disabled",
 ] as const satisfies readonly TrackingAccessOutcome[];
 
+/**
+ * M-76/§13 — outcome of a DRIVER-LINK presentation.
+ *
+ * Distinct from `TrackingAccessOutcome` because the failure modes are
+ * genuinely different: a tracking lookup can fail on a wrong secondary value
+ * and can be refused because an admin suspended public tracking, neither of
+ * which a bearer token has; a driver link can expire, be revoked, or outlive
+ * the carrier assignment it was scoped to, none of which a tracking number
+ * can. One enum covering both would have five values nobody could ever
+ * produce on one of the two paths.
+ *
+ * The DRIVER PAGE renders one identical refusal for `not_found`, `expired`,
+ * `revoked` and `carrier_released` (§30's "Tracking link expired"); the
+ * distinction is staff-only telemetry, exactly as on the public path.
+ */
+export type DriverTokenOutcome =
+  | "granted"
+  | "not_found"
+  | "expired"
+  | "revoked"
+  /** The carrier was released or replaced after the link was issued (§13). */
+  | "carrier_released"
+  | "rate_limited"
+  /** A redeemed link whose UPDATE was refused (§26's unauthorized-attempt). */
+  | "update_rejected";
+
+export const DRIVER_TOKEN_OUTCOMES = [
+  "granted",
+  "not_found",
+  "expired",
+  "revoked",
+  "carrier_released",
+  "rate_limited",
+  "update_rejected",
+] as const satisfies readonly DriverTokenOutcome[];
+
+/** Who issued a driver link. §13 permits a dispatcher OR the carrier. */
+export type DriverTokenIssuerRole = "admin" | "dispatcher" | "carrier";
+
+export const DRIVER_TOKEN_ISSUER_ROLES = [
+  "admin",
+  "dispatcher",
+  "carrier",
+] as const satisfies readonly DriverTokenIssuerRole[];
+
 /* ------------------------------------------------------------------ *
  * i18n keys (§24, §30)
  * ------------------------------------------------------------------ */
@@ -812,4 +857,88 @@ export interface TrackingProviderConnectionRow {
   connected_at: string;
   last_polled_at: string | null;
   last_error: string | null;
+}
+
+/**
+ * `shipment_driver_tokens` — §13's driver update link (M-76, migration 0023).
+ *
+ * WHAT M-70 ALREADY MODELLED, AND WHAT IT DID NOT.
+ * `TrackingProviderConnectionRow` above is the closest thing in this file and
+ * was checked first: it is per-shipment, it expires, and it carries a
+ * `consent_status` — three of the four properties §13 asks for. It is still
+ * the wrong table, for a reason worth writing down rather than discovering
+ * later: it models a link a PROVIDER gives US (`tracking_url` points outward
+ * at Motive/Samsara, `external_tracking_id` is their identifier, and
+ * `last_polled_at`/`last_error` describe a poller), whereas this models a
+ * credential WE give a driver. Overloading one row type would leave every
+ * driver link carrying four provider columns that must stay null and a
+ * `tracking_url` column that is the one thing §13 forbids storing.
+ *
+ * What IS reused is `TrackingConsentStatus` — §9's enum, created in SQL by
+ * 0017 and declared above. M-76 adds no consent vocabulary of its own.
+ *
+ * NOTE WHAT IS ABSENT: the token. `token_hash` is an HMAC under an env-held
+ * key; there is no field here, and no column in 0023, able to carry the
+ * plaintext. `token_hash` is additionally REVOKED at column level from
+ * `authenticated` and `anon`, so no browser-reachable role can select it.
+ */
+export interface ShipmentDriverTokenRow {
+  id: string;
+  /** §13 "only assigned shipment" — immutable, enforced by 0023's trigger. */
+  shipment_id: string;
+  /** §13 "no access to other carrier records" — immutable, checked on redeem. */
+  carrier_id: string;
+  /** `v1:<64 hex>` HMAC-SHA-256. Never the token. */
+  token_hash: string;
+  driver_id: string | null;
+  driver_name: string | null;
+  issued_by: string | null;
+  issued_by_role: DriverTokenIssuerRole;
+  issued_at: string;
+  /** §13 "short-lived" — NOT NULL, so a permanent link cannot be issued. */
+  expires_at: string;
+  /** §13 "revocable". One-way: 0023's trigger refuses un-revocation. */
+  revoked_at: string | null;
+  revoked_by: string | null;
+  revoke_reason: string | null;
+  /** §9/§13 — defaults to `pending`; the driver grants it on the page. */
+  consent_status: TrackingConsentStatus;
+  consent_at: string | null;
+  last_used_at: string | null;
+  use_count: number;
+  created_at: string;
+}
+
+/**
+ * The projection every browser-reachable surface reads — `ShipmentDriverTokenRow`
+ * without the credential column.
+ *
+ * Declared as an `Omit` rather than re-typed, so a new column on the row lands
+ * here automatically and a new SECRET column has to be excluded deliberately.
+ */
+export type DriverTokenView = Omit<ShipmentDriverTokenRow, "token_hash">;
+
+/**
+ * `shipment_driver_token_access` — §13's "audit logged" and §26's
+ * repeated-invalid-token signal, in one append-only ledger.
+ *
+ * It is also the rate limiter's memory (0023's `redeem_shipment_driver_token`
+ * counts it), so "rate limited" and "audit logged" are one write and cannot
+ * disagree with each other.
+ *
+ * NOTE WHAT IS ABSENT, as in `ShipmentTrackingAccessRow`: any field able to
+ * carry the presented token, hashed or otherwise. A ledger of hashes of
+ * presented tokens is an oracle for whoever can read it.
+ */
+export interface ShipmentDriverTokenAccessRow {
+  id: string;
+  /** Null when the presented token matched nothing — the enumeration case. */
+  token_id: string | null;
+  shipment_id: string | null;
+  outcome: DriverTokenOutcome;
+  /** Operational context (attempted status, refusal code). Never a credential. */
+  detail: string | null;
+  ip: string | null;
+  user_agent: string | null;
+  accessed_at: string;
 }

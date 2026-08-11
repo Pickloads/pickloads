@@ -587,10 +587,14 @@ describe("§3 isolation — shipper A cannot read shipper B", () => {
       role: "authenticated",
       sub: "00000000-0000-0000-0000-00000000f074",
     });
+    // The bound is generous rather than tight: this lane shares one database
+    // and later modules (M-76 added ~25) create their own shipments, so a
+    // 50-row cap would make this control fail for a reason that has nothing
+    // to do with the policy it exists to prove.
     const all = await adminClient
       .from("shipments")
       .select("tracking_number")
-      .limit(50);
+      .limit(500);
     const numbers = (all.data ?? []).map(
       (r) => (r as { tracking_number: string }).tracking_number,
     );

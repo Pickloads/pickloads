@@ -18,6 +18,8 @@ import {
   setAppointmentAction,
   updateEtaAction,
   updateStatusAction,
+  issueDriverTokenAction,
+  revokeDriverTokenAction,
 } from "@/app/actions/dispatcher-shipments";
 import { initialFormState, type FormState } from "@/lib/form-state";
 import {
@@ -1111,5 +1113,105 @@ export function CorrectionForm({
         creation and cannot be altered by anybody, including this form.
       </p>
     </ActionCard>
+  );
+}
+
+/* ================================================================== *
+ * M-76 — §13's driver link, dispatcher side
+ * ================================================================== */
+
+/**
+ * Issue a `/driver/update/[token]` link.
+ *
+ * THE LINK IS IN THE SUCCESS MESSAGE AND NOWHERE ELSE. `shipment_driver_tokens`
+ * stores an HMAC and `token_hash` is revoked at COLUMN level from every
+ * browser-reachable role, so the portal cannot re-read it — deliberately.
+ * Re-issuing is one click; a surface that could show a live credential twice
+ * is a surface that can leak one twice. The description says so, because a
+ * dispatcher who closes the card and then looks for a "copy again" button
+ * deserves to know why there isn't one.
+ */
+export function IssueDriverLinkForm({
+  shipmentId,
+  drivers,
+  disabledReason,
+}: {
+  shipmentId: string;
+  drivers: AssignOption[];
+  /** Non-null when the link cannot be issued — rendered instead of the form. */
+  disabledReason: string | null;
+}) {
+  if (disabledReason !== null) {
+    return (
+      <section className="pcard">
+        <h2>Driver update link</h2>
+        <p className="pempty" style={{ padding: 0 }} role="note">
+          {disabledReason}
+        </p>
+      </section>
+    );
+  }
+  return (
+    <ActionCard
+      title="Driver update link"
+      description="A shipment-scoped link the driver opens on their phone with no account. It expires on its own, you can revoke it, and it never shows a rate. Copy it when it appears — we store only a fingerprint, so it cannot be shown again."
+      action={issueDriverTokenAction}
+      submitLabel="Create driver link"
+      busyLabel="Creating…"
+    >
+      <Hidden id={shipmentId} />
+      <div className="field">
+        <label htmlFor="dl-driver">Driver on file</label>
+        <select id="dl-driver" name="driver_id" defaultValue="">
+          <option value="">— not from the fleet list —</option>
+          {drivers.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="field">
+        <label htmlFor="dl-name">Driver name (for the record)</label>
+        <input id="dl-name" name="driver_name" type="text" maxLength={120} />
+      </div>
+    </ActionCard>
+  );
+}
+
+/**
+ * Revoke one link. §13 makes revocation a WRITE, so it is a form with its own
+ * busy state and its own `role="alert"` — a bare `onClick` would leave a
+ * dispatcher with no way to know a revocation failed, which on a credential is
+ * the failure that matters.
+ */
+export function RevokeDriverLinkForm({
+  shipmentId,
+  tokenId,
+}: {
+  shipmentId: string;
+  tokenId: string;
+}) {
+  const router = useRouter();
+  const [state, formAction, pending] = useActionState(
+    revokeDriverTokenAction,
+    initialFormState,
+  );
+  useEffect(() => {
+    if (state.status === "success") router.refresh();
+  }, [state, router]);
+  return (
+    <form action={formAction}>
+      <Hidden id={shipmentId} />
+      <input type="hidden" name="token_id" value={tokenId} />
+      <button className="btn btn-ghost btn-sm" type="submit" aria-busy={pending}>
+        Revoke
+      </button>
+      {state.status === "error" && state.message ? (
+        <span className="err-msg" role="alert">
+          {state.message}
+        </span>
+      ) : null}
+    </form>
   );
 }

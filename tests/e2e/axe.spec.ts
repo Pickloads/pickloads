@@ -26,6 +26,14 @@ const PAGES = [
    * axe-core engine against the same component in
    * tests/unit/tracking-result-a11y.test.tsx, which explains the split. */
   "/track",
+  /* M-76: the DRIVER update link. Unlike every other tracking surface this is
+   * unauthenticated, so the real page is scanned in a real browser — which is
+   * what makes its colour contrast (jsdom cannot see it) covered. What renders
+   * here is the honest refusal card, because a token cannot be redeemed
+   * without a database; the GRANTED state is scanned with the same axe-core
+   * engine in tests/unit/carrier-driver-a11y.test.tsx. 43 "A"s is the exact
+   * shape of a real token. */
+  `/driver/update/${"A".repeat(43)}`,
   "/shippers",
   "/become-a-carrier",
   "/start-your-trucking-company",
@@ -56,6 +64,13 @@ const PAGES = [
  * in `tests/unit/dispatcher-shipments-a11y.test.tsx` (board, scoped board,
  * expanded column, failed column, full detail, dispatcher detail, terminal
  * detail), and `tests/e2e/dispatcher-shipments.spec.ts` asserts the gate.
+ *
+ * M-76 — `/portal/carrier/shipments` and its `[shipmentId]` detail are absent
+ * for the same reason (a carrier session this lane cannot mint) and are
+ * covered the same way: eight axe states in
+ * `tests/unit/carrier-driver-a11y.test.tsx`, with the session gate asserted in
+ * `tests/e2e/carrier-driver-updates.spec.ts`. The DRIVER page is in the list
+ * above precisely because it needs no session — that is the point of it.
  */
 
 for (const path of PAGES) {

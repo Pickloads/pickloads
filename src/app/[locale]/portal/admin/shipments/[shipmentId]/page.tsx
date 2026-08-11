@@ -15,6 +15,8 @@ import {
 } from "@/lib/shipments/staff-detail";
 import { availableTransitions } from "@/lib/shipments/transitions";
 import { ShipmentStaffDetailView } from "@/components/portal/ShipmentStaffDetailView";
+import { getDriverTokens } from "@/lib/shipments/carrier-shipments";
+import { isDriverTokenConfigured } from "@/lib/shipments/driver-token";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +76,10 @@ export default async function StaffShipmentPage({
   const scope = await getStaffScope(supabase, session);
   if (!dispatcherMayActOn(scope, session.userId, shipment)) notFound();
 
-  const [history, assignments, parties, carriers, staff, fleet] =
+  // M-76 adds a SEVENTH concurrent read: this shipment's driver links, through
+  // the COOKIE-BOUND client so 0023's `"staff manage driver tokens"` policy
+  // applies. Still one round trip, still §25's "no N+1".
+  const [history, assignments, parties, carriers, staff, fleet, driverTokens] =
     await Promise.all([
       getStaffTimelinePage(supabase, shipmentId, sp.before),
       getShipmentAssignments(supabase, shipmentId),
@@ -82,6 +87,7 @@ export default async function StaffShipmentPage({
       getAssignableCarriers(supabase, scope.carrierIds),
       getStaffOptions(supabase),
       getCarrierFleet(supabase, shipment.carrier_id),
+      getDriverTokens(supabase, shipmentId),
     ]);
 
   const actorRole = session.role === "admin" ? "admin" : "dispatcher";
@@ -109,6 +115,9 @@ export default async function StaffShipmentPage({
         carrierNames={Object.fromEntries(
           carriers.map((c) => [c.id, c.name] as const),
         )}
+        driverTokens={driverTokens.tokens}
+        driverTokensFailed={driverTokens.failed}
+        driverLinksEnabled={isDriverTokenConfigured()}
       />
     </main>
   );

@@ -12,6 +12,8 @@ import {
   RequestPodForm,
   ResendNotificationForm,
   StatusUpdateForm,
+  IssueDriverLinkForm,
+  RevokeDriverLinkForm,
   type AssignOption,
 } from "@/components/portal/ShipmentOpsForms";
 import { statusLabel } from "@/components/portal/ShipmentBoardView";
@@ -21,7 +23,8 @@ import type {
   StaffTimelineEvent,
 } from "@/lib/shipments/staff-detail";
 import { SHIPMENT_STATUSES, type ShipmentStatus } from "@/lib/shipments/types";
-import type { ShipmentPartyRow } from "@/lib/shipments/types";
+import type { DriverTokenView, ShipmentPartyRow } from "@/lib/shipments/types";
+import { driverTokenState } from "@/lib/shipments/driver-token-state";
 
 /**
  * M-75 — the dispatcher shipment page: what is true about this shipment, what
@@ -342,6 +345,11 @@ export interface ShipmentStaffDetailProps {
   availableTransitions: readonly ShipmentStatus[];
   isAdmin: boolean;
   carrierNames: Record<string, string>;
+  /** M-76 — §13's driver links on this shipment, credential column excluded. */
+  driverTokens: readonly DriverTokenView[];
+  driverTokensFailed: boolean;
+  /** True when `DRIVER_TOKEN_SECRET` is set — §30: no button we cannot honour. */
+  driverLinksEnabled: boolean;
 }
 
 export function ShipmentStaffDetailView(props: ShipmentStaffDetailProps) {
@@ -437,6 +445,17 @@ export function ShipmentStaffDetailView(props: ShipmentStaffDetailProps) {
         />
       ) : null}
 
+      {/* M-76 — §13's driver link, from the dispatcher side. Both origins the
+          directive permits are wired: this surface and the carrier portal. */}
+      <DriverLinkBlock
+        shipmentId={shipment.id}
+        tokens={props.driverTokens}
+        tokensFailed={props.driverTokensFailed}
+        enabled={props.driverLinksEnabled}
+        hasCarrier={shipment.carrier_id !== null}
+        drivers={props.drivers}
+      />
+
       <span className="psec">Not here yet</span>
       <p className="pempty" style={{ padding: "0 0 20px" }}>
         {/* §30 applies to staff surfaces too: name what is missing rather than
@@ -446,6 +465,118 @@ export function ShipmentStaffDetailView(props: ShipmentStaffDetailProps) {
         requesting a POD and sending an in-portal notification all work today —
         the pieces above name exactly what they do.
       </p>
+    </>
+  );
+}
+
+/**
+ * M-76 — §13's driver links on this shipment.
+ *
+ * WHAT IS NOT IN THIS TABLE is the point: no token, no prefix, no "last four".
+ * `DriverTokenView` is `ShipmentDriverTokenRow` minus `token_hash`, so
+ * rendering the credential is a compile error — and 0023 revokes SELECT on
+ * that column from `authenticated` at the COLUMN level, so it is a permission
+ * error too. Three independent guarantees for one column, because it is the
+ * only bearer credential in the schema.
+ *
+ * State is TEXT (§23), never a colour: "Active" / "Expired" / "Revoked".
+ */
+function DriverLinkBlock({
+  shipmentId,
+  tokens,
+  tokensFailed,
+  enabled,
+  hasCarrier,
+  drivers,
+}: {
+  shipmentId: string;
+  tokens: readonly DriverTokenView[];
+  tokensFailed: boolean;
+  enabled: boolean;
+  hasCarrier: boolean;
+  drivers: AssignOption[];
+}) {
+  const disabledReason = !hasCarrier
+    ? "Assign a carrier before issuing a driver link — the link is scoped to the carrier hauling this freight."
+    : !enabled
+      ? "DRIVER_TOKEN_SECRET is unset in this environment, so no driver link can be minted or verified. Take the update by phone."
+      : null;
+
+  return (
+    <>
+      <span className="psec">Driver links</span>
+      {tokensFailed ? (
+        <p className="pempty" role="alert" style={{ padding: "0 0 12px" }}>
+          Couldn&rsquo;t read this shipment&rsquo;s driver links. Reload the page.
+        </p>
+      ) : tokens.length === 0 ? (
+        <p className="pempty" style={{ padding: "0 0 12px" }}>
+          No driver link has been issued for this shipment.
+        </p>
+      ) : (
+        <div className="pcard" style={{ padding: 0 }}>
+          <table className="ptable ptable--cards">
+            <thead>
+              <tr>
+                <th scope="col">Driver</th>
+                <th scope="col">State</th>
+                <th scope="col">Issued</th>
+                <th scope="col">Expires</th>
+                <th scope="col">Uses</th>
+                <th scope="col">Location consent</th>
+                <th scope="col">
+                  <span className="sr-only">Revoke</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {tokens.map((token) => {
+                const state = driverTokenState(token);
+                return (
+                  <tr key={token.id}>
+                    <td data-th="Driver">{token.driver_name ?? "—"}</td>
+                    <td data-th="State">
+                      {state === "active"
+                        ? "Active"
+                        : state === "expired"
+                          ? "Expired"
+                          : "Revoked"}
+                    </td>
+                    <td data-th="Issued">
+                      <time dateTime={token.issued_at}>
+                        {token.issued_at.slice(0, 16).replace("T", " ")}
+                      </time>{" "}
+                      ({token.issued_by_role})
+                    </td>
+                    <td data-th="Expires">
+                      <time dateTime={token.expires_at}>
+                        {token.expires_at.slice(0, 16).replace("T", " ")}
+                      </time>
+                    </td>
+                    <td data-th="Uses">{token.use_count}</td>
+                    <td data-th="Location consent">{token.consent_status}</td>
+                    <td data-th="Revoke">
+                      {state === "active" ? (
+                        <RevokeDriverLinkForm
+                          shipmentId={shipmentId}
+                          tokenId={token.id}
+                        />
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <IssueDriverLinkForm
+        shipmentId={shipmentId}
+        drivers={drivers}
+        disabledReason={disabledReason}
+      />
     </>
   );
 }

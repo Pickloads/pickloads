@@ -173,6 +173,12 @@ export function PortalSidebar({
             {item("/portal/carrier/documents", tv("Documents"))}
             {item("/portal/carrier/agreements", tv("Agreements"))}
             {item("/portal/carrier/loads", tv("Loads"))}
+            {/* M-76 — §13's carrier update surface. Separate from "Loads" on
+                purpose: dispatch loads and brokerage shipments are different
+                products on different tables (plan §1), and one nav entry
+                covering both would be the query mistake the architecture was
+                designed to make impossible. */}
+            {item("/portal/carrier/shipments", tv("Shipments"))}
             {item("/portal/carrier/invoices", tv("Invoices & Payments"))}
             {item("/portal/carrier/notifications", tv("Notifications"))}
             {item("/portal/carrier/support", tv("Support"))}

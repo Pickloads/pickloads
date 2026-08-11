@@ -574,3 +574,83 @@ details .a{padding:0 22px 20px;font-size:.93rem;color:#4a545b}
 @media(prefers-reduced-motion:reduce){
   .track-support,.track-step::before{transition:none}
 }
+
+/* ---- M-76 net-new: the driver update link (/driver/update/[token]) --------
+ * Token-only, NO new colours. Every value below is either an existing @theme
+ * token, a shade already present in this file (the .form-err light pair
+ * #7a2a2a / rgba(122,42,42,…) and the success pair rgba(14,90,60,…)), white,
+ * or a geometry value.
+ *
+ * §22 IS THE WHOLE BRIEF HERE. This is a phone, one hand, gloves, a dock.
+ *
+ *   * ONE COLUMN AT EVERY WIDTH. There is no multi-column arrangement, so
+ *     there is nothing to reflow and no breakpoint that can be wrong. The
+ *     shell simply stops growing at 560px and centres.
+ *   * 56px MINIMUM on every interactive control — a third above WCAG 2.5.8's
+ *     44px floor, because the target is a gloved thumb.
+ *   * NO HOVER RULES AT ALL in this block. §22 forbids hover-only
+ *     interactions; the strongest version of that is a stylesheet with no
+ *     hover state to depend on. Focus-visible is styled instead, which works
+ *     for keyboards and does not pretend a touchscreen has a pointer.
+ *   * 16px MINIMUM font size on inputs. Below that, iOS Safari zooms the
+ *     viewport on focus and the layout that fitted 320px no longer does —
+ *     §22's "no form controls outside viewport", caused by the browser rather
+ *     than the CSS.
+ *   * `overflow-wrap:anywhere` on the tracking number and the summary values,
+ *     because a 14-character mono string plus a company name is the widest
+ *     thing on the page.
+ * -------------------------------------------------------------------------- */
+
+.driver-shell{max-width:560px;margin:0 auto;padding:16px 14px 40px;background:var(--color-paper);min-height:100vh}
+.driver-page{display:flex;flex-direction:column;gap:14px}
+.driver-card{background:#fff;border:1px solid var(--line-dark);border-radius:12px;padding:18px 16px}
+.driver-title{font-size:1.32rem;font-weight:900;color:var(--ink);line-height:1.25;overflow-wrap:anywhere}
+.driver-h2{font-size:1.05rem;font-weight:800;color:var(--ink);margin-bottom:10px}
+.driver-body{font-size:1rem;line-height:1.55;color:var(--color-slate-body);margin-top:8px}
+.driver-help{font-size:.92rem;line-height:1.5;color:var(--color-slate-body);margin-bottom:10px}
+.driver-meta{font-family:var(--font-mono);font-size:.76rem;line-height:1.55;color:var(--color-slate-aa);margin-top:10px;overflow-wrap:anywhere}
+
+/* §22 mobile priority: a definition list, never a table. Two rows per item at
+   every width — the label is small and the value is large, which is the order
+   a driver reads them in. */
+.driver-dl{margin:0}
+.driver-dl dt{font-family:var(--font-mono);font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--color-slate-aa);margin-top:12px}
+.driver-dl dt:first-child{margin-top:0}
+.driver-dl dd{margin:4px 0 0;font-size:1.02rem;font-weight:700;color:var(--ink);overflow-wrap:anywhere;line-height:1.45}
+
+.driver-form fieldset{border:0;margin:0;padding:0;min-width:0}
+.driver-form legend{font-family:var(--font-mono);font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--color-slate-aa);padding:0;margin-bottom:10px}
+
+.driver-field{margin-top:14px}
+.driver-field label{display:block;font-size:.92rem;font-weight:700;color:var(--ink);margin-bottom:6px}
+.driver-field input,.driver-field select,.driver-field textarea{width:100%;min-height:56px;box-sizing:border-box;font-family:inherit;font-size:16px;line-height:1.4;padding:14px 14px;border:1px solid var(--line-dark);border-radius:10px;background:#fff;color:var(--ink)}
+.driver-field textarea{min-height:88px;resize:vertical}
+.driver-field input:focus-visible,.driver-field select:focus-visible,.driver-field textarea:focus-visible{outline:3px solid var(--amber);outline-offset:1px}
+.driver-field-group{border-top:1px solid var(--line-dark);margin-top:16px;padding-top:12px}
+
+/* The status choices. Radios rather than a <select>: one tap instead of
+   three, and every option visible without a gesture. */
+.driver-choices{display:flex;flex-direction:column;gap:10px}
+.driver-choice{display:flex;align-items:center;gap:14px;min-height:56px;padding:10px 14px;border:1px solid var(--line-dark);border-radius:10px;background:#fff;font-size:1.02rem;font-weight:700;color:var(--ink);cursor:pointer}
+.driver-choice input{width:26px;height:26px;flex:none;accent-color:var(--amber);margin:0}
+.driver-choice:focus-within{outline:3px solid var(--amber);outline-offset:1px}
+
+.driver-check{display:flex;align-items:flex-start;gap:14px;min-height:56px;padding:12px 14px;border:1px solid var(--line-dark);border-radius:10px;font-size:1rem;line-height:1.45;color:var(--ink);cursor:pointer}
+.driver-check input{width:26px;height:26px;flex:none;accent-color:var(--amber);margin:2px 0 0}
+.driver-check:focus-within{outline:3px solid var(--amber);outline-offset:1px}
+
+.driver-submit{display:block;width:100%;min-height:56px;margin-top:16px;font-size:1.02rem;text-align:center;line-height:1.3;padding-top:16px;padding-bottom:16px}
+
+/* §23: both regions are live and both are TEXT, not a colour cue. The colour
+   is the second signal, never the only one. */
+.driver-alert{margin-top:14px;padding:14px;border:1px solid rgba(122,42,42,.35);background:rgba(122,42,42,.07);color:#7a2a2a;border-radius:10px;font-size:.97rem;line-height:1.5}
+.driver-ok{margin-top:14px;padding:14px;border:1px solid var(--green);background:rgba(14,90,60,.06);color:var(--green);border-radius:10px;font-size:.97rem;line-height:1.5}
+
+@media(max-width:360px){
+  .driver-shell{padding:12px 10px 32px}
+  .driver-card{padding:16px 13px}
+  .driver-title{font-size:1.2rem}
+}
+@media(prefers-reduced-motion:reduce){
+  .driver-submit,.driver-choice{transition:none}
+}

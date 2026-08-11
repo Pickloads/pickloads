@@ -33,6 +33,11 @@ import path from "node:path";
  */
 
 const VIEWPORTS = [
+  // M-76: §22 names 320px first and the directive means it — a driver on an
+  // SE-class phone is the narrowest real device this system serves. It was
+  // absent from M-62's five because no surface was designed at it; the driver
+  // link is, so it joins the list for every route rather than only that one.
+  { name: "320x568", width: 320, height: 568 }, // iPhone SE 1st gen / §22's floor
   { name: "375x812", width: 375, height: 812 }, // iPhone X/11/12 mini class
   { name: "390x844", width: 390, height: 844 }, // iPhone 12/13/14 class
   { name: "768x1024", width: 768, height: 1024 }, // tablet portrait
@@ -45,7 +50,16 @@ const NAV_COLLAPSE_MAX = 960;
 
 const HEX64 = "ab".repeat(32);
 
-const ROUTES: { path: string; slug: string; group: string }[] = [
+/**
+ * `chrome: false` marks a route that renders NEITHER the site nav NOR the
+ * topbar — M-76's driver link is the first and, today, the only one. §22 calls
+ * it "a driver at a dock, one hand, gloves", and the page is deliberately its
+ * own layout: no marketing nav, no footer, no analytics banner, because on a
+ * 320px screen in a truck that is four screenfuls above the one control the
+ * driver came for. Flagging it here rather than skipping the route keeps the
+ * OVERFLOW and TAP-TARGET checks running — the two that matter most for it.
+ */
+const ROUTES: { path: string; slug: string; group: string; chrome?: false }[] = [
   // ── public site ──────────────────────────────────────────────────────────
   { path: "/", slug: "home", group: "public" },
   { path: "/about", slug: "about", group: "public" },
@@ -53,6 +67,16 @@ const ROUTES: { path: string; slug: string; group: string }[] = [
   // M-73: §22's mobile tracking page — the timeline is the widest thing on
   // the public site and the most likely source of a reflow failure.
   { path: "/track", slug: "track", group: "public" },
+  // M-76: §22 calls the driver link a phone-first surface — "a driver at a
+  // dock, one hand, gloves". It is unauthenticated, so unlike every portal
+  // surface it is measured for real at every viewport, INCLUDING 320px (added
+  // to VIEWPORTS below for this route's sake and kept for all of them).
+  {
+    path: `/driver/update/${"A".repeat(43)}`,
+    slug: "driver-update",
+    group: "public",
+    chrome: false,
+  },
   { path: "/faq", slug: "faq", group: "public" },
   { path: "/shippers", slug: "shippers", group: "public" },
   { path: "/become-a-carrier", slug: "become-a-carrier", group: "public" },
@@ -118,6 +142,13 @@ const PORTAL_INTERNAL = [
   "/portal/admin/shipments",
   "/portal/admin/shipments/new",
   "/portal/admin/shipments/11111111-1111-1111-1111-111111111111",
+  // M-76 — §13's two carrier routes. Same limitation, same reason: a browser
+  // cannot reach them without a Supabase CARRIER session. Their responsive
+  // structure (`.ptable--cards` with a `data-th` on every cell, the one-column
+  // `.pcard` stack) is asserted in `tests/unit/carrier-driver-a11y.test.tsx`.
+  // The DRIVER route is NOT here — it is in ROUTES above, measured for real.
+  "/portal/carrier/shipments",
+  "/portal/carrier/shipments/11111111-1111-1111-1111-111111111111",
 ];
 
 interface Rect {
@@ -261,6 +292,18 @@ for (const vp of VIEWPORTS) {
         ).toBeLessThanOrEqual(1);
 
         // ── 2. primary nav integrity ─────────────────────────────────────
+        if (route.chrome === false) {
+          // A chromeless route by design (see the ROUTES comment). Assert the
+          // absence is the DESIGN rather than a broken layout: no nav, no
+          // topbar, no footer — and the skip link still first, because §23
+          // does not get an exemption for being minimal.
+          await expect(page.locator("nav.sitenav")).toHaveCount(0);
+          await expect(page.locator(".topbar")).toHaveCount(0);
+          const skip = page.locator('a[href="#main"]').first();
+          await expect(skip).toHaveCount(1);
+          return;
+        }
+
         const nav = await probeNav(page);
         if (!nav.present) {
           // (auth) chrome is Topbar-only by design — assert the topbar itself

@@ -1451,6 +1451,153 @@ const SHIPMENT = {
   "error.turnstile": { en: "We couldn't verify your submission. Please refresh the page and try again.", es: "No pudimos verificar tu envío. Actualiza la página e inténtalo de nuevo.", fr: "Nous n'avons pas pu vérifier votre envoi. Actualisez la page et réessayez." },
   "error.unavailable": { en: "Tracking is temporarily unavailable. Please try again shortly, or call (908) 404-5373.", es: "El seguimiento no está disponible temporalmente. Inténtalo de nuevo en breve, o llama al (908) 404-5373.", fr: "Le suivi est temporairement indisponible. Réessayez sous peu, ou appelez le (908) 404-5373." },
   "error.invalid": { en: "Enter your tracking number and the delivery ZIP or access code.", es: "Introduce tu número de seguimiento y el código postal de entrega o el código de acceso.", fr: "Saisissez votre numéro de suivi et le code postal de livraison ou le code d'accès." },
+
+  /* ======================================================================
+   * M-76 — §13's carrier + driver update experience.
+   *
+   * SAME LOCALE POLICY as M-73's block above: en/es/fr AUTHORED, ru/ht
+   * MIRROR ENGLISH and are flagged for native review in
+   * docs/LAUNCH-RUNBOOK.md. §24 forbids silent machine translation, and a
+   * driver reading plausible-sounding machine Russian about which freight to
+   * pick up is exactly the failure that rule exists to prevent.
+   *
+   * WHY THE DRIVER PAGE IS IN THE CATALOGUE AT ALL. It is the most
+   * customer-facing surface this system has: no account, one hand, a phone at
+   * a dock. The plan's own words — drivers are "exactly the population the
+   * 5-locale requirement exists for". Every string a driver can see is here;
+   * `src/app/actions/driver-updates.ts` returns message KEYS rather than
+   * English sentences so a refusal is translated too, which is M-73's rule
+   * for /track applied to the one surface that needs it more.
+   * ====================================================================== */
+
+  /* ---- §13's allowed actions (`carrier-updates.ts` label keys) ---------- */
+  "action.confirm_dispatch": { en: "Confirm dispatch", es: "Confirmar despacho", fr: "Confirmer la prise en charge" },
+  "action.en_route_to_pickup": { en: "En route to pickup", es: "En camino a la recogida", fr: "En route vers le chargement" },
+  "action.arrived_at_pickup": { en: "Arrived at pickup", es: "Llegué a la recogida", fr: "Arrivé au chargement" },
+  "action.loaded": { en: "Loaded", es: "Cargado", fr: "Chargé" },
+  "action.departed_pickup": { en: "Departed pickup", es: "Salí de la recogida", fr: "Parti du chargement" },
+  "action.in_transit": { en: "In transit", es: "En tránsito", fr: "En transit" },
+  "action.delayed": { en: "Report a delay", es: "Reportar un retraso", fr: "Signaler un retard" },
+  "action.arrived_at_delivery": { en: "Arrived at delivery", es: "Llegué a la entrega", fr: "Arrivé à la livraison" },
+  "action.unloading": { en: "Unloading", es: "Descargando", fr: "Déchargement" },
+  "action.delivered": { en: "Delivered", es: "Entregado", fr: "Livré" },
+  "action.update_eta": { en: "Update ETA", es: "Actualizar la hora estimada", fr: "Mettre à jour l'heure estimée" },
+  "action.submit_exception": { en: "Report a problem", es: "Reportar un problema", fr: "Signaler un problème" },
+  "action.upload_bol": { en: "Upload BOL", es: "Subir el conocimiento de embarque", fr: "Téléverser la lettre de voiture" },
+  "action.upload_pod": { en: "Upload POD", es: "Subir la prueba de entrega", fr: "Téléverser la preuve de livraison" },
+
+  /* ---- §9/§13 consent states (M-70's `TrackingConsentStatus`) ---------- */
+  "consent.pending": { en: "Not answered yet", es: "Sin responder", fr: "Sans réponse" },
+  "consent.granted": { en: "Sharing location", es: "Compartiendo ubicación", fr: "Partage de position activé" },
+  "consent.denied": { en: "Not sharing location", es: "Sin compartir ubicación", fr: "Partage de position refusé" },
+  "consent.revoked": { en: "Sharing withdrawn", es: "Compartir retirado", fr: "Partage retiré" },
+  "consent.expired": { en: "Consent expired", es: "Consentimiento caducado", fr: "Consentement expiré" },
+  "consent.not_required": { en: "Not required", es: "No necesario", fr: "Non requis" },
+
+  /* ---- the driver page (§13, §22 phone-first, §23, §30) ---------------- */
+  "driver.meta_title": { en: "Shipment update — PickLoads", es: "Actualizar envío — PickLoads", fr: "Mise à jour d'expédition — PickLoads" },
+  "driver.title": { en: "Shipment update", es: "Actualizar el envío", fr: "Mise à jour de l'expédition" },
+  "driver.intro": { en: "Tap what just happened. Dispatch sees it straight away.", es: "Toca lo que acaba de pasar. Dispatch lo ve enseguida.", fr: "Touchez ce qui vient de se passer. La régulation le voit aussitôt." },
+  "driver.for_driver": { en: "Link for {name}", es: "Enlace para {name}", fr: "Lien pour {name}" },
+  "driver.shipment": { en: "Shipment", es: "Envío", fr: "Expédition" },
+  "driver.current_status": { en: "Right now", es: "Ahora mismo", fr: "En ce moment" },
+  "driver.pickup": { en: "Pickup", es: "Recogida", fr: "Chargement" },
+  "driver.delivery": { en: "Delivery", es: "Entrega", fr: "Livraison" },
+  "driver.equipment": { en: "Equipment", es: "Equipo", fr: "Équipement" },
+  "driver.appointment": { en: "Appointment", es: "Cita", fr: "Rendez-vous" },
+  "driver.expires": { en: "This link stops working on {when}.", es: "Este enlace deja de funcionar el {when}.", fr: "Ce lien cesse de fonctionner le {when}." },
+  "driver.no_money": { en: "This page never shows rates, invoices or anything about the customer's price.", es: "Esta página nunca muestra tarifas, facturas ni el precio del cliente.", fr: "Cette page n'affiche jamais de tarifs, de factures ni le prix du client." },
+  "driver.honest_note": { en: "Updates are what you type here. This page does not track your phone and does not show a live GPS position.", es: "Las actualizaciones son lo que escribes aquí. Esta página no rastrea tu teléfono ni muestra una posición GPS en vivo.", fr: "Les mises à jour sont ce que vous saisissez ici. Cette page ne suit pas votre téléphone et n'affiche aucune position GPS en direct." },
+  "driver.docs_deferred": { en: "Photo upload for BOL and POD is not built yet — send those to dispatch the way you do today.", es: "La carga de fotos del conocimiento de embarque y la prueba de entrega aún no está lista — envíalos a dispatch como siempre.", fr: "L'envoi de photos de la lettre de voiture et de la preuve de livraison n'existe pas encore — transmettez-les à la régulation comme d'habitude." },
+  "driver.call": { en: "Call dispatch", es: "Llamar a dispatch", fr: "Appeler la régulation" },
+
+  /* ---- the update form ------------------------------------------------- */
+  "driver.status_legend": { en: "What just happened?", es: "¿Qué acaba de pasar?", fr: "Que vient-il de se passer ?" },
+  "driver.no_actions": { en: "There is nothing to update on this shipment right now. Call (908) 404-5373 if that looks wrong.", es: "Ahora mismo no hay nada que actualizar en este envío. Llama al (908) 404-5373 si crees que es un error.", fr: "Il n'y a rien à mettre à jour sur cette expédition pour le moment. Appelez le (908) 404-5373 si cela vous semble incorrect." },
+  "driver.note": { en: "Anything dispatch should know? (optional)", es: "¿Algo que dispatch deba saber? (opcional)", fr: "Quelque chose à signaler à la régulation ? (facultatif)" },
+  "driver.note_placeholder": { en: "Door 14, waiting on a forklift", es: "Puerta 14, esperando un montacargas", fr: "Quai 14, en attente d'un chariot élévateur" },
+  "driver.location_legend": { en: "Where are you?", es: "¿Dónde estás?", fr: "Où êtes-vous ?" },
+  "driver.city": { en: "City", es: "Ciudad", fr: "Ville" },
+  "driver.state": { en: "State", es: "Estado", fr: "État" },
+  "driver.submit": { en: "Send update", es: "Enviar actualización", fr: "Envoyer la mise à jour" },
+  "driver.sending": { en: "Sending…", es: "Enviando…", fr: "Envoi…" },
+  "driver.saved": { en: "Sent. Dispatch has it.", es: "Enviado. Dispatch ya lo tiene.", fr: "Envoyé. La régulation l'a reçu." },
+  "driver.reported": { en: "Reported. Dispatch will call you if they need more.", es: "Reportado. Dispatch te llamará si necesita más.", fr: "Signalé. La régulation vous appellera si besoin." },
+
+  /* ---- §9/§13 consent, actively granted -------------------------------- */
+  "driver.consent_title": { en: "Sharing your location", es: "Compartir tu ubicación", fr: "Partage de votre position" },
+  "driver.consent_body": { en: "You choose. If you turn this on, the city and state you type are shared with dispatch and with the customer's tracking page. Nothing is read from your phone, and you can turn it off again at any time.", es: "Tú decides. Si lo activas, la ciudad y el estado que escribas se comparten con dispatch y con la página de seguimiento del cliente. No se lee nada de tu teléfono y puedes desactivarlo cuando quieras.", fr: "C'est vous qui décidez. Si vous l'activez, la ville et l'état que vous saisissez sont partagés avec la régulation et avec la page de suivi du client. Rien n'est lu depuis votre téléphone et vous pouvez le désactiver à tout moment." },
+  "driver.consent_checkbox": { en: "Share the city and state I type", es: "Compartir la ciudad y el estado que escriba", fr: "Partager la ville et l'état que je saisis" },
+  "driver.consent_save": { en: "Save my choice", es: "Guardar mi decisión", fr: "Enregistrer mon choix" },
+  "driver.consent_state": { en: "Your choice", es: "Tu decisión", fr: "Votre choix" },
+  "driver.consent_on": { en: "Saved — you are sharing the city and state you type.", es: "Guardado — estás compartiendo la ciudad y el estado que escribas.", fr: "Enregistré — vous partagez la ville et l'état que vous saisissez." },
+  "driver.consent_off": { en: "Saved — your location stays off. You can still send status updates.", es: "Guardado — tu ubicación queda desactivada. Puedes seguir enviando actualizaciones de estado.", fr: "Enregistré — votre position reste désactivée. Vous pouvez toujours envoyer des mises à jour de statut." },
+  "driver.consent_required": { en: "Turn on location sharing above before sending a city and state — or send the update without them.", es: "Activa arriba el compartir ubicación antes de enviar una ciudad y un estado — o envía la actualización sin ellos.", fr: "Activez le partage de position ci-dessus avant d'envoyer une ville et un état — ou envoyez la mise à jour sans eux." },
+
+  /* ---- ETA + exception ------------------------------------------------- */
+  "driver.eta_legend": { en: "Update your ETA", es: "Actualizar tu hora estimada", fr: "Mettre à jour votre heure estimée" },
+  "driver.eta_kind": { en: "Which stop?", es: "¿Qué parada?", fr: "Quel arrêt ?" },
+  "driver.eta_at": { en: "New estimated time", es: "Nueva hora estimada", fr: "Nouvelle heure estimée" },
+  "driver.delay_minutes": { en: "Minutes behind (optional)", es: "Minutos de retraso (opcional)", fr: "Minutes de retard (facultatif)" },
+  "driver.eta_submit": { en: "Send ETA", es: "Enviar la hora estimada", fr: "Envoyer l'heure estimée" },
+  "driver.exception_legend": { en: "Report a problem", es: "Reportar un problema", fr: "Signaler un problème" },
+  "driver.exception_type": { en: "What is wrong?", es: "¿Qué pasa?", fr: "Quel est le problème ?" },
+  "driver.exception_description": { en: "Tell dispatch what happened", es: "Cuéntale a dispatch qué pasó", fr: "Expliquez à la régulation ce qui s'est passé" },
+  "driver.exception_submit": { en: "Send to dispatch", es: "Enviar a dispatch", fr: "Envoyer à la régulation" },
+  "driver.exception_note": { en: "Dispatch decides how urgent this is and tells the customer.", es: "Dispatch decide qué tan urgente es y avisa al cliente.", fr: "La régulation évalue l'urgence et informe le client." },
+
+  /* ---- refusals (§13 non-enumerable — ONE message for four causes) ----- */
+  "driver.expired_body": { en: "This link no longer works. Ask dispatch to send you a new one, or call (908) 404-5373.", es: "Este enlace ya no funciona. Pídele a dispatch uno nuevo o llama al (908) 404-5373.", fr: "Ce lien ne fonctionne plus. Demandez-en un nouveau à la régulation ou appelez le (908) 404-5373." },
+  "driver.rate_limited": { en: "Too many tries from this network. Wait a few minutes, or call (908) 404-5373.", es: "Demasiados intentos desde esta red. Espera unos minutos o llama al (908) 404-5373.", fr: "Trop de tentatives depuis ce réseau. Attendez quelques minutes ou appelez le (908) 404-5373." },
+  "driver.unavailable": { en: "Updates are temporarily unavailable. Call (908) 404-5373 and we'll take it by phone.", es: "Las actualizaciones no están disponibles temporalmente. Llama al (908) 404-5373 y lo tomamos por teléfono.", fr: "Les mises à jour sont temporairement indisponibles. Appelez le (908) 404-5373 et nous la prendrons par téléphone." },
+  "driver.stale": { en: "Someone else updated this shipment. Reload the page and check before sending again.", es: "Alguien más actualizó este envío. Recarga la página y revisa antes de enviar otra vez.", fr: "Quelqu'un d'autre a mis à jour cette expédition. Rechargez la page et vérifiez avant de renvoyer." },
+  "driver.not_allowed": { en: "That change has to come from your dispatcher. Call (908) 404-5373.", es: "Ese cambio lo tiene que hacer tu dispatcher. Llama al (908) 404-5373.", fr: "Ce changement doit venir de votre régulateur. Appelez le (908) 404-5373." },
+  "driver.not_now": { en: "That update doesn't fit where this load is right now. Reload the page.", es: "Esa actualización no coincide con el estado actual de esta carga. Recarga la página.", fr: "Cette mise à jour ne correspond pas à l'état actuel de ce chargement. Rechargez la page." },
+  "driver.invalid": { en: "We couldn't record that. Reload the page and try again.", es: "No pudimos registrarlo. Recarga la página e inténtalo de nuevo.", fr: "Nous n'avons pas pu l'enregistrer. Rechargez la page et réessayez." },
+
+  /* ---- the carrier portal shipment surface (§13) ----------------------- */
+  "carrier.crumb": { en: "Carrier portal", es: "Portal del carrier", fr: "Portail transporteur" },
+  "carrier.title": { en: "Shipments", es: "Envíos", fr: "Expéditions" },
+  "carrier.intro": { en: "Brokerage freight assigned to you. Update a shipment here, or send your driver a link.", es: "Carga de brokerage asignada a ti. Actualiza un envío aquí o envíale un enlace a tu conductor.", fr: "Fret de courtage qui vous est assigné. Mettez à jour une expédition ici, ou envoyez un lien à votre chauffeur." },
+  "carrier.gate_notice": { en: "Brokerage shipments start once our FMCSA broker authority and BMC-84 bond are active. Your dispatch loads are on the Loads page, not here.", es: "Los envíos de brokerage comenzarán cuando nuestra autoridad de broker FMCSA y la fianza BMC-84 estén activas. Tus cargas de dispatch están en la página de Cargas, no aquí.", fr: "Les expéditions de courtage débuteront dès l'activation de notre autorité de courtier FMCSA et de notre caution BMC-84. Vos chargements dispatch sont sur la page Chargements, pas ici." },
+  "carrier.no_record": { en: "Your account isn't linked to a carrier record yet. Our team activates the link during document review — or call (908) 404-5373.", es: "Tu cuenta aún no está vinculada a un registro de transportista. Nuestro equipo activa el vínculo durante la revisión de documentos — o llama al (908) 404-5373.", fr: "Votre compte n'est pas encore lié à une fiche transporteur. Notre équipe active le lien lors de la vérification des documents — ou appelez le (908) 404-5373." },
+  "carrier.empty": { en: "No brokerage shipments are assigned to you yet.", es: "Todavía no tienes envíos de brokerage asignados.", fr: "Aucune expédition de courtage ne vous est encore assignée." },
+  "carrier.empty_filtered": { en: "No shipments match those filters.", es: "Ningún envío coincide con esos filtros.", fr: "Aucune expédition ne correspond à ces filtres." },
+  "carrier.failed": { en: "We couldn't load your shipments. Reload the page, or call (908) 404-5373.", es: "No pudimos cargar tus envíos. Recarga la página o llama al (908) 404-5373.", fr: "Nous n'avons pas pu charger vos expéditions. Rechargez la page ou appelez le (908) 404-5373." },
+  "carrier.lane": { en: "Lane", es: "Ruta", fr: "Trajet" },
+  "carrier.open": { en: "Open", es: "Abrir", fr: "Ouvrir" },
+  "carrier.back": { en: "All shipments", es: "Todos los envíos", fr: "Toutes les expéditions" },
+  "carrier.filters_legend": { en: "Filter shipments", es: "Filtrar envíos", fr: "Filtrer les expéditions" },
+  "carrier.filter_apply": { en: "Apply", es: "Aplicar", fr: "Appliquer" },
+  "carrier.showing": { en: "Showing {from}–{to} of {total}", es: "Mostrando {from}–{to} de {total}", fr: "Affichage de {from} à {to} sur {total}" },
+  "carrier.prev": { en: "Newer", es: "Más recientes", fr: "Plus récentes" },
+  "carrier.next": { en: "Older", es: "Más antiguos", fr: "Plus anciennes" },
+  "carrier.pay": { en: "Your pay", es: "Tu pago", fr: "Votre paiement" },
+  "carrier.pay_note": { en: "This is your contracted pay. The customer's price and our margin are not shown here and are not part of your rate confirmation.", es: "Este es tu pago contratado. El precio del cliente y nuestro margen no se muestran aquí ni forman parte de tu confirmación de tarifa.", fr: "Il s'agit de votre paiement contractuel. Le prix du client et notre marge ne sont pas affichés ici et ne font pas partie de votre confirmation de tarif." },
+  "carrier.summary_title": { en: "Shipment details", es: "Detalles del envío", fr: "Détails de l'expédition" },
+  "carrier.timeline_title": { en: "Update history", es: "Historial de actualizaciones", fr: "Historique des mises à jour" },
+  "carrier.timeline_empty": { en: "Nothing has been recorded on this shipment yet.", es: "Todavía no se ha registrado nada en este envío.", fr: "Rien n'a encore été enregistré sur cette expédition." },
+  "carrier.timeline_more": { en: "Show older", es: "Mostrar más antiguos", fr: "Afficher plus anciennes" },
+  "carrier.timeline_reset": { en: "Back to newest", es: "Volver a los más recientes", fr: "Revenir aux plus récentes" },
+  "carrier.update_legend": { en: "Record an update", es: "Registrar una actualización", fr: "Enregistrer une mise à jour" },
+  "carrier.update_choose": { en: "What happened?", es: "¿Qué pasó?", fr: "Que s'est-il passé ?" },
+  "carrier.no_actions": { en: "There is nothing to update on this shipment right now.", es: "Ahora mismo no hay nada que actualizar en este envío.", fr: "Il n'y a rien à mettre à jour sur cette expédition pour le moment." },
+  "carrier.links_title": { en: "Driver links", es: "Enlaces para conductores", fr: "Liens chauffeur" },
+  "carrier.links_body": { en: "A driver link lets one driver update this one shipment from their phone, with no account. It expires on its own, you can revoke it at any time, and it never shows money.", es: "Un enlace para conductor permite que un conductor actualice solo este envío desde su teléfono, sin cuenta. Caduca solo, puedes revocarlo cuando quieras y nunca muestra dinero.", fr: "Un lien chauffeur permet à un chauffeur de mettre à jour cette seule expédition depuis son téléphone, sans compte. Il expire de lui-même, vous pouvez le révoquer à tout moment, et il n'affiche jamais de montants." },
+  "carrier.links_once": { en: "The link is shown once, when you create it. We store only a fingerprint of it, so it cannot be looked up again — create a new one instead.", es: "El enlace se muestra una sola vez, al crearlo. Solo guardamos una huella suya, así que no se puede volver a consultar — crea uno nuevo.", fr: "Le lien s'affiche une seule fois, à sa création. Nous n'en conservons qu'une empreinte : il ne peut pas être retrouvé — créez-en un nouveau." },
+  "carrier.issue_link": { en: "Create a driver link", es: "Crear un enlace para el conductor", fr: "Créer un lien chauffeur" },
+  "carrier.driver_name": { en: "Driver name (optional)", es: "Nombre del conductor (opcional)", fr: "Nom du chauffeur (facultatif)" },
+  "carrier.no_links": { en: "No driver links have been created for this shipment.", es: "No se han creado enlaces de conductor para este envío.", fr: "Aucun lien chauffeur n'a été créé pour cette expédition." },
+  "carrier.link_revoke": { en: "Revoke", es: "Revocar", fr: "Révoquer" },
+  "carrier.link_state": { en: "Status", es: "Estado", fr: "Statut" },
+  "carrier.link_active": { en: "Active", es: "Activo", fr: "Actif" },
+  "carrier.link_expired": { en: "Expired", es: "Caducado", fr: "Expiré" },
+  "carrier.link_revoked": { en: "Revoked", es: "Revocado", fr: "Révoqué" },
+  "carrier.link_expires": { en: "Expires", es: "Caduca", fr: "Expire" },
+  "carrier.link_uses": { en: "Times used", es: "Veces usado", fr: "Utilisations" },
+  "carrier.link_driver": { en: "Driver", es: "Conductor", fr: "Chauffeur" },
+  "carrier.link_consent": { en: "Location sharing", es: "Compartir ubicación", fr: "Partage de position" },
+  "carrier.docs_deferred": { en: "BOL and POD upload is not built yet. Keep sending documents to dispatch the way you do today — we'll tell you when it lands here.", es: "La carga del conocimiento de embarque y la prueba de entrega aún no está lista. Sigue enviando los documentos a dispatch como siempre — te avisaremos cuando esté aquí.", fr: "L'envoi de la lettre de voiture et de la preuve de livraison n'existe pas encore. Continuez à transmettre les documents à la régulation comme d'habitude — nous vous préviendrons quand ce sera disponible." },
 };
 
 const ALL_LOCALES = ["en", ...LOCALES];

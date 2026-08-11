@@ -6,9 +6,19 @@ degrades gracefully when a secret is missing (dev warnings, honest pending
 states) — so a partial deploy never crashes, it just quietly disables the
 affected integration. **Production must have every var set.**
 
-*Last revised for M-75 (dispatcher shipment operations): migration **0022**
-added to the order-and-rollback table, the `0001 → 0022` chain, and refreshed
-gate counts (799 unit / 397 RLS / 128 integration / 187 e2e / 363 pages).
+*Last revised for M-76 (carrier update experience + driver update link):
+migration **0023** added to the order-and-rollback table, the `0001 → 0023`
+chain, refreshed gate counts (966 unit / 447 RLS / 157 integration / 229 e2e /
+368 pages), **one new environment variable (`DRIVER_TOKEN_SECRET`) that fails
+CLOSED** plus an optional `DRIVER_TOKEN_TTL_HOURS`, and a **driver-link smoke
+test**. 0023 introduces the platform's FIRST BEARER CREDENTIAL
+(`/driver/update/[token]`) — read its threat model in
+[`docs/modules/M-76-carrier-driver-updates.md`](modules/M-76-carrier-driver-updates.md)
+before going live, because the operational rule it produces is short and
+blunt: **treat every driver link as public the moment it is sent, and revoke
+rather than explain.** Previously revised for M-75 (dispatcher shipment
+operations): migration **0022**
+added to the order-and-rollback table and the `0001 → 0022` chain.
 **No new environment variable and no new `company_settings` key** — but
 `brokerage_active` now gates a STAFF surface as well as the customer-facing
 labels M-69 wired: with it off, `/portal/admin/shipments/new` renders an honest
@@ -79,11 +89,12 @@ region `us-east-1` (closest to NJ ops). For **each** project, in order:
    | 0020 | `0020_shipment_tracking_access.sql` | **M-73.** `shipment_tracking_access` — the §19 public-tracking access ledger (8 columns, both FKs `NO ACTION`, length CHECKs); 4 indexes (per-IP, per-attempted-number, per-shipment, failures); `trg_shipment_tracking_access_append_only` (refuses UPDATE/DELETE for **every** role, service role included); RLS with **one** policy — staff SELECT — and **no anon policy and no write policy at all**, so every row arrives through the service role | Full script in [`docs/modules/M-73-public-tracking.md`](modules/M-73-public-tracking.md) §DB changes. Drop the policy, disable RLS, drop the trigger **before** the table, then the trigger function, then `shipment_tracking_access cascade`. Do **not** drop the `tracking_access_outcome` type — 0017 created it. **Destructive** — this is the only record of enumeration attempts against the platform; `pg_dump -t shipment_tracking_access` first. Roll back `src/lib/supabase/database.types.ts` and remove `src/lib/shipments/public-lookup.ts` + the `/track` route in the same deploy; the failure mode if you don't is *closed* (the lookup refuses when it cannot log), so `/track` says "temporarily unavailable" rather than serving unlogged lookups. |
    | 0021 | `0021_invoice_shipment_link.sql` | **M-74.** `invoices.shipment_id` + `invoices.shipper_id` (both nullable, FKs to `shipments`/`shippers`); `carrier_id`'s **NOT NULL replaced by** `invoices_party_present` (`carrier_id is not null or shipper_id is not null`); 2 partial indexes; ONE policy — `"member read shipper invoices"`. **Why the relaxation:** 0009's `"member read invoices"` is keyed on `my_carrier_ids()`, so a shipper invoice naming the hauling carrier would be readable BY that carrier — disclosing the shipper gross and therefore the margin. A shipper invoice must name no carrier. 0009's carrier policy is left byte-identical and every pre-0021 row stays visible to exactly whom it was before | Full script in [`docs/modules/M-74-shipper-shipments.md`](modules/M-74-shipper-shipments.md) §Migration 0021. Drop the policy, then the 2 indexes, then — **only if you truly need the NOT NULL back** — delete the null-carrier (shipper) invoices, drop the CHECK and re-add the NOT NULL, which **fails while any shipper invoice exists**; finally drop the 2 columns. `pg_dump -t invoices` first. Roll back `src/lib/supabase/database.types.ts` and the two `/portal/shipper/shipments` routes in the same deploy; if you don't, the detail page's invoice section renders its honest "we couldn't read your invoices" state and logs — it does not leak. |
    | 0022 | `0022_shipment_operations.sql` | **M-75.** FOUR `security definer` functions and nothing else — no table, no policy, no enum, no trigger, no index: `create_shipment` (row + `shipment_created` event, key-allow-listed, 0017's §2 gate and §5 CHECK/unique index still apply above it), `assign_shipment_carrier` (assignment row + `shipments.carrier_id` + event, atomically — a split write would leave the just-assigned carrier unable to SEE the shipment under 0018's policy; refuses another carrier's driver/truck with `PL422`), `release_shipment_assignment` (stamps `released_at`, never deletes; optionally clears `carrier_id`), `set_shipment_eta` (M-71's ETA columns + an `eta_update` event carrying the PREVIOUS value). **EXECUTE granted to `service_role` only**, after an explicit `revoke all … from public` | Full script in [`docs/modules/M-75-dispatcher-operations.md`](modules/M-75-dispatcher-operations.md) §DB changes. `drop function` the four, in reverse order (signatures in the doc). **NOT destructive** — no row is deleted and no column changes; shipments already created stay readable and their statuses stay writable through 0019's engine. What stops working is *creating* a shipment, assigning a carrier and updating an ETA, so roll back the M-75 surface in the same deploy: delete `src/lib/shipments/{create,assignments,eta}.ts` and the three `/portal/admin/shipments` routes, or the build calls functions that no longer exist. 0017–0021 are untouched. |
+   | 0023 | `0023_driver_update_tokens.sql` | **M-76.** Enum `driver_token_outcome`; `shipment_driver_tokens` (the platform's first bearer credential — stores an **HMAC** of the token under `DRIVER_TOKEN_SECRET` and never the token; `expires_at` NOT NULL so a permanent link cannot exist) and `shipment_driver_token_access` (append-only ledger that doubles as the rate limiter's memory, so "rate limited" and "audit logged" are ONE write); 6 indexes; `trg_driver_tokens_immutable` (shipment/carrier/hash frozen, revocation one-way) and `trg_driver_token_access_append_only`; RLS + 3 policies, **no anon policy** even though the driver page is anonymous; **the repo's first COLUMN-level privilege revoke** — `token_hash` is unreadable by `authenticated` and `anon`; 4 `security definer` functions (`issue_shipment_driver_token`, `revoke_shipment_driver_token`, `redeem_shipment_driver_token`, `set_driver_token_consent`) with **EXECUTE granted to `service_role` only** | Full script in [`docs/modules/M-76-carrier-driver-updates.md`](modules/M-76-carrier-driver-updates.md) §DB changes. Drop the 3 policies, disable RLS, drop the 4 functions (signatures in the doc), drop each trigger **before** its table, then the 2 trigger functions, the 2 tables `cascade`, then the enum. **Destructive** — it drops every issued driver link and the entire record of who presented one; `pg_dump -t shipment_driver_tokens -t shipment_driver_token_access` first. Roll back `src/lib/supabase/database.types.ts`, delete `src/lib/shipments/driver-*.ts` and the `/driver/update/[token]` route in the same deploy; the failure mode if you don't is **closed** (an unreachable redeem is an "unavailable" refusal, never an unlogged grant). **The carrier surface survives this rollback** — `/portal/carrier/shipments` reads only `shipments` and `shipment_events`; remove the driver-link block from `CarrierShipmentDetailView` and the two link actions and §13's status/ETA/exception updates keep working. 0017–0022 are untouched. |
 
    After applying, sanity-check the chain the same way CI does:
 
    ```bash
-   npm run test:rls     # rebuilds a throwaway DB from 0001→0022 + seed + fixtures
+   npm run test:rls     # rebuilds a throwaway DB from 0001→0023 + seed + fixtures
    ```
 
 2. **Seed** — run `supabase/seed.sql` (idempotent, `on conflict do nothing`).
@@ -234,6 +245,13 @@ which is exactly why a half-configured deploy is dangerous rather than loud.
 | `CRON_SECRET` | server only | generate: `openssl rand -hex 32` — Vercel Cron sends it as the Bearer token automatically | `/api/cron/daily` refuses every call → **no insurance-expiry alerts, no callback digest** |
 | `NEXT_PUBLIC_GA4_MEASUREMENT_ID` | build/public | GA4 admin (step 10) — fires only after cookie consent (S-05) | no analytics; admin marketing tiles keep their honest placeholders |
 | `TRACKING_ACCESS_SECRET` | server only | generate: `openssl rand -hex 32` — HMAC key for the §4 public-tracking secondary credential (recipient ZIP / access code) | **`/track` refuses EVERY lookup** ("tracking is temporarily unavailable"). This is the one secret in this table that fails **closed**, deliberately: "cannot verify the credential" is not "the credential is correct". Rotating it invalidates every stored `public_access_hash` — every shipment then needs its access code re-issued by dispatch. |
+| `DRIVER_TOKEN_SECRET` | server only | generate: `openssl rand -base64 48` — HMAC key for the §13 driver update link. **M-76** | **No driver link can be minted or verified.** Both issuing surfaces (carrier portal and dispatcher detail) render an honest "not configured" notice instead of a form, and `/driver/update/<anything>` renders "updates are temporarily unavailable". Fails **closed**, like `TRACKING_ACCESS_SECRET` and for the same reason. **Rotating it is a MASS REVOCATION** — every live driver link stops working immediately and every driver needs a new one. There is no dual-key verifier today (M-76 residual risk R-4); the `v1:` prefix and the column CHECK exist so one can be added without a migration. |
+| `DRIVER_TOKEN_TTL_HOURS` | server only, optional | how long a driver link lives. Default **24**, clamped to **[1, 168]**. **M-76** | Defaults to 24h. A value outside the range is clamped rather than rejected, so `8760` produces a **week**, not a year. Shortening it is the cheapest lever if driver links are being forwarded; it takes effect on newly issued links only. |
+
+> **Note.** `.env.example` is `.gitignore`d in this repository, so **this table
+> is the authoritative list**. Both M-76 variables are also written into the
+> local `.env.example` for anyone working in a checkout, but do not rely on
+> that file surviving a fresh clone.
 
 **Declared in `.env.example` but read by no code today** — listed so nobody
 sets them expecting an effect:
@@ -251,14 +269,14 @@ sets them expecting an effect:
 
 ```bash
 npm run typecheck && npm run lint && npm run build   # module gate (CLAUDE.md)
-npm test                 # 799 unit assertions
-npm run test:rls         # 397 RLS isolation assertions — see below
-npm run test:integration # 128 integration tests against local PG16 — see below
-npm run test:e2e         # 187 chromium tests against the production build
+npm test                 # 966 unit assertions
+npm run test:rls         # 447 RLS isolation assertions — see below
+npm run test:integration # 157 integration tests against local PG16 — see below
+npm run test:e2e         # 229 chromium tests against the production build
 ```
 
 **`npm run test:rls` is a release gate, not an optional extra.** It rebuilds
-a throwaway database from `0001 → 0022` + seed + two/three-tenant fixtures and
+a throwaway database from `0001 → 0023` + seed + two/three-tenant fixtures and
 asserts that carrier A cannot reach carrier B, shipper A cannot reach shipper
 B (including *unclaimed* public quotes), anon reaches nothing but
 `company_settings` and published posts, and no session — staff or admin — can
@@ -299,7 +317,7 @@ the tracking directive's §27 integration tier, which
 [`docs/FINAL-IMPLEMENTATION-PLAN.md`](FINAL-IMPLEMENTATION-PLAN.md) §4 records
 as *"diagnosed absent, then dropped entirely"* by the extension audit and
 restores as M-83b; M-72 ships the lane plus the four tests it can prove today.
-It builds its own throwaway database (`0001 → 0022` + seed, **not** the RLS
+It builds its own throwaway database (`0001 → 0023` + seed, **not** the RLS
 fixtures — it creates shipments through the engine) and then runs vitest
 against it, so the real TypeScript transition engine drives the real SQL write
 path: create → assign carrier → create event → update status, idempotent
@@ -310,7 +328,7 @@ real `lookupPublicTracking` against the real schema through a psql-backed
 PostgREST adapter: happy path, wrong secondary value, unknown number, an
 admin-suspended shipment, a rate-limit trip, and a sweep of the whole access
 ledger proving the submitted secret is stored in no form. **M-74 adds §27's
-sixth — the shipper portal lookup — and M-75 adds the seventh, §27's
+sixth — the shipper portal lookup — M-75 adds the seventh, §27's
 DISPATCHER FLOW end to end**: create → assign carrier (with driver and truck)
 → the pickup status walk → record a delay → update the ETA → mark delivered →
 request the POD → complete with the §20 closeout assertion, alongside the
@@ -319,6 +337,14 @@ assignment, a no-op ETA, `pod_uploaded` still refused until M-77, `completed`
 refused without closeout), the §2 gate refusing creation and failing closed,
 the §20 correction leaving the original event byte-identical, and dispatcher A
 vs dispatcher B in both directions with an admin control.
+
+**M-76 adds the eighth — §27's CARRIER FLOW end to end**: confirm dispatch →
+en route → arrived at pickup → loaded → departed pickup → in transit → arrived
+at delivery → unloading → delivered, through the real §13 action list and the
+real engine, plus the driver-link lifecycle (issue → redeem → consent →
+expire/revoke), the rate limit tripping on a real ledger, and the proof that
+the redeem payload leaks no financial value on a shipment that has one. §27's
+"upload BOL / upload POD" steps are **honestly absent** — they are M-77's.
 
 ```bash
 npm run test:integration   # PGHOST / PGPORT / PGUSER / INTEGRATION_TEST_DB override defaults
@@ -560,6 +586,55 @@ effect site-wide immediately — **no deploy**.
       9. Edit the URL to a shipment outside your dispatcher scope: it must
          **404**. Then flip `brokerage_active` back to `false` and confirm the
          in-flight shipment is still fully operable.
+
+- [ ] **Carrier update + driver-link smoke test (M-76).** Needs
+      `DRIVER_TOKEN_SECRET` set and `brokerage_active` **true**, with a
+      shipment assigned to a carrier that has a portal account:
+      1. Sign in as that **carrier**. `/portal/carrier/shipments` lists the
+         shipment. **There must be no dollar figure in the list at all** — the
+         list projection names no financial column. If you see a rate, stop.
+      2. Open it. Your **contracted pay** is shown, with the sentence saying
+         the customer's price and our margin are not. Search the page for the
+         shipper's gross: it must not be there in any form, including the HTML
+         source.
+      3. Record the walk §13 names: **confirm dispatch → en route → arrived at
+         pickup → loaded → departed pickup → in transit**. Each control appears
+         only when the shipment is in a status it can legally leave. There is
+         **no cancel and no complete control** anywhere; if either appears,
+         stop.
+      4. **BOL / POD upload is NOT built (M-77).** The card says so in words.
+         An upload button that appears to work is a defect, not a bonus.
+      5. Create a driver link. **Copy it immediately — it is shown once and
+         cannot be retrieved**, because only a fingerprint is stored. Confirm
+         the URL contains no tracking number, no shipment id and no company
+         name.
+      6. Open the link in a **private window on a phone**, or at a 320px
+         viewport. It must show the shipment, the stops and the update
+         controls — and **no rate, no invoice, no shipper name, no map**. Every
+         button should be comfortably thumb-sized.
+      7. **Location consent starts OFF.** Confirm there are no city/state
+         fields. Tick the consent box, save, and they appear. Send an update
+         with a city. Untick and save: the fields disappear again.
+      8. Send a status update from the driver link. It appears on the
+         **carrier's** update history and on the dispatcher's — attributed to
+         the link.
+      9. **Revoke the link** from either the carrier detail page or
+         `/portal/admin/shipments/<id>`. Reload the driver link: it must now
+         read **"Tracking link expired"** with a phone number. Reload again in
+         `/es` and `/fr` and confirm the heading is translated.
+      10. Paste a nonsense token (`/driver/update/aaaa…`, 43 characters). It
+          must render the **identical** page to the revoked one — if the two
+          differ in any way, the link is enumerable and you should stop.
+      11. Hit an invalid link **nine times from one network**. From the ninth
+          the page says "too many tries". Check
+          `select outcome, count(*) from shipment_driver_token_access group by
+          1` — every attempt, including the rate-limited ones, is on the
+          ledger. That table is the answer to "who used this link?" and it
+          cannot be edited or deleted by anyone, service role included.
+      12. With `DRIVER_TOKEN_SECRET` **unset** in a preview environment, both
+          issuing surfaces show the honest "not configured" notice and no link
+          can be created. That is the fail-closed path; a link that still
+          minted would mean the guard is not wired.
 - [ ] Stripe + Dropbox Sign webhook test deliveries show in
       `webhook_events`.
 

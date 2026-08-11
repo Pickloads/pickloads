@@ -491,6 +491,10 @@ import type {
   ShipmentAssignmentRow,
   ShipmentEventRow,
   ShipmentTrackingAccessRow,
+  /** M-76 (0023) — the §13 driver update link and its access ledger. */
+  ShipmentDriverTokenRow,
+  ShipmentDriverTokenAccessRow,
+  DriverTokenIssuerRole,
   ShipmentEventSource,
   ShipmentEventType,
   ShipmentEventVisibility,
@@ -777,6 +781,35 @@ export type Database = {
         Update: Partial<AsRow<ShipmentTrackingAccessRow>>;
         Relationships: [];
       };
+      /* M-76 (0023) — `shipment_driver_tokens`.
+       *
+       * `Insert` and `Update` are declared for shape completeness and are
+       * UNREACHABLE from `src/`: every write goes through 0023's four
+       * `security definer` functions, which are the only things granted
+       * EXECUTE to `service_role`. `token_hash` is additionally revoked at
+       * COLUMN level from `authenticated` and `anon`, so the browser-facing
+       * projection (`DRIVER_TOKEN_VIEW_COLUMNS`) is enforced by the database
+       * and not only by the string. */
+      shipment_driver_tokens: {
+        Row: AsRow<ShipmentDriverTokenRow>;
+        Insert: Insertable<
+          AsRow<ShipmentDriverTokenRow>,
+          "shipment_id" | "carrier_id" | "token_hash" | "issued_by_role" | "expires_at"
+        >;
+        Update: Partial<AsRow<ShipmentDriverTokenRow>>;
+        Relationships: [];
+      };
+      /* M-76 (0023) — the append-only §13 audit ledger. `Insert` is the one
+       * member `src/` uses (`driver-access.ts`, for the `update_rejected`
+       * outcome the SQL function cannot know about); `Update` is unreachable
+       * — 0023's trigger refuses every UPDATE and DELETE for every role,
+       * service role included. */
+      shipment_driver_token_access: {
+        Row: AsRow<ShipmentDriverTokenAccessRow>;
+        Insert: Insertable<AsRow<ShipmentDriverTokenAccessRow>, "outcome">;
+        Update: Partial<AsRow<ShipmentDriverTokenAccessRow>>;
+        Relationships: [];
+      };
       broker_partners: {
         Row: BrokerPartnerRow;
         Insert: Insertable<BrokerPartnerRow, "company_name">;
@@ -953,6 +986,60 @@ export type Database = {
           p_visibility?: ShipmentEventVisibility;
           p_idempotency_key?: string | null;
           p_public_message?: string | null;
+        };
+        Returns: unknown;
+      };
+
+      /* ---------- M-76 (0023) — the driver-link write path ----------
+       *
+       * Same contract as 0019's five and 0022's four: SECURITY DEFINER,
+       * EXECUTE to `service_role` only, `jsonb` in and out, narrowed once by
+       * the caller (`src/lib/shipments/driver-access.ts`).
+       *
+       * `redeem_shipment_driver_token` takes the HASH, never the token — the
+       * plaintext exists only in the URL the driver holds and in the one
+       * response that issued it. */
+      issue_shipment_driver_token: {
+        Args: {
+          p_shipment_id: string;
+          p_carrier_id: string;
+          p_token_hash: string;
+          p_expires_at: string;
+          p_driver_id?: string | null;
+          p_driver_name?: string | null;
+          p_issued_by_role?: DriverTokenIssuerRole;
+          p_issued_by?: string | null;
+          p_label?: string | null;
+          p_source?: ShipmentEventSource;
+        };
+        Returns: unknown;
+      };
+      revoke_shipment_driver_token: {
+        Args: {
+          p_token_id: string;
+          p_reason?: string | null;
+          p_actor?: string | null;
+          p_source?: ShipmentEventSource;
+        };
+        Returns: unknown;
+      };
+      redeem_shipment_driver_token: {
+        Args: {
+          p_token_hash: string;
+          p_ip?: string | null;
+          p_user_agent?: string | null;
+          p_window_minutes?: number;
+          p_fail_limit?: number;
+          p_total_limit?: number;
+        };
+        Returns: unknown;
+      };
+      set_driver_token_consent: {
+        Args: {
+          p_token_hash: string;
+          p_granted: boolean;
+          p_ip?: string | null;
+          p_user_agent?: string | null;
         };
         Returns: unknown;
       };

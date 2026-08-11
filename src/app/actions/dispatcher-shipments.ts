@@ -26,6 +26,22 @@ import {
   resendNotificationSchema,
   statusUpdateSchema,
 } from "@/lib/validation/dispatcher-shipments";
+/* M-76 — §13's driver-link lifecycle reuses the carrier module's schemas
+ * rather than declaring a second pair: the dispatcher and carrier issuance
+ * forms take the same fields, and two copies would be two places for a bound
+ * to drift. */
+import {
+  issueDriverTokenSchema,
+  revokeDriverTokenSchema,
+} from "@/lib/validation/carrier-shipments";
+import {
+  issueDriverToken,
+  revokeDriverToken,
+} from "@/lib/shipments/driver-access";
+import {
+  driverUpdatePath,
+  isDriverTokenConfigured,
+} from "@/lib/shipments/driver-token";
 import {
   appendShipmentEvent,
   applyShipmentCorrection,
@@ -1052,5 +1068,116 @@ export async function correctStatusAction(
   return fromWrite(
     result,
     `Corrected to ${d.corrected_status.replace(/_/g, " ")}. The original entry stays on the timeline.`,
+  );
+}
+
+/* ================================================================== *
+ * 16 · M-76 — §13 driver-link lifecycle (dispatcher half)
+ * ================================================================== */
+
+/**
+ * Issue a `/driver/update/[token]` link for this shipment.
+ *
+ * §13 permits both origins — *"a dispatcher issuing from the operations
+ * surface, a carrier issuing from their own portal"* — and this is the
+ * dispatcher one. `src/app/actions/carrier-shipments.ts` holds the carrier
+ * twin; both call `issueDriverToken`, which is the only minting path.
+ *
+ * THE PLAINTEXT TOKEN IS IN THE RETURN VALUE AND NOWHERE ELSE. The row holds
+ * an HMAC and `token_hash` is column-revoked from every browser-reachable
+ * role, so the link is rendered once, copied into a text message, and never
+ * retrievable. Re-issuing is one click; a portal that could re-read a live
+ * credential is a portal that can leak one.
+ */
+export async function issueDriverTokenAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const access = await gate(formData);
+  if (!access.ok) return error(access.message);
+
+  const parsed = issueDriverTokenSchema.safeParse({
+    shipment_id: field(formData, "shipment_id"),
+    driver_id: field(formData, "driver_id"),
+    driver_name: field(formData, "driver_name"),
+  });
+  if (!parsed.success) return error(firstIssueMessage(parsed.error));
+
+  // §13 "only assigned shipment" / "no access to other carrier records": a
+  // link cannot exist before a carrier does. 0023's function refuses this
+  // independently (PL422) — this is the message, not the control.
+  if (access.carrierId === null) {
+    return error(
+      "Assign a carrier before issuing a driver link — the link is scoped to the carrier hauling this freight.",
+    );
+  }
+  if (!isDriverTokenConfigured()) {
+    return error(
+      "DRIVER_TOKEN_SECRET is unset in this environment, so no driver link can be minted or verified. Nothing was issued.",
+    );
+  }
+
+  const result = await issueDriverToken({
+    shipmentId: access.shipmentId,
+    carrierId: access.carrierId,
+    driverId: parsed.data.driver_id,
+    driverName: parsed.data.driver_name,
+    issuedBy: access.session.userId,
+    issuedByRole: access.actorRole,
+  });
+  if (!result.ok) return error(result.message);
+
+  refresh(access.shipmentId);
+  return ok(
+    `Driver link created — copy it now, it is not shown again: ${driverUpdatePath(result.token)}`,
+  );
+}
+
+/**
+ * §13 "revocable", from the dispatcher side.
+ *
+ * The gate proved this staff member may act on this SHIPMENT; it has not
+ * proved the posted token belongs to it. `revoke_shipment_driver_token` takes
+ * an id, so without the scoping read below a dispatcher could revoke any link
+ * in the system by posting somebody else's id — including one on a shipment
+ * outside their §19 scope. The read runs through the COOKIE-BOUND client, so
+ * 0023's `"staff manage driver tokens"` policy applies on top of the
+ * `shipment_id` predicate.
+ */
+export async function revokeDriverTokenAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const access = await gate(formData);
+  if (!access.ok) return error(access.message);
+
+  const parsed = revokeDriverTokenSchema.safeParse({
+    token_id: field(formData, "token_id"),
+    reason: field(formData, "reason"),
+  });
+  if (!parsed.success) return error(firstIssueMessage(parsed.error));
+
+  const supabase = await createClient();
+  const { data: token } = await supabase
+    .from("shipment_driver_tokens")
+    .select("id, shipment_id")
+    .eq("id", parsed.data.token_id)
+    .eq("shipment_id", access.shipmentId)
+    .maybeSingle();
+  if (!token) return error("That driver link is not on this shipment.");
+
+  const result = await revokeDriverToken({
+    tokenId: parsed.data.token_id,
+    reason: parsed.data.reason,
+    actorId: access.session.userId,
+    actorRole: access.actorRole,
+  });
+  if (!result.ok) return error(result.message);
+
+  refresh(access.shipmentId);
+  return ok(
+    result.alreadyRevoked
+      ? "That link was already revoked."
+      : "Driver link revoked. It stops working immediately.",
   );
 }
