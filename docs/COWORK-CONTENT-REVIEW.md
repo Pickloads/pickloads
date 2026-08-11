@@ -157,6 +157,12 @@ is to leave availability/response claims for Cowork. They are listed here
 because the quote surfaces no longer promise a time and these do.
 
 ### NEW AUTHORITY · `LEGAL REVIEW REQUIRED` · `LEGAL`
+The disclaimer now has automated protection: 6 e2e tests assert the
+not-a-law-firm wording is present (including on es/fr) and that the page makes
+none of six forbidden regulatory guarantees — FMCSA/authority approval, an
+activation or issuance date, insurance approval, government affiliation, legal
+advice, or a 100% approval claim. Each with a non-vacuity control.
+
 "Not a law firm / document filing assistance only" disclaimer is present and
 correct. Counsel should confirm the wording is sufficient in every state where
 the programme is marketed. The 15-minute callback promise is in §1a.

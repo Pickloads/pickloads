@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
 import { getV4 } from "@/i18n/v4-server";
 import { PageHero } from "@/components/ui/PageHero";
+import { Link } from "@/i18n/navigation";
 import { NewAuthority } from "@/components/sections/NewAuthority";
 import { NewAuthorityLeadForm } from "@/components/forms/NewAuthorityLeadForm";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -150,6 +151,27 @@ export default async function StartTruckingCompanyPage({
             </p>
           </div>
           <NewAuthorityLeadForm />
+        </div>
+      </section>
+
+      {/* THE PROGRAMME LEADS SOMEWHERE. Filing is the start of the funnel, not
+          the end of it: authority today, dispatched freight after. A page that
+          stops at the paperwork has not described the business. Approved
+          strings only. */}
+      <section className="light">
+        <div className="wrap">
+          <h2 className="sec">{tv("Once you are operational")}</h2>
+          <p>
+            <Link className="btn btn-amber" href="/dispatch-services">
+              {tv("Dispatch Services")}
+            </Link>{" "}
+            <Link className="btn btn-ghost" href="/become-a-carrier">
+              {tv("Become a Carrier")}
+            </Link>{" "}
+            <Link className="btn btn-ghost" href="/faq">
+              {tv("Carrier FAQ")}
+            </Link>
+          </p>
         </div>
       </section>
     </main>

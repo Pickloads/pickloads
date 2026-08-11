@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { useLocale } from "next-intl";
 import { useV4 } from "@/i18n/v4";
+import { track } from "@/lib/analytics";
 import { initialFormState } from "@/lib/form-state";
 import { submitCarrierLead } from "@/app/actions/carrier-lead";
 import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
@@ -13,13 +14,38 @@ import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
  * (auto-tagged + separate source in the action). Select values stay
  * canonical English (locale-independent DB rows).
  */
+/**
+ * M-26 form + the §52 funnel event.
+ *
+ * `new_authority_inquiry` has been in the closed taxonomy since the analytics
+ * module landed and was never fired by anything — a declared event with no
+ * producer measures nothing. It fires here, on a successful submit only, and
+ * carries no field from the form: the taxonomy has nowhere for a name, a phone
+ * number or an authority status to travel.
+ */
 export function NewAuthorityLeadForm() {
   const tv = useV4();
   const locale = useLocale();
+  const started = useRef(false);
   const [state, formAction, pending] = useActionState(
     submitCarrierLead,
     initialFormState,
   );
+
+  useEffect(() => {
+    if (state.status === "success") {
+      track("new_authority_inquiry", { surface: "start-your-trucking-company" });
+    }
+  }, [state]);
+
+  const onFirstInput = () => {
+    if (started.current) return;
+    started.current = true;
+    track("carrier_application_started", {
+      surface: "start-your-trucking-company",
+    });
+  };
+
   return (
     <div className="bigform" id="start">
       <h2>{tv("Start your trucking company")}</h2>
@@ -28,7 +54,7 @@ export function NewAuthorityLeadForm() {
           "Tell us where you are in the process — a launch specialist calls you back within 15 minutes during business hours.",
         )}
       </p>
-      <form action={formAction}>
+      <form action={formAction} onInput={onFirstInput}>
         <input type="hidden" name="lead_type" value="new_authority" />
         <input type="hidden" name="locale" value={locale} />
         <div className="grid2">
