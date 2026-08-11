@@ -56,7 +56,7 @@ sensitive data. One specification contradiction, minor, recorded in §5.
 
 | Surface | Status | Notes |
 |---|---|---|
-| **Request a Quote (page)** | ❌ | The quote exists as a **home-page anchor** (`QuickQuote`) and as an **authenticated portal form** (`/portal/shipper/quotes/new`). There is no standalone public page. This is exactly the gap `FINAL-IMPLEMENTATION-PLAN` §4 records: *"the audit's missing list … omitted this one"* → scheduled **M-85** |
+| **Request a Quote (page)** | ✅ **DELIVERED** | `/request-a-quote`, live in all five locales. Renders the SAME `FreightQuoteForm` and `submitFreightQuote` action as `/shippers` — one quote system, not two. Funnel instrumented (`quote_view` / `quote_started` / `quote_submitted` / `quote_failed`). Registered in `PUBLIC_ROUTES`, so it is in the sitemap with hreflang. 8 dedicated e2e tests + 12-breakpoint responsive + axe. **It also fixed a live mis-targeting**: the primary CTA pointed at `/#quote`, the home page's *carrier* setup form |
 | **Become a Carrier** | 🟡 | `/become-a-carrier` exists and feeds `/create-account/carrier`. **Needs** §17's documentation/expectations detail |
 | **Get Dispatch / Start Dispatching** | 🟠 | CTAs exist across equipment pages; no single owned funnel entry |
 | **Book a Consultation** | ❌ ⚙️ | No booking surface. Requires an approved Calendly (or equivalent) URL |

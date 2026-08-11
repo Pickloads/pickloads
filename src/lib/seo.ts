@@ -29,6 +29,11 @@ export const PUBLIC_ROUTES = [
    * `noindex, nofollow` while one is on screen. Adding this route therefore
    * adds one page per locale to the sitemap and zero shipment data. */
   "/track",
+  /* The primary acquisition page. Indexable and canonical: it is the
+     destination the site's loudest call to action points at, and a
+     conversion page missing from the sitemap is a conversion page search
+     engines have to guess at. Its own e2e suite asserts it is listed. */
+  "/request-a-quote",
   "/become-a-carrier",
   "/start-your-trucking-company",
   "/truck-dispatch",

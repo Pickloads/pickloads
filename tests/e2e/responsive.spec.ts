@@ -78,6 +78,7 @@ const ROUTES: { path: string; slug: string; group: string; chrome?: false }[] = 
     chrome: false,
   },
   { path: "/faq", slug: "faq", group: "public" },
+  { path: "/request-a-quote", slug: "request-a-quote", group: "public" },
   { path: "/shippers", slug: "shippers", group: "public" },
   { path: "/become-a-carrier", slug: "become-a-carrier", group: "public" },
   {

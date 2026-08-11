@@ -34,6 +34,7 @@ const PAGES = [
    * engine in tests/unit/carrier-driver-a11y.test.tsx. 43 "A"s is the exact
    * shape of a real token. */
   `/driver/update/${"A".repeat(43)}`,
+  "/request-a-quote",
   "/shippers",
   "/become-a-carrier",
   "/start-your-trucking-company",

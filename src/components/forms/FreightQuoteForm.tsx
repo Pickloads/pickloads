@@ -1,18 +1,27 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { useLocale } from "next-intl";
 import { useV4 } from "@/i18n/v4";
 import { initialFormState } from "@/lib/form-state";
 import { submitFreightQuote } from "@/app/actions/freight-quote";
 import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
+import { track } from "@/lib/analytics";
 
 /*
  * Shipper freight-quote form — V4 markup with U-02 label association and
  * U-06 date floor. M-14: wired to submitFreightQuote (Zod + Turnstile +
  * rate limit + Resend) with U-03 loading/success/error states.
  */
-export function FreightQuoteForm() {
+export function FreightQuoteForm({
+  surface = "shippers",
+  brokerageActive = false,
+}: {
+  /** Which page this instance is on — the funnel's only dimension. */
+  surface?: string;
+  /** Reported with each event so "is this a pre-launch funnel?" is answerable. */
+  brokerageActive?: boolean;
+} = {}) {
   const tv = useV4();
   const locale = useLocale();
   const [state, formAction, pending] = useActionState(
@@ -20,6 +29,48 @@ export function FreightQuoteForm() {
     initialFormState,
   );
   const today = new Date().toISOString().slice(0, 10);
+
+  /* ── §52 funnel events ──────────────────────────────────────────────────
+   * Four events, fired HERE rather than on each page, so the two surfaces
+   * that render this form cannot measure the funnel differently. `track()`
+   * is a no-op until GA4 has both a measurement id and consent, so nothing
+   * here needs a guard and nothing here can leak: the taxonomy has no field
+   * that could carry shipment content.
+   */
+  const started = useRef(false);
+
+  useEffect(() => {
+    track("quote_view", { surface, brokerage_active: brokerageActive });
+    // Once per mount. A re-render is not a new view.
+  }, [surface, brokerageActive]);
+
+  const onFirstInput = () => {
+    if (started.current) return;
+    started.current = true;
+    track("quote_started", { surface, brokerage_active: brokerageActive });
+  };
+
+  useEffect(() => {
+    if (state.status === "success") {
+      track("quote_submitted", { surface, brokerage_active: brokerageActive });
+    } else if (state.status === "error") {
+      // A COARSE reason only. The server's own message can quote user input,
+      // and §52 keeps user input out of analytics entirely.
+      const raw = (state.message ?? "").toLowerCase();
+      const reason = raw.includes("too many")
+        ? ("rate_limited" as const)
+        : raw.includes("verification") || raw.includes("turnstile")
+          ? ("turnstile" as const)
+          : raw.includes("try again") || raw.includes("went wrong")
+            ? ("server" as const)
+            : ("validation" as const);
+      track("quote_failed", {
+        surface,
+        reason,
+        brokerage_active: brokerageActive,
+      });
+    }
+  }, [state, surface, brokerageActive]);
   return (
     <div className="bigform">
       <h2>{tv("Request a freight quote")}</h2>
@@ -28,7 +79,7 @@ export function FreightQuoteForm() {
           "Tell us about your shipment — we respond within one business hour (Mon–Sat). Brokerage operations open with our MC activation; early requests get priority onboarding.",
         )}
       </p>
-      <form action={formAction}>
+      <form action={formAction} onInput={onFirstInput}>
         <input type="hidden" name="locale" value={locale} />
         <div className="grid3">
           <div className="field">

@@ -93,7 +93,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     label: "Shippers",
     href: "/shippers",
     entries: [
-      { label: "Request a Quote", href: "/#quote", ships: true },
+      { label: "Request a Quote", href: "/request-a-quote", ships: true },
       { label: "Track Shipment", href: "/track", ships: true },
       { label: "Client Login", href: "/portal", ships: true },
     ],
@@ -134,13 +134,16 @@ export const NAV_UTILITIES: readonly NavEntry[] = [
 ] as const;
 
 /**
- * Primary call to action. `/#quote` is the live quote form on the home page;
- * when the dedicated Request a Quote page ships, this constant changes and
- * every surface follows.
+ * Primary call to action.
+ *
+ * It used to point at `/#quote` — which is the home page's CARRIER setup form
+ * (truck type, trailer, home state, truck count), not a freight quote. A
+ * shipper following the site's single loudest call to action landed on a form
+ * asking how many trucks they own. It now points at the dedicated page.
  */
 export const PRIMARY_CTA: NavEntry = {
   label: "Request a Quote",
-  href: "/#quote",
+  href: "/request-a-quote",
   ships: true,
 };
 
@@ -192,7 +195,7 @@ export const FOOTER_COLUMNS: readonly NavGroup[] = [
     label: "Shippers",
     href: "/shippers",
     entries: [
-      { label: "Request a Quote", href: "/#quote", ships: true },
+      { label: "Request a Quote", href: "/request-a-quote", ships: true },
       { label: "Track Shipment", href: "/track", ships: true },
       { label: "Client Login", href: "/portal", ships: true },
     ],
