@@ -104,7 +104,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     entries: [
       { label: "Blog", href: "/blog", ships: true },
       { label: "FAQ", href: "/faq", ships: true },
-      { label: "Knowledge Base", href: "/knowledge-base", ships: false },
+      { label: "Knowledge Base", href: "/knowledge-base", ships: true },
       { label: "Downloads", href: "/downloads", ships: false },
     ],
   },
@@ -213,7 +213,7 @@ export const FOOTER_COLUMNS: readonly NavGroup[] = [
     entries: [
       { label: "Blog", href: "/blog", ships: true },
       { label: "FAQ", href: "/faq", ships: true },
-      { label: "Knowledge Base", href: "/knowledge-base", ships: false },
+      { label: "Knowledge Base", href: "/knowledge-base", ships: true },
       { label: "Downloads", href: "/downloads", ships: false },
     ],
   },

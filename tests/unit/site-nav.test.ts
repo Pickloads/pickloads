@@ -123,11 +123,13 @@ describe("unbuilt destinations are declared but never rendered", () => {
 
   it("the scheduled-but-unbuilt set is exactly what the gap audit lists", () => {
     const hrefs = [...new Set(pending.map((e) => e.href))].sort();
+    // /knowledge-base left this list when its page shipped and its flag was
+    // flipped. Pinning the set is the point: an entry cannot quietly become
+    // visible, and one cannot quietly stay hidden after its page exists.
     expect(hrefs).toEqual([
       "/careers",
       "/carrier-resources",
       "/downloads",
-      "/knowledge-base",
       "/partners",
     ]);
   });

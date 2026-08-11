@@ -175,8 +175,25 @@ the programme is marketed. The 15-minute callback promise is in §1a.
 Mission and vision copy. **No fabricated history, headcount, fleet size,
 customer count or awards** — verified absent.
 
-### FAQ · `COWORK REVIEW REQUIRED` · `MARKETING`
-`content/faq.ts` — two entries carry timing claims (§1a, §1c).
+### FAQ / KNOWLEDGE BASE · `COWORK REVIEW REQUIRED` · `MARKETING` / `BUSINESS`
+`content/faq.ts` is now the single source for BOTH `/faq` and
+`/knowledge-base` — one edit updates both surfaces. Engineering authored no
+answer text; the Knowledge Base is a categorisation, and a unit test asserts
+every rendered answer is byte-identical to its FAQ source.
+
+Open items:
+
+| Entry | Issue | Risk |
+|---|---|---|
+| "How much does dispatch cost?" | **States pricing in prose** — "5% for owner-operators, 4.5% for small fleets, 8% for box trucks and hot shots. No setup fees, no monthly minimums." This is the same pricing question §2 raises about the home-page tiers, and it is asserted here as fact **and published as FAQ structured data** | `BUSINESS` |
+| "How fast can you quote a shipment?" | "Within one business hour for standard FTL lanes (Mon–Sat)" — the turnaround promise the quote surfaces just dropped, still live here | `BUSINESS` |
+| "What do I need to get started?" | "most carriers get their first load within 24 hours" — the closest thing on the site to a guaranteed-loads claim | `MARKETING` |
+| "Are you a licensed freight broker?" | Answered honestly (authority and bond "in process", numbers to be published when active). **No change needed** — recorded so it is not edited carelessly later | `COMPLIANCE` |
+
+**Three categories are declared and empty** — Documents, Accounts, Support.
+They render an honest "nothing here yet" state with the support number. Cowork
+supplying answers for them is the fastest way to make the Knowledge Base
+substantial.
 
 ### CONTACT · `COWORK REVIEW REQUIRED` · `BUSINESS`
 Contact categories not yet split per §33. "24/7 Dispatch Line" in §1b.

@@ -123,3 +123,15 @@
   .foot-cols{grid-template-columns:1fr;gap:14px}
   .foot-col h4{margin-bottom:4px}
 }
+
+/* ── Knowledge Base category nav ──────────────────────────────────────────
+   A list of real links, not a JS tab widget: each filtered view is a
+   linkable, crawlable URL that works with JavaScript off. */
+.kb-cats{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;
+  margin:0 0 18px}
+.kb-cats a{display:inline-block;padding:7px 14px;border-radius:999px;
+  border:1px solid var(--line-dark);font-size:.86rem;font-weight:500;
+  color:var(--slate-body)}
+.kb-cats a:hover,.kb-cats a:focus-visible{border-color:var(--amber-aa);
+  color:var(--amber-aa)}
+.kb-cats a.active{background:var(--ink);border-color:var(--ink);color:var(--paper)}

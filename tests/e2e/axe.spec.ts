@@ -36,6 +36,7 @@ const PAGES = [
   `/driver/update/${"A".repeat(43)}`,
   "/request-a-quote",
   "/dispatch-services",
+  "/knowledge-base",
   "/shippers",
   "/become-a-carrier",
   "/start-your-trucking-company",
