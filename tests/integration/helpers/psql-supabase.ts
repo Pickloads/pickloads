@@ -1,5 +1,5 @@
 import { exec, lit } from "./db";
-import { execFileSync } from "node:child_process";
+import { runPsql } from "./psql-invoke";
 
 /**
  * M-73 — a PostgREST-shaped client backed by `psql`, for the integration lane.
@@ -33,24 +33,14 @@ import { execFileSync } from "node:child_process";
 
 const DB = process.env.INTEGRATION_TEST_DB ?? "pickloads_integration";
 
-const PSQL_ENV = {
-  ...process.env,
-  PGHOST: process.env.PGHOST ?? "/tmp/pgsock",
-  PGPORT: process.env.PGPORT ?? "5433",
-  PGUSER: process.env.PGUSER ?? "postgres",
-};
-
 interface PgError {
   message: string;
 }
 
 function query(sql: string): { rows: unknown[]; error: PgError | null } {
   try {
-    const out = execFileSync(
-      "psql",
-      ["-d", DB, "-q", "-v", "ON_ERROR_STOP=1", "-At", "-c", sql],
-      { env: PSQL_ENV, encoding: "utf8" },
-    ).trim();
+    // SQL on stdin, never argv — see `psql-invoke.ts`.
+    const out = runPsql(["-d", DB, "-q", "-v", "ON_ERROR_STOP=1", "-At"], sql);
     return { rows: out === "" ? [] : (JSON.parse(out) as unknown[]), error: null };
   } catch (err) {
     return { rows: [], error: { message: String(err) } };

@@ -153,7 +153,21 @@ interface ClaimedRow {
   payload: Record<string, unknown>;
 }
 
-function claim(limit = 25): ClaimedRow[] {
+/**
+ * Claim a batch.
+ *
+ * The default is deliberately LARGE. `claim_shipment_notifications` orders by
+ * `(available_at asc, created_at asc)` — not a total order: rows harvested in
+ * one statement share both timestamps, so which of them a bounded batch takes
+ * is unspecified. With the production default of 25 and a queue that grows as
+ * the suite runs, a test asserting on one specific row passed or failed
+ * depending on how the ties happened to sort. That is a test defect, not an
+ * application one: a work queue owes no particular order among rows that are
+ * equally due. Tests that care about a specific row therefore claim a batch
+ * big enough to contain the whole queue, and the two that assert a row is
+ * NOT claimable pass an explicit limit for the same reason.
+ */
+function claim(limit = 200): ClaimedRow[] {
   const raw = scalar(
     `select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb)
        from claim_shipment_notifications(${limit}) t`,
@@ -627,7 +641,7 @@ describe("§17 — retry with backoff", () => {
     expect(settled.state).toBe("pending");
 
     // It is genuinely not due: a claim right now does not take it.
-    const again = claim(50).map((r) => r.id);
+    const again = claim(200).map((r) => r.id);
     expect(again).not.toContain(email!.id);
 
     // Fast-forward and it comes back.
@@ -635,7 +649,7 @@ describe("§17 — retry with backoff", () => {
       `update shipment_notification_queue set available_at = now() - interval '1 second'
         where id = ${lit(email!.id)}`,
     );
-    const retried = claim(50).find((r) => r.id === email!.id);
+    const retried = claim(200).find((r) => r.id === email!.id);
     expect(retried).toBeDefined();
     expect(retried?.attempts).toBe(2);
   });
@@ -666,7 +680,7 @@ describe("§17 — retry with backoff", () => {
         `update shipment_notification_queue
             set available_at = now() - interval '1 second' where id = ${lit(email!.id)}`,
       );
-      claim(50);
+      claim(200);
       attempt += 1;
     }
     expect(state).toBe("dead");
@@ -699,9 +713,9 @@ describe("§17 — retry with backoff", () => {
     rewindWatermark();
     harvest();
 
-    const first = claim(50).map((r) => r.id);
+    const first = claim(200).map((r) => r.id);
     expect(first.length).toBeGreaterThan(0);
-    const second = claim(50).map((r) => r.id);
+    const second = claim(200).map((r) => r.id);
     // Every row the first claim took is `sending` with a fresh lock, so the
     // second claim (same instant, TTL not expired) cannot take it back.
     for (const id of first) expect(second).not.toContain(id);
@@ -723,7 +737,7 @@ describe("§17 — retry with backoff", () => {
     });
     // Even with a retry delay supplied, a suppression does not come back.
     expect(settled.state).toBe("suppressed");
-    expect(claim(50).map((r) => r.id)).not.toContain(email!.id);
+    expect(claim(200).map((r) => r.id)).not.toContain(email!.id);
   });
 });
 

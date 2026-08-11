@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { runPsql } from "./psql-invoke";
 
 /**
  * M-72 — the integration lane's database access.
@@ -15,21 +15,12 @@ import { execFileSync } from "node:child_process";
 
 const DB = process.env.INTEGRATION_TEST_DB ?? "pickloads_integration";
 
-const PSQL_ENV = {
-  ...process.env,
-  PGHOST: process.env.PGHOST ?? "/tmp/pgsock",
-  PGPORT: process.env.PGPORT ?? "5433",
-  PGUSER: process.env.PGUSER ?? "postgres",
-};
-
 function psql(sql: string): string {
-  return execFileSync(
-    "psql",
-    // `-q` matters: without it psql prints the command tag ("INSERT 0 1")
-    // alongside a RETURNING row, and `scalar()` would hand back both lines.
-    ["-d", DB, "-q", "-v", "ON_ERROR_STOP=1", "-At", "-c", sql],
-    { env: PSQL_ENV, encoding: "utf8" },
-  ).trim();
+  // `-q` matters: without it psql prints the command tag ("INSERT 0 1")
+  // alongside a RETURNING row, and `scalar()` would hand back both lines.
+  // The SQL itself goes in on stdin, not as an argv element — see
+  // `psql-invoke.ts` for why that is load-bearing on Windows.
+  return runPsql(["-d", DB, "-q", "-v", "ON_ERROR_STOP=1", "-At"], sql);
 }
 
 /** Run a statement for effect. Throws with psql's message on failure. */

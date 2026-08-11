@@ -1,5 +1,5 @@
 import { lit } from "./db";
-import { execFileSync } from "node:child_process";
+import { runPsql } from "./psql-invoke";
 
 /**
  * M-74 — a PostgREST-shaped client that runs **under RLS as a real session**,
@@ -41,13 +41,6 @@ import { execFileSync } from "node:child_process";
  */
 
 const DB = process.env.INTEGRATION_TEST_DB ?? "pickloads_integration";
-
-const PSQL_ENV = {
-  ...process.env,
-  PGHOST: process.env.PGHOST ?? "/tmp/pgsock",
-  PGPORT: process.env.PGPORT ?? "5433",
-  PGUSER: process.env.PGUSER ?? "postgres",
-};
 
 export interface PgError {
   message: string;
@@ -99,8 +92,8 @@ function runAsSession(
     `commit;`;
   issuedSql.push(sql);
   try {
-    const out = execFileSync(
-      "psql",
+    // SQL on stdin, never argv — see `psql-invoke.ts`.
+    const out = runPsql(
       // `-v VERBOSITY=verbose` (M-83) makes psql print the SQLSTATE in the
       // error line, so `PgError.code` is a real code rather than prose.
       [
@@ -112,11 +105,9 @@ function runAsSession(
         "-v",
         "VERBOSITY=verbose",
         "-At",
-        "-c",
-        wrapped,
       ],
-      { env: PSQL_ENV, encoding: "utf8" },
-    ).trim();
+      wrapped,
+    );
     const lines = out.split("\n").filter((l) => l !== "");
     const payload = lines[lines.length - 1] ?? "";
     return {
