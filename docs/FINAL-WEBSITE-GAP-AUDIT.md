@@ -57,7 +57,7 @@ sensitive data. One specification contradiction, minor, recorded in §5.
 | Surface | Status | Notes |
 |---|---|---|
 | **Request a Quote (page)** | ✅ **DELIVERED** | `/request-a-quote`, live in all five locales. Renders the SAME `FreightQuoteForm` and `submitFreightQuote` action as `/shippers` — one quote system, not two. Funnel instrumented (`quote_view` / `quote_started` / `quote_submitted` / `quote_failed`). Registered in `PUBLIC_ROUTES`, so it is in the sitemap with hreflang. 8 dedicated e2e tests + 12-breakpoint responsive + axe. **It also fixed a live mis-targeting**: the primary CTA pointed at `/#quote`, the home page's *carrier* setup form |
-| **Become a Carrier** | 🟡 | `/become-a-carrier` exists and feeds `/create-account/carrier`. **Needs** §17's documentation/expectations detail |
+| **Become a Carrier** | ✅ **DELIVERED** | `/become-a-carrier` — hosts the real `CarrierWizard` (unchanged), now with §17's documentation and expectations sections and onward links. 5 e2e tests: at most one application form, **no internal carrier rating exposed**, no earnings claim, and the dispatch CTA verified to land here |
 | **Get Dispatch / Start Dispatching** | 🟠 | CTAs exist across equipment pages; no single owned funnel entry |
 | **Book a Consultation** | ❌ ⚙️ | No booking surface. Requires an approved Calendly (or equivalent) URL |
 | **Newsletter** | ✅ | Capture + double opt-in confirm + unsubscribe token (M-69). Does **not** silently subscribe quote/contact users — verified |
