@@ -30,6 +30,7 @@
  * coordinates. M-80's provider failures follow the same rule.
  */
 
+import { captureShipmentSignal } from "@/lib/observability/capture";
 import type { ShipmentStatus } from "@/lib/shipments/types";
 
 /**
@@ -175,9 +176,16 @@ export function buildShipmentSignal(
  */
 export function logShipmentSignal(fields: ShipmentSignalFields): void {
   try {
-    // `console` IS the transport today (plan §2, C-5: Sentry is a DSN in
-    // .env.example and nothing more). M-84b swaps the body of this try block.
-    console.error("[shipment]", JSON.stringify(buildShipmentSignal(fields)));
+    const record = buildShipmentSignal(fields);
+
+    // The console line stays. It is what makes local development legible, it
+    // is what Vercel's log drain groups on, and it is the transport that keeps
+    // working when Sentry is unreachable, unconfigured or out of quota.
+    console.error("[shipment]", JSON.stringify(record));
+
+    // M-84b: and now a real transport. `captureShipmentSignal` is a no-op
+    // without a DSN, so this is silent in tests and local builds.
+    captureShipmentSignal(record);
   } catch {
     /* a logger must never be the reason a shipment update fails */
   }
