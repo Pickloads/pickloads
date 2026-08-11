@@ -141,7 +141,9 @@ export function PortalSidebar({
             {role === "admin"
               ? item("/portal/admin/security", "Security log")
               : null}
-            {role === "admin" ? item("/portal/admin/settings", "Settings") : null}
+            {role === "admin"
+              ? item("/portal/admin/settings", "Settings")
+              : null}
           </>
         ) : role === "shipper" ? (
           <>
@@ -149,6 +151,9 @@ export function PortalSidebar({
             {item("/portal/shipper", tv("Overview"), true)}
             {item("/portal/shipper/quotes/new", tv("Request a Quote"))}
             {item("/portal/shipper/quotes", tv("My Quotes"), true)}
+            {/* M-74 — §11's shipment list. Not `exact`: the detail route
+                `/shipments/[id]` must keep the parent entry marked current. */}
+            {item("/portal/shipper/shipments", tv("Shipments"))}
             {item("/portal/shipper/documents", tv("Documents"))}
             {item("/portal/shipper/billing", tv("Billing"))}
             {item("/portal/shipper/support", tv("Support"))}

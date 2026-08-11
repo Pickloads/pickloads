@@ -311,3 +311,29 @@ insert into shipment_events (
    '00000000-0000-0000-0000-0000000000e1', null, null,
    null, 'Shipper B disputes detention on the last three loads', 'staff_only',
    '{}'::jsonb, null, null);
+
+-- ===========================================================================
+-- M-74 — shipper-facing invoices (migration 0021)
+--
+-- Two SHIPPER invoices, one per tenant, each linked to that tenant's
+-- shipment. They exist alongside the two CARRIER invoices above, which is the
+-- shape the assertions need: with only shipper invoices present, "shipper A
+-- sees exactly 1 invoice" would be true whether the new policy scoped
+-- correctly or simply returned everything a shipper is allowed to see.
+--
+-- `carrier_id` IS NULL on both, and that is the whole point. 0009's shipped
+-- carrier policy is keyed on `carrier_id`, so a shipper invoice naming the
+-- hauling carrier would be readable BY that carrier — handing them the
+-- shipper gross and therefore PickLoads' margin. 0021 relaxed the NOT NULL to
+-- `invoices_party_present` exactly so this row can exist without a carrier;
+-- §10b asserts that carrier A, who hauled shipment A, still reads none of it.
+-- ===========================================================================
+
+insert into invoices (id, carrier_id, load_id, shipment_id, shipper_id,
+                      stripe_invoice_id, amount_cents, status, issued_at, due_at) values
+  ('7a7a7a7a-7a7a-7a7a-7a7a-7a7a7a7a0a01', null,
+   null, 'ffffffff-ffff-ffff-ffff-ffffffff0a01', '22222222-2222-2222-2222-2222222aaaaa',
+   'in_test_shipper_a', 240000, 'open', now() - interval '2 days', now() + interval '28 days'),
+  ('7a7a7a7a-7a7a-7a7a-7a7a-7a7a7a7a0b01', null,
+   null, 'ffffffff-ffff-ffff-ffff-ffffffff0b01', '22222222-2222-2222-2222-2222222bbbbb',
+   'in_test_shipper_b', 310000, 'paid', now() - interval '9 days', now() + interval '21 days');

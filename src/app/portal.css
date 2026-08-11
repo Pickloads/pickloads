@@ -117,3 +117,94 @@
   .btn-sm{min-height:44px}
   .ptable a{padding:10px 0;display:inline-block}
 }
+
+/* ============================================================================
+   M-74 — §11 shipper shipments (list + detail), token-only.
+
+   TWO JOBS, and they are different.
+
+   1. NEW LAYOUT for surfaces that did not exist: the filter bar's fieldset,
+      the pager, the map slot, the "show older" row. All composed from the
+      existing portal vocabulary (.kfilters, .field, .ptable, .pbadge).
+
+   2. DARK-SURFACE OVERRIDES for the `.track-*` components reused from M-73.
+      Those were authored for the PUBLIC page, which is a white card on a
+      light section — `color:var(--ink)` on `background:#fff`. Dropped
+      unchanged onto the portal's #12161a they would be near-black on
+      near-black: a real WCAG 1.4.3 failure, not a cosmetic one. Rather than
+      fork the components (which would fork the timeline logic with them,
+      the exact duplication this module was told not to create) the colours
+      are restated under `.portal`, which only the portal shell sets. `/track`
+      is untouched — asserted by the axe + responsive suites that already
+      scan it.
+
+   Every value below is an existing @theme token or a literal already present
+   in this file (CLAUDE.md: no new colours).
+   ========================================================================== */
+
+/* ---- filters (§11 nine filters, §23 keyboard-reachable) ---- */
+.psh-filters fieldset{display:flex;gap:12px;flex-wrap:wrap;align-items:end;border:0;margin:0;padding:0;min-width:0}
+.psh-filters .field{min-width:150px;flex:1 1 150px}
+.psh-filters .psh-toggle{flex:0 0 auto;min-width:0}
+.psh-filters .psh-toggle label{display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:.02em;font-size:.8rem;color:#cfd6da;min-height:44px;margin:0}
+.psh-filters .psh-toggle input{width:auto;min-width:20px;min-height:20px;accent-color:var(--amber)}
+.psh-filters .psh-actions{flex:0 0 auto;display:flex;gap:10px;align-items:center;min-width:0}
+.psh-count{font-family:var(--font-mono)}
+
+/* ---- pagination (§25 server-side) ---- */
+.psh-pager{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:16px;font-family:var(--font-mono);font-size:.74rem;color:var(--steel)}
+.psh-more{margin-top:14px}
+
+/* ---- map slot (§11 "map, when enabled" — M-80 fills it) ---- */
+.psh-mapslot{border:1px dashed var(--line);border-radius:8px;background:#0B0E11;padding:20px 22px}
+.psh-mapslot p{font-size:.9rem;color:#cfd6da;margin:10px 0 0;line-height:1.55}
+.psh-mapslot .track-note{color:var(--color-steel)}
+
+/* ---- dark-surface overrides for the reused .track-* components ---- */
+.portal .track-head{border-color:var(--line);grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:18px 24px;padding:20px 0;margin-bottom:24px}
+.portal .track-head .k{color:var(--steel)}
+.portal .track-head .v{color:var(--paper);font-size:.98rem}
+.portal .track-note{color:var(--color-steel)}
+.portal .track-status{border-color:#4CC492;color:#4CC492;background:rgba(27,122,84,.18)}
+.portal .track-status.is-exception{border-color:transparent;color:#f2c9c9;background:rgba(74,22,22,.25)}
+.portal .track-status.is-cancelled{border-color:var(--line);color:#aeb7bd;background:rgba(11,14,17,.6)}
+.portal .track-section h2{color:var(--paper);font-size:1.05rem;font-weight:800;margin-bottom:14px}
+.portal .track-banner{border-color:transparent;background:rgba(74,22,22,.25);color:#f2c9c9}
+.portal .track-banner h2{color:#f2c9c9;font-size:1.02rem;font-weight:800;margin-bottom:6px}
+.portal .track-banner p{color:#f2c9c9}
+.portal .track-banner.is-neutral{border:1px solid var(--line);background:var(--asphalt2);color:#cfd6da}
+.portal .track-banner.is-neutral h2{color:var(--paper)}
+.portal .track-banner.is-neutral p{color:#cfd6da}
+.portal .track-step{border-left-color:var(--line)}
+.portal .track-step::before{background:var(--asphalt);border-color:var(--line)}
+.portal .track-step.is-complete::before{background:#4CC492;border-color:#4CC492}
+.portal .track-step.is-current::before{background:var(--amber);border-color:var(--amber)}
+.portal .track-step.is-exception::before{background:var(--asphalt);border-color:#f2c9c9}
+.portal .track-step .lbl{color:var(--paper)}
+.portal .track-step.is-upcoming .lbl{color:var(--steel)}
+.portal .track-step .st{color:var(--steel)}
+.portal .track-step.is-complete .st{color:#4CC492}
+.portal .track-step.is-current .st{color:var(--amber)}
+.portal .track-step.is-exception .st{color:#f2c9c9}
+.portal .track-step time{color:var(--color-steel)}
+.portal .track-summary{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px 24px}
+.portal .track-summary dt{color:var(--steel)}
+.portal .track-summary dd{color:var(--paper);font-size:.92rem}
+.portal .track-events{border-top-color:var(--line)}
+.portal .track-events li{border-bottom-color:var(--line)}
+.portal .track-events .ev{color:var(--paper)}
+.portal .track-events .msg{color:#cfd6da}
+.portal .track-events .meta{color:var(--color-steel)}
+.portal .track-freetext{color:var(--steel)}
+.portal .track-contact a{color:var(--amber)}
+
+/* ---- §22: no horizontal overflow at 320px ---- */
+@media(max-width:640px){
+  .psh-filters .field{flex:1 1 100%;min-width:0}
+  .psh-filters .psh-actions{flex:1 1 100%}
+  .psh-filters .psh-actions .btn{flex:1 1 auto;text-align:center}
+  .portal .track-head{grid-template-columns:1fr;gap:14px;padding:16px 0}
+  .portal .track-summary{grid-template-columns:1fr}
+  .portal .track-step{padding-left:26px}
+  .psh-mapslot{padding:16px}
+}

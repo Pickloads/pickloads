@@ -99,6 +99,14 @@ const PORTAL_INTERNAL = [
   "/portal/carrier/trucks",
   "/portal/shipper",
   "/portal/shipper/quotes/new",
+  // M-74 — §11's two new shipper routes. Their responsive behaviour is
+  // asserted structurally in `tests/unit/shipper-shipments-a11y.test.tsx`
+  // (the `.ptable--cards` transform and a `data-th` on every cell, which is
+  // what makes a 320px render readable) because a browser cannot reach them
+  // without a Supabase session. Listing them HERE is what proves that
+  // limitation rather than assuming it.
+  "/portal/shipper/shipments",
+  "/portal/shipper/shipments/11111111-1111-1111-1111-111111111111",
   "/portal/admin",
   "/portal/admin/users",
 ];

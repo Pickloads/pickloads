@@ -448,8 +448,17 @@ type StaffInviteRow = {
 
 type InvoiceRow = {
   id: string;
-  carrier_id: string;
+  /* M-74 (0021): NULLABLE. A shipper invoice names no carrier — 0009's
+   * `"member read invoices"` policy is keyed on `carrier_id`, so naming the
+   * hauling carrier would disclose the shipper gross (and therefore the
+   * margin) to them. `invoices_party_present` keeps the real invariant:
+   * every invoice names a carrier or a shipper. */
+  carrier_id: string | null;
   load_id: string | null;
+  /* M-74 (0021): the §11 shipper-facing linkage. Both null on every
+   * pre-0021 (carrier dispatch-fee) invoice. */
+  shipment_id: string | null;
+  shipper_id: string | null;
   stripe_invoice_id: string | null;
   amount_cents: number;
   currency: string;

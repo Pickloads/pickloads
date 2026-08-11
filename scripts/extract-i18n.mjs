@@ -997,6 +997,168 @@ const SUPPLEMENTAL = {
     es: "RPM cargado",
     fr: "RPM chargé",
   },
+
+  /* ---- M-74 (§11): shipper shipment list + detail + dashboard tiles.
+     PORTAL CHROME ONLY. Every shipment VOCABULARY string — the 18 statuses,
+     the 9 milestones, the event types, the D-6 phrase library, the §30
+     honest labels, the §23 a11y sentences — comes from the `shipment`
+     namespace M-73 authored further down this file, and is deliberately NOT
+     re-declared here. A second set of status words would drift on the first
+     rename and would give /track and the portal different English.
+     es/fr authored; ru/ht mirror English pending native review, the M-42 /
+     M-55 / M-69 / M-73 precedent recorded in docs/LAUNCH-RUNBOOK.md. ---- */
+  Shipments: { es: "Envíos", fr: "Expéditions" },
+  "All shipments": { es: "Todos los envíos", fr: "Toutes les expéditions" },
+  "View all shipments": {
+    es: "Ver todos los envíos",
+    fr: "Voir toutes les expéditions",
+  },
+  "Back to the newest updates": {
+    es: "Volver a las actualizaciones más recientes",
+    fr: "Revenir aux mises à jour les plus récentes",
+  },
+  "Your shipments": { es: "Tus envíos", fr: "Vos expéditions" },
+  "Filter shipments": { es: "Filtrar envíos", fr: "Filtrer les expéditions" },
+  "PO or reference": {
+    es: "Orden de compra o referencia",
+    fr: "Bon de commande ou référence",
+  },
+  "Pickup from": { es: "Recogida desde", fr: "Chargement à partir du" },
+  "Pickup to": { es: "Recogida hasta", fr: "Chargement jusqu'au" },
+  "All statuses": { es: "Todos los estados", fr: "Tous les statuts" },
+  "Delayed only": { es: "Solo con retraso", fr: "Uniquement en retard" },
+  "Delivered only": { es: "Solo entregados", fr: "Uniquement livrées" },
+  "Apply filters": { es: "Aplicar filtros", fr: "Appliquer les filtres" },
+  "Clear filters": { es: "Borrar filtros", fr: "Effacer les filtres" },
+  "Estimated delivery": { es: "Entrega estimada", fr: "Livraison estimée" },
+  "Shipment pages": {
+    es: "Páginas de envíos",
+    fr: "Pages d'expéditions",
+  },
+  Page: { es: "Página", fr: "Page" },
+  of: { es: "de", fr: "sur" },
+  Previous: { es: "Anterior", fr: "Précédent" },
+  Next: { es: "Siguiente", fr: "Suivant" },
+  "Showing your most recent shipments.": {
+    es: "Mostrando tus envíos más recientes.",
+    fr: "Affichage de vos expéditions les plus récentes.",
+  },
+  "No shipments match.": {
+    es: "Ningún envío coincide.",
+    fr: "Aucune expédition ne correspond.",
+  },
+  "No shipments match these filters. Clear them to see everything on your account.":
+    {
+      es: "Ningún envío coincide con estos filtros. Bórralos para ver todo lo de tu cuenta.",
+      fr: "Aucune expédition ne correspond à ces filtres. Effacez-les pour tout voir sur votre compte.",
+    },
+  "No shipments yet. Once a dispatcher books your first load it appears here with its tracking number and milestones.":
+    {
+      es: "Aún no hay envíos. Cuando un dispatcher reserve tu primera carga, aparecerá aquí con su número de seguimiento y sus hitos.",
+      fr: "Pas encore d'expédition. Dès qu'un régulateur réserve votre premier chargement, il apparaît ici avec son numéro de suivi et ses étapes.",
+    },
+  "Nothing could be loaded.": {
+    es: "No se pudo cargar nada.",
+    fr: "Rien n'a pu être chargé.",
+  },
+  "We couldn't load your shipments just now. Refresh the page, or call (908) 404-5373 and a dispatcher will read them to you.":
+    {
+      es: "No pudimos cargar tus envíos en este momento. Actualiza la página o llama al (908) 404-5373 y un dispatcher te los leerá.",
+      fr: "Nous n'avons pas pu charger vos expéditions pour le moment. Actualisez la page ou appelez le (908) 404-5373 et un régulateur vous les lira.",
+    },
+  "Your account isn't linked to a company record yet, so there are no shipments to show. Call (908) 404-5373 and we'll link it — your quotes are already matched by your sign-in email.":
+    {
+      es: "Tu cuenta aún no está vinculada a un registro de empresa, así que no hay envíos que mostrar. Llama al (908) 404-5373 y la vinculamos — tus cotizaciones ya se asocian por tu correo de acceso.",
+      fr: "Votre compte n'est pas encore rattaché à une fiche entreprise, il n'y a donc aucune expédition à afficher. Appelez le (908) 404-5373 et nous ferons le lien — vos devis sont déjà associés à votre e-mail de connexion.",
+    },
+  "Dispatch customers: your loads are tracked inside the Carrier Portal, not here.":
+    {
+      es: "Clientes de dispatch: tus cargas se siguen dentro del Portal del Carrier, no aquí.",
+      fr: "Clients dispatch : vos chargements sont suivis dans le Portail Transporteur, pas ici.",
+    },
+  "New brokerage bookings are paused. Shipments already in progress are shown below and continue to be dispatched normally.":
+    {
+      es: "Las nuevas reservas de brokerage están pausadas. Los envíos ya en curso se muestran abajo y se siguen gestionando con normalidad.",
+      fr: "Les nouvelles réservations de courtage sont suspendues. Les expéditions déjà en cours sont affichées ci-dessous et continuent d'être gérées normalement.",
+    },
+
+  /* ---- detail page ---- */
+  Location: { es: "Ubicación", fr: "Localisation" },
+  "Origin address": { es: "Dirección de origen", fr: "Adresse d'origine" },
+  "Destination address": {
+    es: "Dirección de destino",
+    fr: "Adresse de destination",
+  },
+  "Open a support thread": {
+    es: "Abrir una conversación de soporte",
+    fr: "Ouvrir une demande d'assistance",
+  },
+  "Shipment documents — BOL, proof of delivery and approved paperwork — aren't available for download yet. Ask your dispatcher and they'll email them to you.":
+    {
+      es: "Los documentos del envío — conocimiento de embarque, prueba de entrega y papeleo aprobado — todavía no se pueden descargar. Pídeselos a tu dispatcher y te los envía por correo.",
+      fr: "Les documents d'expédition — lettre de voiture, preuve de livraison et pièces validées — ne sont pas encore téléchargeables. Demandez-les à votre régulateur, il vous les enverra par e-mail.",
+    },
+  "Invoice status": { es: "Estado de la factura", fr: "Statut de la facture" },
+  "No invoice has been raised for this shipment yet.": {
+    es: "Todavía no se ha emitido ninguna factura para este envío.",
+    fr: "Aucune facture n'a encore été émise pour cette expédition.",
+  },
+  "We couldn't read your invoices just now.": {
+    es: "No pudimos leer tus facturas en este momento.",
+    fr: "Nous n'avons pas pu lire vos factures pour le moment.",
+  },
+  "Not yet issued": { es: "Aún no emitida", fr: "Pas encore émise" },
+  "Awaiting payment": { es: "Pendiente de pago", fr: "En attente de paiement" },
+  Paid: { es: "Pagada", fr: "Payée" },
+  "On hold — please call us": {
+    es: "En espera — llámanos, por favor",
+    fr: "En suspens — merci de nous appeler",
+  },
+  Issued: { es: "Emitida", fr: "Émise" },
+  "Shipment contacts": {
+    es: "Contactos del envío",
+    fr: "Contacts de l'expédition",
+  },
+  "No contacts have been recorded for this shipment yet.": {
+    es: "Todavía no se han registrado contactos para este envío.",
+    fr: "Aucun contact n'a encore été enregistré pour cette expédition.",
+  },
+  "Contact through dispatch": {
+    es: "Contactar a través de dispatch",
+    fr: "Contacter via la régulation",
+  },
+  Role: { es: "Función", fr: "Rôle" },
+  Contact: { es: "Contacto", fr: "Contact" },
+  "Show older updates": {
+    es: "Ver actualizaciones anteriores",
+    fr: "Voir les mises à jour plus anciennes",
+  },
+
+  /* ---- §11 dashboard tiles ---- */
+  /* NOTE — ten labels this module renders are deliberately ABSENT here:
+     Paid · Cancelled · Amount · Issued · Due · Company · Contact · Booked ·
+     In transit · Outstanding invoices. All ten already exist in the extracted
+     V4 dictionary with the prototype's own five-locale wording (including
+     ru/ht, which this catalogue can only mirror in English). Re-declaring
+     them would OVERWRITE those translations — the exact hazard M-69 recorded
+     above for "What carriers say". `tv()` finds them where they are. */
+  "Pickups today": { es: "Recogidas hoy", fr: "Chargements aujourd'hui" },
+  "In transit": { es: "En tránsito", fr: "En transit" },
+  Delayed: { es: "Con retraso", fr: "En retard" },
+  "Deliveries today": { es: "Entregas hoy", fr: "Livraisons aujourd'hui" },
+  Completed: { es: "Completados", fr: "Terminées" },
+  "Documents awaiting review": {
+    es: "Documentos pendientes de revisión",
+    fr: "Documents en attente de vérification",
+  },
+  "Document uploads aren't live yet": {
+    es: "La carga de documentos aún no está activa",
+    fr: "Le dépôt de documents n'est pas encore actif",
+  },
+  "Not available right now": {
+    es: "No disponible ahora mismo",
+    fr: "Indisponible pour le moment",
+  },
 };
 for (const [en, tr] of Object.entries(SUPPLEMENTAL)) addEntry(en, tr, false);
 // RICH entries are keyed by data-i18n id (hero.title etc.) with per-locale HTML;
@@ -1129,6 +1291,32 @@ const SHIPMENT = {
   "severity.medium": { en: "Medium", es: "Media", fr: "Moyenne" },
   "severity.high": { en: "High", es: "Alta", fr: "Élevée" },
   "severity.critical": { en: "Critical", es: "Crítica", fr: "Critique" },
+  /* ---- §18 party roles (M-70 `partyRoleKey()`, first rendered by M-74) ----
+     §11's shipment detail shows "shipment contacts", which means rendering
+     `shipment_parties.party_role` to a customer in five languages. M-70
+     shipped the enum and M-74 added the key builder beside its four
+     siblings; the labels are authored here rather than in the v4
+     supplemental catalogue because they are shipment VOCABULARY, and the
+     dispatcher board (M-75) and broker portal (M-81) will render the same
+     six words. */
+  "party.shipper": { en: "Shipper", es: "Remitente", fr: "Expéditeur" },
+  "party.consignee": {
+    en: "Consignee",
+    es: "Destinatario",
+    fr: "Destinataire",
+  },
+  "party.broker_partner": {
+    en: "Broker partner",
+    es: "Socio broker",
+    fr: "Partenaire courtier",
+  },
+  "party.carrier": { en: "Carrier", es: "Transportista", fr: "Transporteur" },
+  "party.billing": {
+    en: "Billing contact",
+    es: "Contacto de facturación",
+    fr: "Contact de facturation",
+  },
+  "party.third_party": { en: "Third party", es: "Tercero", fr: "Tiers" },
 
   /* ---- §30 honest labels ------------------------------------------------
    * The six the directive quotes verbatim, plus D-6's free-text label. Every

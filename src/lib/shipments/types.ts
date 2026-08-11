@@ -467,6 +467,21 @@ export function exceptionSeverityKey(
   return `${SHIPMENT_I18N_NAMESPACE}.severity.${severity}`;
 }
 
+/**
+ * Message key for a party role, e.g. `shipment.party.consignee`.
+ *
+ * M-74. §11's shipment-detail page shows "shipment contacts", which means
+ * rendering `shipment_parties.party_role` to a customer in five languages —
+ * the first surface that needs these labels, which is why M-70 did not author
+ * them (a key with no translation renders as the key). The builder lives here
+ * beside its four siblings so there is one place a `shipment.*` key is
+ * constructed, and `tests/unit/shipment-types.test.ts` walks all six roles
+ * against all five catalogues.
+ */
+export function partyRoleKey(role: ShipmentPartyRole): string {
+  return `${SHIPMENT_I18N_NAMESPACE}.party.${role}`;
+}
+
 /* ------------------------------------------------------------------ *
  * Row types — the shape M-71's DDL must produce
  * ------------------------------------------------------------------ *

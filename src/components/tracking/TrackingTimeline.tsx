@@ -1,11 +1,11 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import type { PublicTrackingDto } from "@/lib/shipments/dto";
 import {
   buildPublicTimeline,
   timelineTextEquivalent,
   type MilestoneState,
+  type TimelineSubject,
 } from "@/lib/shipments/public-timeline";
 import { formatTrackingDateTime } from "@/components/tracking/format";
 
@@ -56,7 +56,20 @@ const STATE_KEY: Record<MilestoneState, string> = {
   upcoming: "shipment.a11y.step_upcoming",
 };
 
-export function TrackingTimeline({ tracking }: { tracking: PublicTrackingDto }) {
+/**
+ * M-74: the prop is `TimelineSubject` (status + events + exceptions), not
+ * `PublicTrackingDto`. `/track` passes its public DTO exactly as before; the
+ * shipper portal passes `toShipperDto(...)`. One timeline, two audiences,
+ * zero duplicated milestone logic — and the heading id below is derived from
+ * `headingId` so two timelines can never collide on one page.
+ */
+export function TrackingTimeline({
+  tracking,
+  headingId = "track-progress-heading",
+}: {
+  tracking: TimelineSubject;
+  headingId?: string;
+}) {
   const t = useTranslations();
   const locale = useLocale();
   const timeline = buildPublicTimeline(tracking);
@@ -81,8 +94,8 @@ export function TrackingTimeline({ tracking }: { tracking: PublicTrackingDto }) 
         );
 
   return (
-    <section className="track-section" aria-labelledby="track-progress-heading">
-      <h2 id="track-progress-heading">{t("shipment.result.timeline_title")}</h2>
+    <section className="track-section" aria-labelledby={headingId}>
+      <h2 id={headingId}>{t("shipment.result.timeline_title")}</h2>
 
       {/* §23 text equivalent + the aria-live target for status changes. */}
       <p className="sr-only" role="status">

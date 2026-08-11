@@ -40,6 +40,17 @@ const PAGES = [
   "/portal",
 ];
 
+/*
+ * M-74 — `/portal/shipper/shipments` and its `[shipmentId]` detail are NOT in
+ * the list above, for the same reason the note at the top of this file gives:
+ * they sit behind a Supabase session this lane cannot mint. They are scanned
+ * with the SAME axe-core engine, in nine states and three locales, against the
+ * same components the routes render, in
+ * `tests/unit/shipper-shipments-a11y.test.tsx` — and
+ * `tests/e2e/shipper-shipments.spec.ts` asserts the session gate, so the
+ * split is proved rather than assumed.
+ */
+
 for (const path of PAGES) {
   test(`axe: ${path} has no WCAG A/AA violations`, async ({ page }) => {
     await page.goto(path);

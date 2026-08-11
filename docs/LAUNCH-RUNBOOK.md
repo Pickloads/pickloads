@@ -6,11 +6,17 @@ degrades gracefully when a secret is missing (dev warnings, honest pending
 states) — so a partial deploy never crashes, it just quietly disables the
 affected integration. **Production must have every var set.**
 
-*Last revised for M-73 (public secure tracking, `/track`): migration **0020**
-added to the order-and-rollback table, the `0001 → 0020` chain, **one new
-environment variable (`TRACKING_ACCESS_SECRET`) that fails CLOSED**, a `/track`
-smoke test, and refreshed gate counts (437 unit / 357 RLS / 47 integration /
-174 e2e / 348 pages). Previously revised for M-72 (status-transition engine):
+*Last revised for M-74 (shipper shipment list + detail): migration **0021**
+added to the order-and-rollback table, the `0001 → 0021` chain, and refreshed
+gate counts (578 unit / 386 RLS / 78 integration / 179 e2e / 353 pages).
+**No new environment variable and no new `company_settings` key** — the two new
+routes are gated by the `brokerage_active` switch that already exists. 0021 is
+the first migration in this programme that RELAXES a shipped constraint
+(`invoices.carrier_id` NOT NULL → a CHECK) and its rollback note says exactly
+what that costs. Previously revised for M-73 (public secure tracking,
+`/track`): migration **0020**, the `0001 → 0020` chain, **one new environment
+variable (`TRACKING_ACCESS_SECRET`) that fails CLOSED** and a `/track` smoke
+test. Previously revised for M-72 (status-transition engine):
 migration 0019, the 339-assertion RLS gate and a **new release gate —
 `npm run test:integration`** (the §27 tier `FINAL-IMPLEMENTATION-PLAN` §4
 restores). Previously revised for M-71 (shipment schema): migrations 0014–0018
@@ -64,11 +70,12 @@ region `us-east-1` (closest to NJ ops). For **each** project, in order:
    | 0018 | `0018_shipment_rls.sql` | **M-71.** `my_broker_partner_ids()` (active-filtered per §12); RLS on the 5 tables from 0017; 15 policies; **no anon policy by design** (§19 forbids anonymous shipment SELECT) | Full script in the M-71 doc. Drop the 15 policies, `disable row level security` on the 5 tables, drop the helper. **Dangerous in isolation** — this leaves five populated tables with no tenant isolation. Only ever run it immediately before rolling back 0017 too. |
    | 0019 | `0019_shipment_events.sql` | **M-72.** `shipment_events` (all 18 §7 fields; globally unique `idempotency_key`, per-shipment unique `external_event_id`); 6 indexes; `trg_shipment_events_append_only` (refuses UPDATE/DELETE for **every** role, service role included); RLS + 4 policies mirroring `AUDIENCE_EVENT_VISIBILITY`, **no anon policy**; 5 `security definer` functions (`shipment_transition_facts`, `apply_shipment_transition`, `append_shipment_event`, `set_shipment_appointment`, `apply_shipment_correction`) with **EXECUTE granted to `service_role` only** | Full script in [`docs/modules/M-72-transition-engine.md`](modules/M-72-transition-engine.md) §DB changes. Drop the 4 policies, disable RLS, drop the 5 functions (full signatures in the doc), drop the trigger **before** the table, then the trigger function, then `shipment_events cascade`. **Destructive** — dump `shipment_events` first; it is the entire timeline of every shipment. Roll back `src/lib/supabase/database.types.ts` and delete `src/lib/shipments/apply-transition.ts` in the same deploy. `shipments`/`shipment_parties`/`shipment_assignments` are untouched and keep working — statuses simply stop being writable through the engine. |
    | 0020 | `0020_shipment_tracking_access.sql` | **M-73.** `shipment_tracking_access` — the §19 public-tracking access ledger (8 columns, both FKs `NO ACTION`, length CHECKs); 4 indexes (per-IP, per-attempted-number, per-shipment, failures); `trg_shipment_tracking_access_append_only` (refuses UPDATE/DELETE for **every** role, service role included); RLS with **one** policy — staff SELECT — and **no anon policy and no write policy at all**, so every row arrives through the service role | Full script in [`docs/modules/M-73-public-tracking.md`](modules/M-73-public-tracking.md) §DB changes. Drop the policy, disable RLS, drop the trigger **before** the table, then the trigger function, then `shipment_tracking_access cascade`. Do **not** drop the `tracking_access_outcome` type — 0017 created it. **Destructive** — this is the only record of enumeration attempts against the platform; `pg_dump -t shipment_tracking_access` first. Roll back `src/lib/supabase/database.types.ts` and remove `src/lib/shipments/public-lookup.ts` + the `/track` route in the same deploy; the failure mode if you don't is *closed* (the lookup refuses when it cannot log), so `/track` says "temporarily unavailable" rather than serving unlogged lookups. |
+   | 0021 | `0021_invoice_shipment_link.sql` | **M-74.** `invoices.shipment_id` + `invoices.shipper_id` (both nullable, FKs to `shipments`/`shippers`); `carrier_id`'s **NOT NULL replaced by** `invoices_party_present` (`carrier_id is not null or shipper_id is not null`); 2 partial indexes; ONE policy — `"member read shipper invoices"`. **Why the relaxation:** 0009's `"member read invoices"` is keyed on `my_carrier_ids()`, so a shipper invoice naming the hauling carrier would be readable BY that carrier — disclosing the shipper gross and therefore the margin. A shipper invoice must name no carrier. 0009's carrier policy is left byte-identical and every pre-0021 row stays visible to exactly whom it was before | Full script in [`docs/modules/M-74-shipper-shipments.md`](modules/M-74-shipper-shipments.md) §Migration 0021. Drop the policy, then the 2 indexes, then — **only if you truly need the NOT NULL back** — delete the null-carrier (shipper) invoices, drop the CHECK and re-add the NOT NULL, which **fails while any shipper invoice exists**; finally drop the 2 columns. `pg_dump -t invoices` first. Roll back `src/lib/supabase/database.types.ts` and the two `/portal/shipper/shipments` routes in the same deploy; if you don't, the detail page's invoice section renders its honest "we couldn't read your invoices" state and logs — it does not leak. |
 
    After applying, sanity-check the chain the same way CI does:
 
    ```bash
-   npm run test:rls     # rebuilds a throwaway DB from 0001→0020 + seed + fixtures
+   npm run test:rls     # rebuilds a throwaway DB from 0001→0021 + seed + fixtures
    ```
 
 2. **Seed** — run `supabase/seed.sql` (idempotent, `on conflict do nothing`).
@@ -236,14 +243,14 @@ sets them expecting an effect:
 
 ```bash
 npm run typecheck && npm run lint && npm run build   # module gate (CLAUDE.md)
-npm test                 # 437 unit assertions
-npm run test:rls         # 357 RLS isolation assertions — see below
-npm run test:integration # 47 integration tests against local PG16 — see below
-npm run test:e2e         # 174 chromium tests against the production build
+npm test                 # 578 unit assertions
+npm run test:rls         # 386 RLS isolation assertions — see below
+npm run test:integration # 78 integration tests against local PG16 — see below
+npm run test:e2e         # 179 chromium tests against the production build
 ```
 
 **`npm run test:rls` is a release gate, not an optional extra.** It rebuilds
-a throwaway database from `0001 → 0020` + seed + two/three-tenant fixtures and
+a throwaway database from `0001 → 0021` + seed + two/three-tenant fixtures and
 asserts that carrier A cannot reach carrier B, shipper A cannot reach shipper
 B (including *unclaimed* public quotes), anon reaches nothing but
 `company_settings` and published posts, and no session — staff or admin — can
@@ -278,7 +285,7 @@ the tracking directive's §27 integration tier, which
 [`docs/FINAL-IMPLEMENTATION-PLAN.md`](FINAL-IMPLEMENTATION-PLAN.md) §4 records
 as *"diagnosed absent, then dropped entirely"* by the extension audit and
 restores as M-83b; M-72 ships the lane plus the four tests it can prove today.
-It builds its own throwaway database (`0001 → 0020` + seed, **not** the RLS
+It builds its own throwaway database (`0001 → 0021` + seed, **not** the RLS
 fixtures — it creates shipments through the engine) and then runs vitest
 against it, so the real TypeScript transition engine drives the real SQL write
 path: create → assign carrier → create event → update status, idempotent
@@ -464,6 +471,32 @@ effect site-wide immediately — **no deploy**.
          notification email.
       7. With `TRACKING_ACCESS_SECRET` **unset** in a preview environment,
          every lookup says "temporarily unavailable" — never grants.
+- [ ] **Shipper shipments smoke test (M-74).** Sign in as a shipper whose
+      profile has a `shipper_memberships` row:
+      1. While `brokerage_active` is **false** and the account has no
+         shipments, `/portal/shipper/shipments` shows the "Launching soon"
+         waitlist card — **not** an empty table with filters. The overview
+         shows its four quote tiles and **no** shipment tile row.
+      2. Flip `brokerage_active` to `true` (or create a shipment through
+         dispatch, which needs the flag on). The list, the nine filters and
+         the pager appear; the overview gains the eight §11 tiles. Confirm
+         "Documents awaiting review" renders an **em-dash**, not `0` — M-77
+         owns that table and a zero there would be a fake metric.
+      3. Apply a filter → the URL carries it, the result count changes, and
+         the "Next" link keeps the filter. Turn JavaScript off and repeat: the
+         filter form is a plain GET and must still work.
+      4. Open a shipment. Confirm the nine-step timeline, the ETA label, the
+         **Location** block reading "Milestone tracking" with *"This page does
+         not show a live GPS position"* (there is deliberately no map yet —
+         M-80), the honest documents empty state, the invoice section, the
+         contacts table with the carrier row saying "Contact through dispatch",
+         and the update history.
+      5. Edit the URL to another shipper's shipment id, and to `…/not-a-uuid`.
+         **Both must render 404**, never 403 and never a partial page. If
+         either shows a shipment, stop.
+      6. Flip `brokerage_active` back to `false`. The shipper who now HAS
+         shipments must still see them, with the "new bookings are paused"
+         note — in-flight freight never disappears.
 - [ ] Stripe + Dropbox Sign webhook test deliveries show in
       `webhook_events`.
 

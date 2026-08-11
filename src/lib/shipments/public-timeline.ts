@@ -34,7 +34,7 @@
 
 import type {
   CustomerEventDto,
-  PublicTrackingDto,
+  CustomerExceptionDto,
 } from "@/lib/shipments/dto";
 import {
   SHIPMENT_I18N_NAMESPACE,
@@ -206,12 +206,34 @@ function reachedFromEvents(events: readonly CustomerEventDto[]): number {
 }
 
 /**
- * Build §8's progress timeline from a public DTO.
+ * The three facts a timeline is built from.
+ *
+ * M-74 WIDENING. This was `PublicTrackingDto` in M-73. The shipper portal
+ * (§11) needs the SAME nine milestones from a `ShipperShipmentDto`, and the
+ * task is explicit that M-73's timeline is to be reused rather than
+ * duplicated. Naming the three fields both DTOs already carry is the smallest
+ * change that makes that literally true: `PublicTrackingDto` and
+ * `ShipperShipmentDto` are both structurally assignable to it, every existing
+ * caller compiles unchanged, and there is exactly one implementation of
+ * "where is this shipment on the nine steps" in the codebase.
+ *
+ * It is deliberately NOT `Pick<PublicTrackingDto, …>`: an interface of three
+ * fields says what the function actually reads, and a future DTO does not
+ * have to be related to the public one to use it.
+ */
+export interface TimelineSubject {
+  status: ShipmentStatus;
+  events: readonly CustomerEventDto[];
+  exceptions: readonly CustomerExceptionDto[];
+}
+
+/**
+ * Build §8's progress timeline from a customer DTO.
  *
  * Pure: same input, same output, no clock read. That matters for the tests —
  * "which step is current" must not depend on when the suite runs.
  */
-export function buildPublicTimeline(dto: PublicTrackingDto): PublicTimeline {
+export function buildPublicTimeline(dto: TimelineSubject): PublicTimeline {
   const events = dto.events;
   const timestamps = milestoneTimestamps(events);
 

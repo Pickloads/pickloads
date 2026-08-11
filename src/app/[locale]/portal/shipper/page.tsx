@@ -4,6 +4,14 @@ import { requireShipper } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getV4 } from "@/i18n/v4-server";
 import { getShipperQuotes, QUOTE_STATUS } from "@/lib/shipper-quotes";
+import { getMyShipperId } from "@/lib/memberships";
+import {
+  EMPTY_TILE_COUNTS,
+  getShipperTileCounts,
+  SHIPPER_TILE_IDS,
+} from "@/lib/shipments/shipper-tiles";
+import { shipperHasAnyShipment } from "@/lib/shipments/shipper-list";
+import { ShipperTiles } from "@/components/portal/ShipperTiles";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +25,20 @@ export const metadata: Metadata = {
  * read (membership RLS / documented legacy email match). The shipments &
  * tracking card is gated by `company_settings.brokerage_active` (decision
  * D1/D6): pre-brokerage it's an HONEST waitlist state, never fake tracking.
+ *
+ * M-74 EXTENDS this page with §11's dashboard summary. It does NOT replace
+ * it: the four quote tiles stay exactly as they shipped, and §11's "pending
+ * quotes" IS the existing "Pending review" tile — computing a second
+ * pending-quote number from `shipments` would put two different answers to
+ * one question on one screen. The eight remaining §11 tiles (booked ·
+ * pickups today · in transit · delayed · deliveries today · completed ·
+ * documents awaiting review · outstanding invoices) render beneath it, as
+ * `head: true` COUNT queries so a dashboard never loads shipment rows (§25).
+ *
+ * The shipment tile row obeys the same §2 gate as the list page: with
+ * `brokerage_active` false AND no shipment on the account, the honest state
+ * is the waitlist card that is already here — not a row of zeroes implying an
+ * operational surface with nothing in it.
  */
 export default async function ShipperOverviewPage({
   params,
@@ -44,6 +66,20 @@ export default async function ShipperOverviewPage({
   }).length;
   const quoted = quotes.filter((q) => QUOTE_STATUS[q.status]?.stage === 2).length;
   const booked = quotes.filter((q) => QUOTE_STATUS[q.status]?.stage === 3).length;
+
+  // §11 shipment tiles. The membership id is re-resolved when the quote read
+  // did not return one; both calls hit the same cookie-bound client and the
+  // same one-row helper.
+  const myShipperId = shipperId ?? (await getMyShipperId(supabase));
+  const hasShipments =
+    myShipperId === null
+      ? false
+      : await shipperHasAnyShipment(supabase, myShipperId);
+  const showShipmentTiles =
+    myShipperId !== null && (brokerageActive || hasShipments);
+  const tileCounts = showShipmentTiles
+    ? await getShipperTileCounts(supabase, myShipperId)
+    : EMPTY_TILE_COUNTS;
 
   return (
     <main id="main">
@@ -76,15 +112,37 @@ export default async function ShipperOverviewPage({
         </div>
       </div>
 
+      {showShipmentTiles ? (
+        <>
+          <span className="psec">{tv("Shipments")}</span>
+          <ShipperTiles counts={tileCounts} ids={SHIPPER_TILE_IDS} />
+          <p className="pempty" style={{ padding: "0 0 18px" }}>
+            <Link href="/portal/shipper/shipments">
+              {tv("View all shipments")} →
+            </Link>
+          </p>
+        </>
+      ) : null}
+
       <div className="pgrid2">
         <div className="pcard">
           <h2>{tv("Shipments & tracking")}</h2>
           {brokerageActive ? (
-            <p className="pempty" style={{ padding: 0 }}>
-              {tv(
-                "Tracking activates with your first booked shipment — your dispatcher shares live status here.",
-              )}
-            </p>
+            <>
+              <p className="pempty" style={{ padding: 0 }}>
+                {tv(
+                  "Tracking activates with your first booked shipment — your dispatcher shares live status here.",
+                )}
+              </p>
+              <p style={{ paddingTop: 10 }}>
+                <Link
+                  className="btn btn-ghost btn-sm"
+                  href="/portal/shipper/shipments"
+                >
+                  {tv("Shipments")} →
+                </Link>
+              </p>
+            </>
           ) : (
             <>
               <span className="pbadge amber">{tv("Launching soon")}</span>

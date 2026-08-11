@@ -318,7 +318,19 @@ select rls_test.eq((select count(*) from carriers), 0, 'shipperA cannot select c
 select rls_test.eq((select count(*) from documents), 0, 'shipperA cannot select carrier documents');
 select rls_test.eq((select count(*) from loads), 0, 'shipperA cannot select loads');
 select rls_test.eq((select count(*) from trucks), 0, 'shipperA cannot select trucks');
-select rls_test.eq((select count(*) from invoices), 0, 'shipperA cannot select invoices');
+-- M-74 (0021) CHANGED THIS ASSERTION, deliberately. It used to read
+-- "shipperA cannot select invoices" and expect 0, which was true only because
+-- no shipper invoice could exist: `invoices` was carrier-shaped and its one
+-- customer policy was keyed on `my_carrier_ids()`. §11 requires the shipper
+-- shipment page to show invoice status, so 0021 adds `shipper_id` and a
+-- matching read policy. The assertion is REWRITTEN rather than deleted, and
+-- it still says the thing that matters: a shipper reads its OWN invoice and
+-- none of the carrier billing history sharing the table. §10 below covers the
+-- new policy in full.
+select rls_test.eq((select count(*) from invoices), 1,
+  'shipperA selects exactly ONE invoice — its own (M-74/0021; was 0 before the shipper linkage existed)');
+select rls_test.eq((select count(*) from invoices where carrier_id is not null), 0,
+  'shipperA still selects NO carrier dispatch-fee invoice');
 select rls_test.denied($$insert into freight_quotes (email, pickup_zip, delivery_zip, shipper_id) values ('x@y.test','07111','30301','22222222-2222-2222-2222-2222222aaaaa')$$,
   'shipperA cannot insert freight quotes directly (server action + service role only)');
 select rls_test.affects($$update freight_quotes set quoted_rate = 1 where id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0a01'$$, 0,
@@ -397,7 +409,11 @@ select rls_test.eq((select count(*) from documents), 2, 'dispatcher reads all do
 select rls_test.eq((select count(*) from loads), 2, 'dispatcher reads all loads');
 select rls_test.eq((select count(*) from trucks), 2, 'dispatcher reads all trucks');
 select rls_test.eq((select count(*) from drivers), 2, 'dispatcher reads all drivers');
-select rls_test.eq((select count(*) from invoices), 2, 'dispatcher reads all invoices');
+-- M-74 (0021): 2 → 4. The fixtures gained two SHIPPER invoices; staff read
+-- every invoice under 0009's `"staff manage invoices"`, which 0021 did not
+-- touch. The count moves because the fixture set grew, not because a policy
+-- changed.
+select rls_test.eq((select count(*) from invoices), 4, 'dispatcher reads all invoices (2 carrier + 2 shipper)');
 select rls_test.eq((select count(*) from shippers), 2, 'dispatcher reads all shippers');
 select rls_test.eq((select count(*) from freight_quotes), 3, 'dispatcher reads all freight quotes');
 select rls_test.eq((select count(*) from carrier_leads), 1, 'dispatcher reads the CRM');
@@ -1153,6 +1169,144 @@ select rls_test.rejects_with($$insert into shipment_tracking_access (tracking_nu
   '23514', 'a 65-character attempted number is rejected by the length CHECK — the ledger is not free storage for a script');
 select rls_test.rejects_with($$insert into shipment_tracking_access (tracking_number_attempted, outcome, user_agent) values ('PL-2026-000404','not_found', repeat('U', 513))$$,
   '23514', 'a 513-character user agent is rejected by the length CHECK');
+
+reset role;
+set request.jwt.claim.sub = '';
+
+-- ===========================================================================
+-- 10 · M-74 / migration 0021 — shipper-facing invoices (§11 "invoice status")
+--
+-- 0021 adds `invoices.shipment_id` + `invoices.shipper_id` and ONE policy:
+-- `"member read shipper invoices"`, `shipper_id in (select my_shipper_ids())`.
+-- Everything below is about that one policy, because a new SELECT policy on a
+-- table that already holds every carrier's billing history is the highest-risk
+-- line in this module.
+--
+-- The three questions worth answering:
+--   a. does a shipper see EXACTLY their own invoice — not the other shipper's,
+--      and not any of the CARRIER invoices that predate the column?
+--   b. does the migration make any EXISTING row newly visible? (Every pre-0021
+--      row has shipper_id null, and `null in (…)` is NULL, never true.)
+--   c. can a shipper WRITE one? (0009's doctrine: customers get SELECT.)
+-- ===========================================================================
+
+reset role;
+set request.jwt.claim.sub = '';
+set role authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 10a · Shipper A vs shipper B
+-- ---------------------------------------------------------------------------
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1';
+select rls_test.eq((select count(*) from invoices), 1,
+  'shipper A sees EXACTLY one invoice — its own (not shipper B''s, and not either CARRIER invoice)');
+select rls_test.eq((select count(*) from invoices
+                     where id = '7a7a7a7a-7a7a-7a7a-7a7a-7a7a7a7a0a01'), 1,
+  'shipper A reads its own invoice by id');
+select rls_test.eq((select count(*) from invoices
+                     where id = '7a7a7a7a-7a7a-7a7a-7a7a-7a7a7a7a0b01'), 0,
+  'shipper A cannot read shipper B''s invoice by id (§3: not through URL manipulation either)');
+select rls_test.eq((select count(*) from invoices
+                     where shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'), 0,
+  'shipper A cannot reach shipper B''s invoice through its SHIPMENT id');
+select rls_test.eq((select count(*) from invoices where carrier_id is not null
+                      and shipper_id is null), 0,
+  'shipper A sees NONE of the pre-0021 carrier dispatch-fee invoices');
+select rls_test.eq((select count(*) from invoices where amount_cents = 240000), 1,
+  'the amount a shipper sees is its OWN invoice amount — §11 invoice status, read from `invoices`');
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c2';
+select rls_test.eq((select count(*) from invoices), 1,
+  'shipper B sees exactly one invoice — the mirror case, so neither zero above is an empty table');
+select rls_test.eq((select count(*) from invoices
+                     where id = '7a7a7a7a-7a7a-7a7a-7a7a-7a7a7a7a0a01'), 0,
+  'shipper B cannot read shipper A''s invoice');
+
+-- ---------------------------------------------------------------------------
+-- 10b · The migration widened nothing that already existed
+-- ---------------------------------------------------------------------------
+--
+-- Carrier A's own invoice must still be readable by carrier A (0009's policy,
+-- untouched) and still unreadable by everyone else. If 0021 had been written
+-- with `using (true)` or with a null-tolerant predicate, one of these flips.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';
+select rls_test.eq((select count(*) from invoices
+                     where id = '77777777-7777-7777-7777-77777777aaaa'), 1,
+  'carrier A still reads its own dispatch-fee invoice (0009 untouched by 0021)');
+select rls_test.eq((select count(*) from invoices
+                     where id = '77777777-7777-7777-7777-77777777bbbb'), 0,
+  'carrier A still cannot read carrier B''s invoice');
+select rls_test.eq((select count(*) from invoices where shipper_id is not null), 0,
+  'carrier A cannot read a SHIPPER invoice for the shipment carrier A is hauling — 0021 makes that STRUCTURAL by leaving carrier_id null, so 0009''s carrier policy cannot match it and the shipper gross (and therefore the margin) stays staff-only');
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab01';
+select rls_test.reads_nothing('invoices',
+  'a broker partner reads no invoice at all (§12: "shipper billing" is on the must-not-see list)');
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000d1';
+select rls_test.reads_nothing('invoices',
+  'a profile with no membership reads no invoice');
+
+reset role;
+set request.jwt.claim.sub = '';
+set role anon;
+select rls_test.reads_nothing('invoices',
+  'anon reads no invoice — 0021 added no anon policy');
+
+-- ---------------------------------------------------------------------------
+-- 10c · Customers read; they do not write
+-- ---------------------------------------------------------------------------
+reset role;
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1';
+select rls_test.writes_nothing($$update invoices set status = 'paid' where id = '7a7a7a7a-7a7a-7a7a-7a7a-7a7a7a7a0a01'$$,
+  'a shipper cannot mark its own invoice paid — 0021 adds a SELECT policy and nothing else');
+select rls_test.writes_nothing($$update invoices set amount_cents = 1 where id = '7a7a7a7a-7a7a-7a7a-7a7a-7a7a7a7a0a01'$$,
+  'a shipper cannot rewrite its own invoice amount');
+select rls_test.writes_nothing($$delete from invoices where id = '7a7a7a7a-7a7a-7a7a-7a7a-7a7a7a7a0a01'$$,
+  'a shipper cannot delete its own invoice');
+select rls_test.denied($$insert into invoices (carrier_id, shipper_id, amount_cents) values ('11111111-1111-1111-1111-11111111aaaa','22222222-2222-2222-2222-2222222aaaaa', 1)$$,
+  'a shipper cannot raise an invoice against itself');
+select rls_test.writes_nothing($$update invoices set shipper_id = '22222222-2222-2222-2222-2222222aaaaa' where id = '77777777-7777-7777-7777-77777777bbbb'$$,
+  'a shipper cannot CLAIM another party''s invoice by writing its own shipper_id onto it');
+
+-- ---------------------------------------------------------------------------
+-- 10d · Staff, the non-vacuity control
+-- ---------------------------------------------------------------------------
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000f1';
+select rls_test.eq((select count(*) from invoices), 4,
+  'the admin reads all four invoices — so every zero above is a POLICY result, not an empty table');
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000e1';
+select rls_test.eq((select count(*) from invoices where shipment_id is not null), 2,
+  'the dispatcher reads both shipment-linked invoices');
+
+-- ---------------------------------------------------------------------------
+-- 10e · The schema half, asserted as the TABLE OWNER
+-- ---------------------------------------------------------------------------
+--
+-- Anything that fails here is a constraint, not a policy.
+reset role;
+set request.jwt.claim.sub = '';
+select rls_test.ok(
+  (select count(*) from information_schema.columns
+    where table_name = 'invoices' and column_name in ('shipment_id','shipper_id')) = 2,
+  '0021 added exactly the two columns §11 needs');
+select rls_test.ok(
+  (select is_nullable from information_schema.columns
+    where table_name = 'invoices' and column_name = 'carrier_id') = 'YES',
+  'invoices.carrier_id is nullable — a shipper invoice must name NO carrier (see 0021''s header)');
+select rls_test.rejects_with($$insert into invoices (amount_cents) values (1)$$,
+  '23514', 'an invoice naming NEITHER a carrier nor a shipper is refused by invoices_party_present — the invariant the NOT NULL used to carry survives, in the form that actually mattered');
+select rls_test.affects($$insert into invoices (carrier_id, amount_cents) values ('11111111-1111-1111-1111-11111111aaaa', 1)$$,
+  1, 'a carrier-only invoice still inserts (non-vacuous: the refusal above is the CHECK, not a broken statement)');
+select rls_test.affects($$delete from invoices where amount_cents = 1$$,
+  1, 'clean-up, so the staff counts above stay meaningful for any later section');
+select rls_test.rejects_with($$insert into invoices (shipper_id, shipment_id, amount_cents) values ('22222222-2222-2222-2222-2222222aaaaa','00000000-0000-0000-0000-0000000000ff', 1)$$,
+  '23503', 'a shipment_id that does not exist is refused by invoices_shipment_id_fkey — an invoice cannot point at a shipment that was never created');
+select rls_test.ok(
+  (select count(*) from pg_indexes where tablename = 'invoices'
+     and indexname in ('idx_invoices_shipment','idx_invoices_shipper')) = 2,
+  'both §25 indexes exist (the §11 detail lookup and the outstanding-invoices tile)');
 
 reset role;
 set request.jwt.claim.sub = '';
