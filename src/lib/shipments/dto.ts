@@ -61,10 +61,12 @@ import {
   type ShipmentExceptionRow,
   type ShipmentExceptionSeverity,
   type ShipmentExceptionType,
+  type ShipmentLocationRow,
   type ShipmentLocationVisibility,
   type ShipmentRow,
   type ShipmentStatus,
   type ShipmentTrackingMode,
+  type TrackingProvider,
 } from "@/lib/shipments/types";
 
 /* ------------------------------------------------------------------ *
@@ -194,6 +196,129 @@ function locationFor(
     case "exact":
       return audience === "public" ? coarse : full;
   }
+}
+
+/* ------------------------------------------------------------------ *
+ * Location HISTORY (§9) — M-80
+ * ------------------------------------------------------------------ */
+
+/**
+ * One recorded position, as a non-staff audience may see it.
+ *
+ * ── THE DECISION M-70 DEFERRED TO M-80, AND THE ARGUMENT FOR IT ──────────
+ *
+ * M-70's doc: *"M-80 decides per-event coordinate disclosure. Customer event
+ * DTOs carry no latitude/longitude today."* The decision is: **they still
+ * do not.** `CustomerEventDto` is unchanged by this module, and coordinates
+ * reach customers — when the level allows — through this separate series
+ * instead. Three reasons, in order of weight:
+ *
+ *   1. **RETENTION.** §9 requires location history retention to be
+ *      configurable. 0019's `trg_shipment_events_append_only` refuses DELETE
+ *      for every role including the table owner, so a coordinate written to
+ *      the event ledger can never be purged. Putting positions in the
+ *      timeline would make the retention window a claim about one table while
+ *      the same position sat permanently in another. 0027 goes further and
+ *      REFUSES coordinates on `shipment_events` outright, so the two cannot
+ *      drift back together by accident.
+ *   2. **ORTHOGONAL CONTROLS.** An event's `visibility` band classifies its
+ *      CONTENT (is this note for the shipper, the carrier, the broker, or
+ *      nobody outside dispatch?). §9's level classifies PRECISION, per
+ *      shipment. Multiplying the two inside one DTO would force every future
+ *      event type to re-decide privacy; keeping them apart means a new event
+ *      type inherits the band rules and nothing else.
+ *   3. **§9's public sentence.** *"Do not permanently expose exact real-time
+ *      truck position to every public visitor."* A public visitor holds a
+ *      tracking number and a ZIP, not an account — so the public serializer
+ *      caps this series at city/state at EVERY level, exactly as M-70 already
+ *      caps the shipment's current position.
+ *
+ * Redaction sets values to `null`; it never removes keys, for M-70's reason —
+ * a key set that varied with the privacy setting would itself signal it.
+ */
+export interface CustomerLocationDto {
+  recorded_at: string;
+  city: string | null;
+  state: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  /** §9 "vehicle speed, if permitted". Null unless the level is `exact`. */
+  speed_mph: number | null;
+  source: ShipmentEventSource;
+}
+
+/** A recorded position as staff see it — including §9's raw provider metadata. */
+export interface StaffLocationDto {
+  id: string;
+  recorded_at: string;
+  city: string | null;
+  state: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  speed_mph: number | null;
+  heading_degrees: number | null;
+  source: ShipmentEventSource;
+  provider: TrackingProvider | null;
+  external_event_id: string | null;
+  retention_expires_at: string | null;
+}
+
+/**
+ * Apply §9's four levels to one reading, for one audience.
+ *
+ * Mirrors `locationFor` above and 0027's `my_shipment_locations()` — three
+ * implementations of one rule is two too many, so the RLS suite reads the
+ * SQL function's OUT list out of `pg_proc` and the unit suite walks all four
+ * levels × all five audiences against this function. Divergence fails a test
+ * rather than leaking quietly.
+ */
+export function toCustomerLocationDto(
+  audience: ShipmentAudience,
+  level: ShipmentLocationVisibility,
+  row: ShipmentLocationRow,
+): CustomerLocationDto | null {
+  if (level === "hidden" || level === "milestone_only") return null;
+
+  const precise = level === "exact" && audience !== "public";
+  return {
+    recorded_at: row.recorded_at,
+    city: row.city,
+    state: row.state,
+    latitude: precise ? row.latitude : null,
+    longitude: precise ? row.longitude : null,
+    speed_mph: precise ? row.speed_mph : null,
+    source: row.source,
+  };
+}
+
+function customerLocations(
+  audience: ShipmentAudience,
+  input: ShipmentDtoInput,
+): CustomerLocationDto[] {
+  const level = input.shipment.location_visibility;
+  const out: CustomerLocationDto[] = [];
+  for (const row of input.locations ?? []) {
+    const dto = toCustomerLocationDto(audience, level, row);
+    if (dto !== null) out.push(dto);
+  }
+  return out;
+}
+
+function toStaffLocationDto(row: ShipmentLocationRow): StaffLocationDto {
+  return {
+    id: row.id,
+    recorded_at: row.recorded_at,
+    city: row.city,
+    state: row.state,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    speed_mph: row.speed_mph,
+    heading_degrees: row.heading_degrees,
+    source: row.source,
+    provider: row.provider,
+    external_event_id: row.external_event_id,
+    retention_expires_at: row.retention_expires_at,
+  };
 }
 
 /* ------------------------------------------------------------------ *
@@ -382,6 +507,19 @@ export interface ShipmentDtoInput {
   shipment: ShipmentRow;
   events?: readonly ShipmentEventRow[];
   exceptions?: readonly ShipmentExceptionRow[];
+  /**
+   * M-80 — §9's position series. Optional for the same reason as the two
+   * above: a list page passes the row alone and gets an empty array rather
+   * than paying for a query it does not render.
+   *
+   * NOTE WHAT NO SERIALIZER READS: `raw_metadata`. §9 says to store raw
+   * provider metadata SECURELY, and the securest handling of a third party's
+   * payload is that it never enters a page payload at any audience — the same
+   * treatment M-70 gives `public_access_hash`. It is staff-readable in the
+   * database, through an explicit query, when somebody is debugging a
+   * provider; it is in no DTO, including `toStaffDto`.
+   */
+  locations?: readonly ShipmentLocationRow[];
 }
 
 function customerEvents(
@@ -449,6 +587,8 @@ export interface PublicTrackingDto {
   cancelled_at: string | null;
   events: CustomerEventDto[];
   exceptions: CustomerExceptionDto[];
+  /** §9 location history, capped by the shipment's visibility level. */
+  locations: CustomerLocationDto[];
 }
 
 export function toPublicTrackingDto(
@@ -493,6 +633,7 @@ export function toPublicTrackingDto(
     cancelled_at: s.cancelled_at,
     events: customerEvents("public", input),
     exceptions: toCustomerExceptionDtos(input.exceptions ?? []),
+    locations: customerLocations("public", input),
   };
 }
 
@@ -558,6 +699,8 @@ export interface ShipperShipmentDto {
   cancellation_reason: string | null;
   events: CustomerEventDto[];
   exceptions: CustomerExceptionDto[];
+  /** §9 location history, capped by the shipment's visibility level. */
+  locations: CustomerLocationDto[];
 }
 
 export function toShipperDto(input: ShipmentDtoInput): ShipperShipmentDto {
@@ -610,6 +753,7 @@ export function toShipperDto(input: ShipmentDtoInput): ShipperShipmentDto {
     cancellation_reason: s.cancellation_reason,
     events: customerEvents("shipper", input),
     exceptions: toCustomerExceptionDtos(input.exceptions ?? []),
+    locations: customerLocations("shipper", input),
   };
 }
 
@@ -681,6 +825,8 @@ export interface CarrierShipmentDto {
   cancellation_reason: string | null;
   events: CustomerEventDto[];
   exceptions: CustomerExceptionDto[];
+  /** §9 location history, capped by the shipment's visibility level. */
+  locations: CustomerLocationDto[];
 }
 
 export function toCarrierDto(input: ShipmentDtoInput): CarrierShipmentDto {
@@ -732,6 +878,7 @@ export function toCarrierDto(input: ShipmentDtoInput): CarrierShipmentDto {
     cancellation_reason: s.cancellation_reason,
     events: customerEvents("carrier", input),
     exceptions: toCustomerExceptionDtos(input.exceptions ?? []),
+    locations: customerLocations("carrier", input),
   };
 }
 
@@ -802,6 +949,8 @@ export interface BrokerShipmentDto {
   cancellation_reason: string | null;
   events: CustomerEventDto[];
   exceptions: CustomerExceptionDto[];
+  /** §9 location history, capped by the shipment's visibility level. */
+  locations: CustomerLocationDto[];
 }
 
 export function toBrokerDto(input: ShipmentDtoInput): BrokerShipmentDto {
@@ -853,6 +1002,7 @@ export function toBrokerDto(input: ShipmentDtoInput): BrokerShipmentDto {
     cancellation_reason: s.cancellation_reason,
     events: customerEvents("broker", input),
     exceptions: toCustomerExceptionDtos(input.exceptions ?? []),
+    locations: customerLocations("broker", input),
   };
 }
 
@@ -930,6 +1080,9 @@ export interface StaffShipmentDto {
   cancellation_reason: string | null;
   events: StaffEventDto[];
   exceptions: StaffExceptionDto[];
+  /** §9 location history, unredacted. `raw_metadata` is excluded — see
+   *  `ShipmentDtoInput.locations`. */
+  locations: StaffLocationDto[];
 }
 
 export function toStaffDto(input: ShipmentDtoInput): StaffShipmentDto {
@@ -991,5 +1144,6 @@ export function toStaffDto(input: ShipmentDtoInput): StaffShipmentDto {
     cancellation_reason: s.cancellation_reason,
     events: filterEventsFor("staff", input.events ?? []).map(toStaffEventDto),
     exceptions: (input.exceptions ?? []).map(toStaffExceptionDto),
+    locations: (input.locations ?? []).map(toStaffLocationDto),
   };
 }

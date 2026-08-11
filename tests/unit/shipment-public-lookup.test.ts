@@ -50,6 +50,24 @@ interface MockOptions {
   /** M-78 — §21's banner rows, in the calm seven-column projection. */
   exceptions?: PublicExceptionFixture[];
   exceptionsError?: { message: string } | null;
+  /** M-80 — §9's readings in the four-column PUBLIC projection. */
+  locations?: PublicLocationFixture[];
+  locationsError?: { message: string } | null;
+}
+
+/**
+ * Exactly what `PUBLIC_LOCATION_COLUMNS` selects.
+ *
+ * NOTE WHAT IS NOT HERE: `latitude`, `longitude`, `speed_mph`. §9 caps the
+ * public audience at city/state at EVERY privacy level, and the SQL
+ * projection is where that cap is applied first — so the fixture cannot even
+ * express a coordinate a public visitor might receive.
+ */
+interface PublicLocationFixture {
+  recorded_at: string;
+  city: string | null;
+  state: string | null;
+  source: string;
 }
 
 /** Exactly what `PUBLIC_EXCEPTION_COLUMNS` selects — no internal field. */
@@ -70,6 +88,13 @@ let eventFilters: [string, unknown][] = [];
 let eventLimit = 0;
 let exceptionProjection = "";
 let exceptionLimit = 0;
+/* M-80 — §9's location read is a THIRD table on this path. It gets its own
+   recorders rather than sharing the event ones: a shared `limit` recorder
+   would be overwritten by whichever query ran last, which silently turned the
+   §25 event-cap assertion into an assertion about locations. */
+let locationProjection = "";
+let locationLimit = 0;
+let locationFilters: [string, unknown][] = [];
 
 function makeClient() {
   return {
@@ -125,6 +150,30 @@ function makeClient() {
           },
         };
       }
+      if (table === "shipment_locations") {
+        const lChain = {
+          eq(column: string, value: unknown) {
+            locationFilters.push([column, value]);
+            return lChain;
+          },
+          order() {
+            return lChain;
+          },
+          limit(n: number) {
+            locationLimit = n;
+            return Promise.resolve({
+              data: options.locations ?? [],
+              error: options.locationsError ?? null,
+            });
+          },
+        };
+        return {
+          select(columns: string) {
+            locationProjection = columns;
+            return lChain;
+          },
+        };
+      }
       // shipment_events
       const chain = {
         eq(column: string, value: unknown) {
@@ -163,6 +212,7 @@ const {
   MIN_RESPONSE_MS,
   PUBLIC_EVENT_LIMIT,
   PUBLIC_EXCEPTION_LIMIT,
+  PUBLIC_LOCATION_LIMIT,
   TRACK_RATE_LIMIT,
   lookupPublicTracking,
 } = await import("@/lib/shipments/public-lookup");
@@ -285,6 +335,9 @@ beforeEach(() => {
   shipmentProjection = "";
   eventFilters = [];
   eventLimit = 0;
+  locationProjection = "";
+  locationLimit = 0;
+  locationFilters = [];
   client = makeClient();
 });
 
@@ -671,5 +724,79 @@ describe("configuration", () => {
     options = { shipmentError: { message: "connection reset" } };
     const result = await lookupPublicTracking(request());
     expect(result).toEqual({ ok: false, code: "unavailable" });
+  });
+});
+
+/* ================================================================== *
+ * 7 · M-80 — §9's location history on the public path
+ * ================================================================== */
+
+describe("§9 location history (M-80)", () => {
+  it("bounds the read and scopes it to the shipment (§25)", async () => {
+    options = {
+      shipment: shipmentRow(),
+      locations: [
+        { recorded_at: "2026-08-07T09:00:00.000Z", city: "Harrisburg", state: "PA", source: "dispatcher" },
+      ],
+    };
+    const result = await lookupPublicTracking(request());
+    expect(result.ok).toBe(true);
+    expect(locationLimit).toBe(PUBLIC_LOCATION_LIMIT);
+    expect(locationFilters).toContainEqual(["shipment_id", shipmentRow().id]);
+  });
+
+  it("NEVER selects a coordinate or a speed for a public visitor (§9)", async () => {
+    options = { shipment: shipmentRow({ location_visibility: "exact" }), locations: [] };
+    await lookupPublicTracking(request());
+    // The shipment is at the MOST revealing level and the projection still
+    // names neither — §9's public cap applied in SQL, before the DTO applies
+    // it again.
+    for (const forbidden of ["latitude", "longitude", "speed_mph", "raw_metadata"]) {
+      expect(locationProjection).not.toContain(forbidden);
+    }
+    expect(locationProjection).toContain("city");
+  });
+
+  it("does not query locations at all when the level is hidden or milestone_only", async () => {
+    for (const level of ["hidden", "milestone_only"] as const) {
+      locationLimit = 0;
+      locationProjection = "";
+      options = { shipment: shipmentRow({ location_visibility: level }), locations: [] };
+      const result = await lookupPublicTracking(request());
+      expect(result.ok).toBe(true);
+      expect(locationProjection).toBe("");
+      if (result.ok) expect(result.tracking.locations).toEqual([]);
+    }
+  });
+
+  it("surfaces the readings on the public DTO with coordinates nulled", async () => {
+    options = {
+      shipment: shipmentRow({ location_visibility: "exact" }),
+      locations: [
+        { recorded_at: "2026-08-07T09:00:00.000Z", city: "Harrisburg", state: "PA", source: "dispatcher" },
+        { recorded_at: "2026-08-06T09:00:00.000Z", city: "Newark", state: "NJ", source: "driver" },
+      ],
+    };
+    const result = await lookupPublicTracking(request());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.tracking.locations).toHaveLength(2);
+    for (const reading of result.tracking.locations) {
+      expect(reading.latitude).toBeNull();
+      expect(reading.longitude).toBeNull();
+      expect(reading.speed_mph).toBeNull();
+    }
+    expect(result.tracking.locations[0]?.city).toBe("Harrisburg");
+  });
+
+  it("FAILS SOFT: a location-read error still serves the tracking page", async () => {
+    options = {
+      shipment: shipmentRow(),
+      locations: [],
+      locationsError: { message: "location read exploded" },
+    };
+    const result = await lookupPublicTracking(request());
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.tracking.locations).toEqual([]);
   });
 });

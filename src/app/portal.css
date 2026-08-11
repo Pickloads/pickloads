@@ -208,3 +208,21 @@
   .portal .track-step{padding-left:26px}
   .psh-mapslot{padding:16px}
 }
+
+/* ---- M-80: dark-surface overrides for the location panel -----------------
+ * Same argument as M-74's `.track-*` block above: the components are shared
+ * with the public page, whose palette is ink-on-white. Restated here rather
+ * than forked, so `/track` and the portal render the same markup.
+ */
+.portal .psh-mapslot>p{color:#cfd6da}
+.portal .shipmap-badge{border-color:var(--line);color:#aeb7bd}
+.portal .shipmap-wrap{border-color:var(--line);background:#0B0E11}
+.portal .shipmap-path{stroke:#4CC492}
+.portal .shipmap-dot{fill:#4CC492}
+.portal .shipmap-latest{fill:var(--amber);stroke:var(--asphalt)}
+.portal .shipmap-alt{border-top-color:var(--line)}
+.portal .shipmap-alt-h{color:var(--paper)}
+.portal .shipmap-list li{border-bottom-color:var(--line)}
+.portal .shipmap-list time{color:var(--color-steel)}
+.portal .shipmap-place{color:var(--paper)}
+.portal .shipmap-coords,.portal .shipmap-speed{color:var(--steel)}

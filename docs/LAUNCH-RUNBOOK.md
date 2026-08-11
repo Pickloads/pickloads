@@ -6,7 +6,28 @@ degrades gracefully when a secret is missing (dev warnings, honest pending
 states) — so a partial deploy never crashes, it just quietly disables the
 affected integration. **Production must have every var set.**
 
-*Last revised for M-79 (shipment notifications): migration **0026** added to
+*Last revised for M-80 (tracking map + provider adapters): migration **0027**
+added to the order-and-rollback table, the `0001 → 0027` chain, refreshed gate
+counts (1399 unit / 671 RLS / 295 integration / 270 e2e / 373 pages), a new
+**§9b Map and tracking-provider configuration** section, an **eleventh
+`company_settings` key** (`location_retention_days`, seeded 90) — and the
+runbook's switchboard table corrected from nine keys to eleven, which had been
+stale since M-69 added `referral_program_active`. **No new environment
+variable**, **no new cron entry** (the §9 retention purge is task 3 of the
+existing `/api/cron/daily`) and **no CSP change** (the map makes no network
+request). Four operational notes worth reading before go-live: (1) **NO
+PROVIDER IS CONNECTED** — no telematics contract, no credentials, no ELD
+consent, so every shipment is milestone-tracked and the map never renders;
+setting a provider's environment variables does **not** switch tracking on,
+it only changes the adapter's refusal code; (2) the **retention purge deletes
+real data nightly** — `location_retention_days` is an integer 1–3650 and
+anything unparseable resolves to 90, so check `locationRetention.retentionDays`
+in the cron response after editing it; (3) 0027 adds two triggers to the
+shipped `shipment_events` table — it now **refuses coordinates** (PL422) so
+positions live where the retention window can reach them, and mirrors any
+event carrying a city into the purgeable series; (4) `eta_source = 'provider'`
+remains **deliberately unreachable**, exactly as M-78 left it.
+Previously revised for M-79 (shipment notifications): migration **0026** added to
 the order-and-rollback table, the `0001 → 0026` chain, refreshed gate counts
 (1238 unit / 588 RLS / 263 integration / 264 e2e / 373 pages), a **SECOND
 CRON ENTRY** (`/api/cron/notifications`, every 5 minutes — §9 below), and a
@@ -129,11 +150,12 @@ region `us-east-1` (closest to NJ ops). For **each** project, in order:
    | 0025 | `0025_shipment_eta_exceptions.sql` | **M-78.** The TWO tables M-71 deliberately left: `shipment_eta_history` (§10's previous-ETA record; `trg_shipment_eta_history_append_only` refuses UPDATE/DELETE for **every** role, owner included) and `shipment_exceptions` (§21's 13 types over the enum 0017 already created, its 10 fields, plus `source_event_id` **unique** and `resolution_event_id`; 3 CHECKs; 3 indexes, two partial). `trg_shipment_exceptions_lifecycle` enforces the rules §21 implies but does not spell: what an exception IS is frozen, resolution is one-way, notification is one-way, a closed exception is read-only for triage — all `PL409`. RLS + **one policy each** (staff), a `revoke all … from authenticated, anon` followed by **SELECT only** — the grant is required because `is_staff()` evaluates inside an `authenticated` session, and the customer holds the same grant and reads **zero rows**. FIVE `security definer` functions: `my_shipment_exceptions(uuid)` (**`authenticated`** — the customer projection, seven OUT columns with no `internal_description` and no `resolution`, audience resolved from the caller's own memberships and never from an argument), and `open_shipment_exception` / `resolve_shipment_exception` / `update_shipment_exception` / `backfill_shipment_exceptions` (**`service_role` only**). **AND it REPLACES `set_shipment_eta()` from 0022** — same 13-parameter signature (so grants and callers are untouched), body grows one INSERT so the column, the `eta_update` event and the history row land in ONE transaction. **It also RUNS THE BACKFILL once**, migrating M-75/M-76's event-only exceptions into rows and `RAISE NOTICE`-ing the count; it deletes nothing. | Full script in [`docs/modules/M-78-eta-exceptions.md`](modules/M-78-eta-exceptions.md) §Deployment. **THE ORDER MATTERS: re-run 0022's `create or replace function public.set_shipment_eta(...)` block FIRST**, before dropping anything — it is the same body minus the history INSERT, and doing it after the table is gone leaves every ETA update failing on a missing relation. Then drop the 2 policies, the 5 functions (signatures in the doc), each trigger **before** its table, the 2 trigger functions, and the 2 tables `cascade`. **Destructive for the LIFECYCLE, not for the HISTORY** — every exception ever opened survives as an `exception_opened` event and every resolution as an `exception_resolved` event, which is exactly why both functions write an event as well as a row; what is lost is `assigned_to`, `customer_notified_at`, the resolution text and the open/closed state. `pg_dump -t shipment_exceptions -t shipment_eta_history` first. ETA history reverts to the event metadata M-75 already wrote. Roll back `src/lib/supabase/database.types.ts`, delete `src/lib/shipments/{exceptions,eta-estimate}.ts`, revert `src/lib/shipments/eta.ts` to M-75's version, and revert the four surface edits and three action files in the same deploy. It fails **CLOSED** either way: with the table gone the accessor is gone too, the customer DTOs receive an empty exception list, and the banner disappears rather than erroring. 0017–0024 are otherwise untouched. |
    | 0026 | `0026_shipment_notifications.sql` | **M-79.** §17's notifications and §25's **background processing architecture**. 3 enums (`shipment_notification_event` — the eleven, in the directive's order; `notification_channel` — `email`/`in_app`, with **no `sms` value** because §17 permits SMS only with an approved provider and compliant opt-in, and a value nothing can deliver is a fake capability; `notification_delivery_state`). 5 tables: `shipment_notification_rules` (the event → notification mapping as DATA, 11 seeded rows, mirrored by `SHIPMENT_NOTIFICATION_RULES` in TypeScript and pinned cell-for-cell in both directions by the integration lane), `shipment_notification_queue` (**unique `idempotency_key`** — §17's key requirement made a database fact; a payload-safety CHECK refusing `signed_url`/`access_code`/`internal_message`/`gross_shipper_amount`/`carrier_pay` **at the writer**; a `(state='sent') = (sent_at is not null)` CHECK; 3 indexes, one partial on the hot worker read), `shipment_notification_attempts` (**append-only** for every role including the owner — a delivery ledger somebody can edit is not a ledger), `shipment_notification_watermark` (single-row harvest watermark; an optimisation, not the correctness mechanism — the harvest deliberately re-reads a 10-minute overlap and every re-read conflict-do-nothings), and `notification_suppressions` (address-level opt-out, lowercase enforced by CHECK). **THE ONE SHIPPED TABLE THIS TOUCHES is `user_preferences` (0005)** — three columns ADDED (`email_shipment_updates`, `inapp_shipment_updates`, both `default true`; `notification_token uuid` uniquely indexed), nothing dropped, no default changed, and 0009's four `user_preferences` policies byte-identical afterwards. RLS on all five tables, `revoke all … from authenticated, anon` then **SELECT only**, then **one staff-read policy each — five in total, and NO write policy for any role**. 4 `security definer` functions with **EXECUTE granted to `service_role` ALONE**: `enqueue_shipment_notification` (idempotent, reports whether it deduped), `harvest_shipment_notifications` (maps new `shipment_events` **and** shipper `invoices` onto queue rows), `claim_shipment_notifications` (`for update skip locked` + a lock TTL, so two workers split a batch rather than double-send it), `settle_shipment_notification` (writes the append-only attempt row **and** moves the queue row in ONE transaction). | Full script in [`docs/modules/M-79-shipment-notifications.md`](modules/M-79-shipment-notifications.md) §DB changes. **STOP THE WORKER FIRST** — remove the `/api/cron/notifications` entry from `vercel.json` or unset `CRON_SECRET` — so nothing claims rows mid-teardown. Then drop the 4 functions (signatures in the doc), the 2 triggers **before** their tables, the trigger function, the 5 tables `cascade`, the 3 `user_preferences` columns, and the 3 enums. **Destructive for the QUEUE and the ATTEMPT LEDGER, not for the history** — every notification the worker sent survives in `email_log` (M-14) and `notifications` (M-60), and every fact that produced one survives as a `shipment_events` row; what is lost is the retry state of anything in flight and the per-attempt provider answers. `pg_dump -t shipment_notification_queue -t shipment_notification_attempts` first. **EXPORT THE OPT-OUTS BEFORE DROPPING THE COLUMNS** — `select profile_id from user_preferences where not email_shipment_updates` — because dropping them re-subscribes everyone who unsubscribed, and keep `notification_suppressions` if you can: an address-level opt-out you cannot reproduce is the one piece of state whose loss is visible to a customer. Roll back `src/lib/supabase/database.types.ts`, delete `src/lib/shipments/notification-{rules,queue,worker}.ts`, `src/lib/notification-preferences.ts`, `src/app/actions/notification-preferences.ts`, `src/emails/{shipment-templates.tsx,phrases.ts}`, the cron route and the unsubscribe page, and revert the `resendNotificationAction` block in `src/app/actions/dispatcher-shipments.ts` to its M-75 text, in the same deploy. `sendEmail`'s and `notifyCustomer`'s new return values may STAY — they are additive and every other caller ignores them. It fails **CLOSED**: with the queue gone the worker route returns 503 and **no shipment email is sent at all**, rather than an unthrottled inline send appearing in its place. M-60's fan-out for every non-shipment flow is untouched throughout, and 0017–0025 are untouched entirely. |
 
+   | 0027 | `0027_shipment_locations_providers.sql` | **M-80.** §9's map and provider architecture, and the **RETENTION EXECUTOR** the plan's §4 records as missing. `company_settings` row `location_retention_days` (`90`) + `location_retention_days()` (fails safe to 90 — never to "keep forever"). `shipment_locations` — the PURGEABLE position series (M-70's row type in full, incl. §9's vehicle **speed** and **raw provider metadata**), 5 CHECKs, a **partial UNIQUE** `(shipment_id, provider, external_event_id)` that makes §9's dedupe a database fact, a retention index, and `trg_shipment_locations_no_update` (a reading is a fact about a moment — PL409 for every role incl. the owner; DELETE deliberately NOT blocked, because this is the one shipment table §9 requires to be deletable). `tracking_provider_connections` — §9 Mode B's five fields incl. the **`tracking_url`**, one **active** connection per shipment, identity immutable and revocation one-way (PL409), plus a §15 CHECK refusing eight credential shapes in the URL and an https-only CHECK. **TWO TRIGGERS ON `shipment_events`, both additive**: `trg_shipment_events_no_coordinates` refuses a lat/long (PL422 — the ledger is append-only and therefore un-purgeable, so a coordinate there would outlive any retention window; no path in `src/` has ever written one) and `trg_shipment_events_location_mirror` copies any event carrying a city into the purgeable series, so §9 Mode A produces real history with no call-site change. RLS on both tables, `revoke all … from authenticated, anon` then **SELECT only**, then **one staff policy each — no customer policy, no anon policy, no write policy for any role**. SIX `security definer` functions: `my_shipment_locations(uuid,int)` (**`authenticated`** — the customer projection, seven OUT columns with no `raw_metadata`/`provider`/`external_event_id`, audience from the caller's own memberships, §9's four levels applied IN SQL, speed gated on `exact` **and** driver consent) and `record_shipment_location` / `set_shipment_location_visibility` (narrow = dispatcher, **widen = admin**, PL403) / `attach_tracking_provider_connection` / `revoke_tracking_provider_connection` / **`purge_expired_shipment_locations`** (**`service_role` only**). | Full script in [`docs/modules/M-80-map-providers.md`](modules/M-80-map-providers.md) §ROLLBACK. **REMOVE THE RETENTION TASK FROM `/api/cron/daily` FIRST** (or unset `CRON_SECRET`) so nothing calls the purger mid-teardown. Then drop the 2 `shipment_events` triggers and their functions, the 6 functions, the 2 policies, the 2 table triggers and their functions, the 2 tables `cascade`, and the settings key. **Destructive** for the position series and every provider link — `pg_dump -t shipment_locations -t tracking_provider_connections` first — but **NOT for the timeline**: every city/state ever reported survives as the `shipment_events` row it was mirrored from, which is why the mirror is a copy and not a move. Roll back `src/lib/supabase/database.types.ts`, delete `src/lib/shipments/{locations,retention,location-visibility,map-state}.ts` and `src/lib/shipments/providers/`, delete `src/components/tracking/{ShipmentMap,LocationPanel}.tsx`, and revert the three actions, three forms, four surfaces, the `dto.ts` `locations` additions and the cron task in the same deploy. It fails **CLOSED**: with the tables gone the accessors are gone, the DTOs receive an empty location list, the map never mounts and every panel renders §30's "Location temporarily unavailable". 0017–0026 are untouched. |
 
    After applying, sanity-check the chain the same way CI does:
 
    ```bash
-   npm run test:rls     # rebuilds a throwaway DB from 0001→0025 + seed + fixtures
+   npm run test:rls     # rebuilds a throwaway DB from 0001→0027 + seed + fixtures
    ```
 
    **Then VERIFY the two private buckets exist and are private (M-77):**
@@ -171,10 +193,11 @@ region `us-east-1` (closest to NJ ops). For **each** project, in order:
    re-run the verification query and read the `public` column.
 
 2. **Seed** — run `supabase/seed.sql` (idempotent, `on conflict do nothing`).
-   Seeds the **9** `company_settings` keys with launch-safe defaults (see the
+   Seeds the **11** `company_settings` keys with launch-safe defaults (see the
    switchboard section in the go-live checklist): MC/USDOT "pending",
    brokerage off, testimonials hidden, sample ticker, packet downloads off,
-   and `shipper_signup_enabled: true`.
+   `shipper_signup_enabled: true`, `referral_program_active: false` (M-69) and
+   `location_retention_days: 90` (M-80).
 3. **Auth configuration** — Authentication → URL Configuration:
    - Site URL: `https://pickloads.com` (staging: the Vercel preview domain).
    - Redirect URLs: `https://pickloads.com/**` — required for **both** the
@@ -342,14 +365,14 @@ sets them expecting an effect:
 
 ```bash
 npm run typecheck && npm run lint && npm run build   # module gate (CLAUDE.md)
-npm test                 # 1238 unit assertions
-npm run test:rls         # 588 RLS isolation assertions — see below
-npm run test:integration # 263 integration tests against local PG16 — see below
-npm run test:e2e         # 264 chromium tests against the production build
+npm test                 # 1399 unit assertions
+npm run test:rls         # 671 RLS isolation assertions — see below
+npm run test:integration # 295 integration tests against local PG16 — see below
+npm run test:e2e         # 270 chromium tests against the production build
 ```
 
 **`npm run test:rls` is a release gate, not an optional extra.** It rebuilds
-a throwaway database from `0001 → 0026` + seed + two/three-tenant fixtures and
+a throwaway database from `0001 → 0027` + seed + two/three-tenant fixtures and
 asserts that carrier A cannot reach carrier B, shipper A cannot reach shipper
 B (including *unclaimed* public quotes), anon reaches nothing but
 `company_settings` and published posts, and no session — staff or admin — can
@@ -499,15 +522,16 @@ wider) — sliding window, fail-open on outage by design.
 3. Compliance guard is code-enforced: invoices carry ONLY the dispatch fee
    line (never freight charges) — see `src/lib/stripe.ts`.
 
-## 9. Cron (O-01 daily ops alerts + M-79 notification worker)
+## 9. Cron (O-01 daily ops alerts + M-79 notification worker + M-80 retention purge)
 
-`vercel.json` now schedules **two** jobs, and **both** authenticate with the
+`vercel.json` schedules **two** jobs, and **both** authenticate with the
 same `CRON_SECRET` bearer token, compared in constant time. Set it once in
-Vercel and deploy.
+Vercel and deploy. **M-80 added no third entry** — its retention purge is a
+task inside the existing daily job.
 
 | Schedule | Path | What it does |
 |---|---|---|
-| `0 11 * * *` | `/api/cron/daily` | M-35: insurance-expiry threshold alerts + callback digest |
+| `0 11 * * *` | `/api/cron/daily` | M-35: insurance-expiry threshold alerts + callback digest · **M-80: §9 location-history retention purge** |
 | `*/5 * * * *` | `/api/cron/notifications` | **M-79**: harvest new `shipment_events` into the notification queue, claim a bounded batch (25), deliver, settle |
 
 Verify each once manually:
@@ -536,12 +560,111 @@ set the secret and the next pass drains it — but nothing goes out until then.
 This is the honest failure mode, deliberately chosen over an inline send that
 would bypass the opt-out check with it.
 
+### M-80 — the §9 location-retention purge (inside `/api/cron/daily`)
+
+The daily response gains a `locationRetention` block:
+
+```json
+{"ok":true,"date":"2026-08-06",
+ "locationRetention":{"ok":true,"retentionDays":90,"deleted":0,"moreRemaining":false},
+ "insurance":{...},"callbacks":{...}}
+```
+
+- `retentionDays` is the **live** value of the `location_retention_days`
+  switchboard key. If it reads **90** after you set something else, the value
+  did not parse and the executor **failed safe** — fix the key, do not assume
+  it worked.
+- `moreRemaining: true` means a backlog is draining one batch (50 000) per
+  night. That is normal after a long window is shortened; watch it fall.
+- `ok: false` with a `reason` means the purge failed and **nothing was
+  deleted**. The insurance and callback digests still went out. It is also
+  emitted as §26's `location_provider_failure` signal.
+
+**Changing the retention window is a settings edit, not a deploy** — Admin →
+Settings, key `location_retention_days`, an integer 1–3650. Anything else
+resolves to 90; the executor never resolves to "keep forever". **Shortening it
+takes effect on the next nightly run, including for readings already stored.**
+
 **Throughput.** 25 notifications per invocation × 12 invocations/hour = 300/h.
 The bound is deliberate: a serverless invocation has a wall clock, and a
 worker that tries to drain an unbounded backlog times out and settles nothing,
 leaving every claimed row to its lock TTL. If volume outgrows it, raise
 `WORKER_BATCH` in `src/lib/shipments/notification-worker.ts` **and** the
 schedule together.
+
+## 9b. Map and tracking-provider configuration (M-80)
+
+**Nothing to configure, and that is the shipped state.**
+
+**No provider is connected.** PickLoads holds no telematics contract, no
+Motive/Samsara/Geotab/Verizon Connect credentials and no ELD consent from any
+carrier. `tracking_provider_connections` is empty in every environment, the map
+component never mounts, and every customer surface renders §30's *"Milestone
+tracking"* — which is the truth, not a placeholder.
+
+**There is no map API key, no tile provider and no map script.** The map is
+inline SVG rendered from coordinates the server already disclosed; it makes
+**zero network requests**, which is why the CSP in `next.config.ts` is
+unchanged. Do not add a map key "just in case" — nothing reads one.
+
+### Verifying the honest state after deploy
+
+```sql
+select count(*) from tracking_provider_connections;   -- expect 0
+select location_retention_days();                     -- expect 90
+select purge_expired_shipment_locations();            -- returns a JSON envelope
+```
+
+Then open any shipment at `/portal/admin/shipments/[id]` → **Tracking
+providers**. All five rows must read *Not configured / **Not connected***. If
+a row reads "Credentials present", somebody set an environment variable — see
+below for what that does and does not mean.
+
+### Environment variables for a FUTURE provider
+
+Setting these does **not** switch tracking on. M-80 ships the adapter
+*interface*; no HTTP transport is implemented for any vendor, by §9's own
+instruction not to implement a fake connection. With credentials present the
+adapter's refusal changes from `not_configured` to `not_implemented` and
+nothing else. §15: credentials live here and **never** in a database column.
+
+| Provider | Variables | Unit trap the adapter already handles |
+|---|---|---|
+| Motive | `MOTIVE_API_KEY` | — (imperial) |
+| Samsara | `SAMSARA_API_TOKEN` | `"Richmond, VA"` is the only city field |
+| Geotab | `GEOTAB_DATABASE`, `GEOTAB_USERNAME`, `GEOTAB_PASSWORD` | **`speed` is km/h** |
+| Verizon Connect | `VERIZON_CONNECT_APP_ID`, `VERIZON_CONNECT_USERNAME`, `VERIZON_CONNECT_PASSWORD` | **`updateUtc` carries no zone** |
+
+To actually connect one: implement the four `fetch*` methods in
+`src/lib/shipments/providers/<vendor>.ts` (`normalize`, `dedupeKey`, the
+consent gate, the dedupe index and the write path already exist), set the
+variables, then move `eta_source = 'provider'` from `UNREACHABLE_ETA_SOURCES`
+to `DISPATCHER_ETA_SOURCES` **in the same commit** — M-78's partition test
+fails until both halves are done, which is the point.
+
+**If a basemap is ever wanted**, it needs exactly one addition to the CSP in
+`next.config.ts` — the tile host in `img-src`, nothing else — plus a tile layer
+in `ShipmentMap`. `tests/e2e/shipment-map.spec.ts` asserts both absences today
+and will fail until both are done deliberately.
+
+### Mode B links (§9), operationally
+
+A dispatcher records a driver-location link a provider gave them at
+`/portal/admin/shipments/[id]` → *Tracking provider link*. It must be
+`https://` and must not carry an API credential — the database refuses both
+(23514). The link is **staff-only**: no customer surface shows it. Attaching
+one moves the shipment to `link` mode; revoking the last one returns it to
+`manual` and to §30's milestone label.
+
+### Location privacy (§9), operationally
+
+Per shipment, at *Customer location visibility*. Default `approximate`
+(city/state, no coordinates). A **dispatcher may narrow** any shipment at any
+time — that is the action to take when a shipper phones and asks for the map
+off. **Widening requires an admin** (PL403 otherwise), because `exact` is the
+setting §9 spends its warning paragraph on. The public `/track` page is capped
+at city/state at **every** level. Each change is journalled as a `staff_only`
+shipment event and an `audit_events` row.
 
 ## 10. GA4 + Search Console
 
@@ -567,7 +690,7 @@ schedule together.
 
 **company_settings switchboard (admin → Settings, seeded pending-safe)**
 
-All nine keys, their seeded value and what they gate. Every edit is journaled
+All eleven keys, their seeded value and what they gate. Every edit is journaled
 to `audit_events` as `settings.update` (key only, never the value) and takes
 effect site-wide immediately — **no deploy**.
 
@@ -581,9 +704,11 @@ effect site-wide immediately — **no deploy**.
 | `stats` | `{"fee":"5%","avg_rate":null,"support":"24/7","states":"48"}` | Home stats tiles. **`null` renders hidden** — never invent a figure to fill it. |
 | `packet_downloads_live` | `false` | Carrier-packet download buttons — off until lawyer-approved PDFs are uploaded. |
 | `load_ticker_mode` | `"sample"` | Home load-board ticker: `sample` \| `live`. |
+| `referral_program_active` | `false` | **M-69/P-2** — the sitewide `CtaBand` referral-bonus line. The approved V4 copy and all five translations stay in the codebase and render only when this is `true`. Flip it the day the referral programme (website directive §32 J) actually pays out, and not before: it is a promise on 20+ pages × 5 locales. |
+| `location_retention_days` | `90` | **M-80/§9** — how many days of shipment location history to keep. `/api/cron/daily` DELETES older readings nightly. An integer **1–3650**; anything else (a word, a blank, a negative, 99999) resolves to **90** — the executor never resolves to "keep forever", so a typo shortens nothing and lengthens nothing. **Shortening it takes effect on the next nightly run, including for readings already stored.** Check `locationRetention.retentionDays` in the cron response after editing: if it still reads 90, the value did not parse. |
 | `shipper_signup_enabled` | `true` | **Decision D1** — public shipper self-signup at `/create-account/shipper`. When `false`, the shipper door on the `/create-account` chooser shows an honest invite-only state instead of the form. This exists so **legal can switch shipper self-registration off without a deploy**; the signup copy is deliberately scoped to "request quotes and coordinate freight with vetted carriers" and makes no brokerage claims. |
 
-- [ ] Reviewed all nine values against the business's actual status.
+- [ ] Reviewed all eleven values against the business's actual status.
 - [ ] Confirmed `brokerage_active` and `shipper_signup_enabled` with counsel.
 
 **Content prerequisites**
@@ -873,6 +998,62 @@ effect site-wide immediately — **no deploy**.
       **cannot duplicate** — `source_event_id` is unique. A second run on a
       clean database returns `0`. Anything other than `0` on a re-run means
       new event-only exceptions arrived, which is exactly what it is for.
+- [ ] **Location, map and retention smoke test (M-80).** Needs
+      `brokerage_active` **true**, `CRON_SECRET` set, and one shipment with a
+      shipper portal account:
+      1. **Confirm the honest state first.**
+         `select count(*) from tracking_provider_connections;` → **0**, and
+         `/portal/admin/shipments/<id>` → *Tracking providers* shows all five
+         vendors as *Not configured / Not connected*. If any row claims a
+         connection, stop — nothing in this build can produce one.
+      2. As **dispatcher**, record a status update carrying a city and state.
+         Confirm the history was mirrored:
+         `select city, state, retention_expires_at from shipment_locations
+          where shipment_id = '<id>';` — one row, with an expiry ~90 days out.
+      3. Open the shipment in the **shipper portal**. The *Location* panel
+         must show the badge **"Milestone tracking"**, the city you typed, the
+         sentence *"PickLoads is not connected to a GPS or ELD provider…"*,
+         and the visible list **"Recorded location updates"**. There must be
+         **no map** — no `<svg>`, no image, no iframe. Same on `/track`.
+      4. **Prove the ledger keeps no coordinates.**
+         `insert into shipment_events (shipment_id, event_type, source,
+          latitude, longitude, visibility) values ('<id>','location_update',
+          'gps',37.5,-77.4,'public');` must fail with **`PL422`**. That is what
+         makes the retention window a fact rather than a claim.
+      5. **Walk §9's four levels.** As **dispatcher**, set *Customer location
+         visibility* to **Hidden** — the shipper's panel must show *"Location
+         temporarily unavailable"* and no readings. Then try to set it back to
+         **Exact** as the dispatcher: refused, with *"Showing more of a
+         truck's position is an admin action."* Do it as an **admin**: it
+         succeeds. Confirm the audit trail:
+         `select metadata from shipment_events where shipment_id = '<id>'
+           and metadata->>'kind' = 'location_visibility_change';`
+      6. **Prove the public cap.** With the level at **Exact**, look the
+         shipment up on `/track`. The panel shows city and state and **no
+         coordinates** — §9 forbids exposing an exact truck position to every
+         public visitor, whatever the level says.
+      7. **Prove the retention executor deletes.** Age one reading and run the
+         purge:
+         ```sql
+         update company_settings set value = '1'::jsonb
+           where key = 'location_retention_days';
+         select purge_expired_shipment_locations();   -- deleted >= 1
+         update company_settings set value = '90'::jsonb
+           where key = 'location_retention_days';
+         ```
+         Then fire the daily cron and read the block:
+         `curl -H "Authorization: Bearer $CRON_SECRET"
+         https://pickloads.com/api/cron/daily` → `locationRetention.ok: true`
+         and `retentionDays: 90`. **If `retentionDays` is 90 when you set
+         something else, the value did not parse** — the executor failed safe,
+         and your setting is not in force.
+      8. **Prove the credential line (§15).** In *Tracking provider link*,
+         paste `https://example.test/t/abc?api_key=SECRET`. It must be refused
+         with a message naming environment variables. Paste
+         `https://example.test/t/opaque-abc`: accepted, the shipment moves to
+         `link` mode, and **no customer surface shows the link**. Revoke it —
+         the shipment returns to `manual` and to the milestone label.
+
 - [ ] **Notifications smoke test (M-79).** Needs `brokerage_active` **true**,
       `CRON_SECRET` and `RESEND_API_KEY` set, and a shipment with a shipper
       portal account whose profile has a reachable address:

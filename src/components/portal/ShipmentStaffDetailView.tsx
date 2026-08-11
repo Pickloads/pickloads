@@ -16,8 +16,13 @@ import {
   StatusUpdateForm,
   IssueDriverLinkForm,
   RevokeDriverLinkForm,
+  LocationVisibilityForm,
+  ProviderLinkForm,
+  RevokeProviderLinkForm,
   type AssignOption,
 } from "@/components/portal/ShipmentOpsForms";
+import { LocationPanel } from "@/components/tracking/LocationPanel";
+import type { ProviderStatus } from "@/lib/shipments/providers";
 import { statusLabel } from "@/components/portal/ShipmentBoardView";
 import {
   StaffShipmentDocuments,
@@ -37,7 +42,9 @@ import { SHIPMENT_STATUSES, type ShipmentStatus } from "@/lib/shipments/types";
 import type {
   DriverTokenView,
   ShipmentExceptionRow,
+  ShipmentLocationRow,
   ShipmentPartyRow,
+  TrackingProviderConnectionRow,
 } from "@/lib/shipments/types";
 import { driverTokenState } from "@/lib/shipments/driver-token-state";
 
@@ -372,6 +379,151 @@ export interface ShipmentStaffDetailProps {
   /** M-78 — §21's exceptions, full field set, under 0025's staff policy. */
   exceptions: readonly ShipmentExceptionRow[];
   exceptionsFailed: boolean;
+  /** M-80 — §9's location history, unredacted (staff read the table). */
+  locations: readonly ShipmentLocationRow[];
+  locationsFailed: boolean;
+  /** M-80 — §9 Mode B links on this shipment. Staff-only, `tracking_url` and all. */
+  connections: readonly TrackingProviderConnectionRow[];
+  connectionsFailed: boolean;
+  /** M-80 — the adapter contract table. Every entry is `connected: false`. */
+  providers: readonly ProviderStatus[];
+}
+
+/**
+ * M-80 — §9's provider connections, and the ADAPTER CONTRACT TABLE.
+ *
+ * The table is not decoration. §9 asks for an adapter interface for Motive,
+ * Samsara, Geotab and Verizon Connect and forbids a fake connection, so the
+ * one place a dispatcher could reasonably expect a live map is also the place
+ * that has to say plainly that there is none — with the environment variables
+ * a future integration needs, read out of the adapters themselves rather than
+ * transcribed.
+ */
+function ProviderConnections({
+  shipmentId,
+  connections,
+  failed,
+  providers,
+}: {
+  shipmentId: string;
+  connections: readonly TrackingProviderConnectionRow[];
+  failed: boolean;
+  providers: readonly ProviderStatus[];
+}) {
+  const active = connections.filter((c) => c.active);
+  return (
+    <section aria-labelledby="sd-providers-h">
+      <h2 id="sd-providers-h" className="psec">
+        Tracking providers
+      </h2>
+      <p className="pempty" style={{ padding: "0 0 12px" }}>
+        <strong>No provider is connected.</strong> PickLoads holds no telematics
+        contract and no API credentials, so nothing is fetched and no position
+        is ever fabricated (DIRECTIVE-tracking §9, §30). What is shipped is the
+        adapter interface below: adding a real provider is one file, not a
+        rewrite.
+      </p>
+
+      <div className="ptable-wrap">
+        <table className="ptable">
+          <caption className="sr-only">
+            Tracking provider adapters and their configuration state
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Provider</th>
+              <th scope="col">Environment variables</th>
+              <th scope="col">Credentials</th>
+              <th scope="col">Connection</th>
+            </tr>
+          </thead>
+          <tbody>
+            {providers.map((p) => (
+              <tr key={p.provider}>
+                <td data-th="Provider">{p.displayName}</td>
+                <td data-th="Environment variables" className="mono">
+                  {p.requiredEnvVars.length === 0
+                    ? "—"
+                    : p.requiredEnvVars.join(", ")}
+                </td>
+                <td data-th="Credentials">
+                  {p.configured ? "Present" : "Not configured"}
+                </td>
+                <td data-th="Connection">Not connected</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {failed ? (
+        <p className="pempty" role="status">
+          We couldn&apos;t read this shipment&apos;s provider links just now.
+        </p>
+      ) : active.length === 0 ? (
+        <p className="pempty">
+          No tracking link is attached to this shipment. It is milestone-tracked.
+        </p>
+      ) : (
+        <div className="ptable-wrap">
+          <table className="ptable">
+            <caption className="sr-only">
+              Tracking links attached to this shipment
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Provider</th>
+                <th scope="col">Link</th>
+                <th scope="col">Expires</th>
+                <th scope="col">Consent</th>
+                <th scope="col">
+                  <span className="sr-only">Revoke</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {active.map((c) => (
+                <tr key={c.id}>
+                  <td data-th="Provider">{c.provider}</td>
+                  <td data-th="Link" className="mono">
+                    {c.tracking_url === null ? (
+                      (c.external_tracking_id ?? "—")
+                    ) : (
+                      /* Staff-only, and `noreferrer` so the provider is not
+                         handed the dispatcher's page URL. */
+                      <a
+                        href={c.tracking_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Open driver link
+                      </a>
+                    )}
+                  </td>
+                  <td data-th="Expires">
+                    {c.expires_at === null ? (
+                      "—"
+                    ) : (
+                      <time dateTime={c.expires_at}>
+                        {c.expires_at.slice(0, 16).replace("T", " ")}
+                      </time>
+                    )}
+                  </td>
+                  <td data-th="Consent">{c.consent_status}</td>
+                  <td data-th="Revoke">
+                    <RevokeProviderLinkForm
+                      shipmentId={shipmentId}
+                      connectionId={c.id}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
 }
 
 export function ShipmentStaffDetailView(props: ShipmentStaffDetailProps) {
@@ -423,6 +575,30 @@ export function ShipmentStaffDetailView(props: ShipmentStaffDetailProps) {
       />
       <Parties parties={props.parties} />
 
+      {/* M-80 — §9's location panel at the STAFF audience: coordinates and
+          speed are never redacted for dispatch, because the visibility level
+          is a CUSTOMER-facing control and dispatch cannot operate a shipment
+          it is not allowed to see. */}
+      <LocationPanel
+        headingId="sd-location-h"
+        level="exact"
+        trackingMode={shipment.tracking_mode}
+        currentCity={shipment.current_city}
+        currentState={shipment.current_state}
+        currentLatitude={shipment.current_latitude}
+        currentLongitude={shipment.current_longitude}
+        lastLocationAt={shipment.last_location_at}
+        readings={props.locations}
+        failed={props.locationsFailed}
+      />
+
+      <ProviderConnections
+        shipmentId={shipment.id}
+        connections={props.connections}
+        failed={props.connectionsFailed}
+        providers={props.providers}
+      />
+
       <span className="psec">Operations</span>
       <StatusUpdateForm
         shipmentId={shipment.id}
@@ -460,6 +636,12 @@ export function ShipmentStaffDetailView(props: ShipmentStaffDetailProps) {
         staff={props.staff}
         current={shipment.dispatcher_id}
       />
+      <LocationVisibilityForm
+        shipmentId={shipment.id}
+        current={shipment.location_visibility}
+        isAdmin={props.isAdmin}
+      />
+      <ProviderLinkForm shipmentId={shipment.id} providers={props.providers} />
       {props.isAdmin ? (
         <CorrectionForm
           shipmentId={shipment.id}

@@ -57,7 +57,13 @@ p.sub{color:#a9b2b8;max-width:640px;margin-top:14px;font-size:1.03rem}
 .topbar a:hover{color:var(--amber)}
 .topbar .phone{color:var(--amber);font-family:var(--font-mono);font-weight:600}
 .topbar .right{display:flex;gap:18px;align-items:center}
-.langsel{background:#0B0E11;border:1px solid var(--line);border-radius:4px;padding:2px 6px;font-family:var(--font-mono);font-size:.72rem;color:var(--amber);cursor:pointer}
+/* M-80 incidental fix: WCAG 2.5.8 target-size applied at EVERY pointer type.
+   The ≥24px rule below existed only inside `@media(pointer:coarse)`, so the
+   selector failed axe on a 320px-wide DESKTOP viewport — a real failure for a
+   mouse user on a small window, not just a scan artefact. `min-height` costs
+   nothing visually (the 38px topbar already absorbs it) and no colour, font
+   or spacing token changes. Found by tests/e2e/shipment-map.spec.ts. */
+.langsel{background:#0B0E11;border:1px solid var(--line);border-radius:4px;padding:2px 6px;min-height:24px;font-family:var(--font-mono);font-size:.72rem;color:var(--amber);cursor:pointer}
 .langsel:focus{outline:2px solid var(--amber)}
 
 /* nav */
@@ -653,4 +659,56 @@ details .a{padding:0 22px 20px;font-size:.93rem;color:#4a545b}
 }
 @media(prefers-reduced-motion:reduce){
   .driver-submit,.driver-choice{transition:none}
+}
+
+/* ---- M-80 net-new: the location panel and the route diagram ---------------
+ * §9's map slot, §23's accessible alternative, §25's lazy-loaded map.
+ *
+ * TOKEN-ONLY, NO NEW COLOURS. Every value below is an existing @theme token,
+ * a shade already present in this file (the light `.track-*` palette:
+ * --line-dark, --color-slate-aa/mid/body, --ink, --green, white), or a
+ * geometry value.
+ *
+ * THE BASE IS THE PUBLIC (LIGHT) SURFACE. `.psh-mapslot` was authored by M-74
+ * for the portal's dark card; the rules there stay untouched and simply win
+ * inside `.portal`, because `portal.css` is imported by the portal layout and
+ * therefore loads after this file. Both surfaces share the markup.
+ *
+ * REDUCED MOTION: the only animation in the block is the newest-reading
+ * marker, and it lives inside `prefers-reduced-motion: no-preference` — so
+ * "reduce" is the DEFAULT and the animation is the opt-in, which is the only
+ * arrangement that cannot be forgotten.
+ */
+.psh-mapslot{border:1px dashed var(--line-dark);border-radius:8px;background:rgba(18,22,26,.02);padding:20px 22px}
+.psh-mapslot>p{font-size:.95rem;color:var(--ink);margin:10px 0 0;line-height:1.55;overflow-wrap:anywhere}
+.psh-mapslot .track-note{color:var(--color-slate-aa)}
+
+/* §30's label. Deliberately NOT styled as a live indicator: no dot, no pulse,
+   no green — it says "milestone tracking" far more often than "live". */
+.shipmap-badge{display:inline-block;font-family:var(--font-mono);font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;border-radius:3px;padding:3px 9px;border:1px solid var(--line-dark);color:var(--color-slate-aa)}
+
+.shipmap-wrap{margin-top:16px;border:1px solid var(--line-dark);border-radius:6px;background:#fff;overflow:hidden}
+.shipmap{display:block;width:100%;height:auto;max-height:320px}
+.shipmap-path{stroke:var(--green);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.shipmap-dot{fill:var(--green);opacity:.55}
+.shipmap-latest{fill:var(--amber);stroke:var(--ink);stroke-width:1.5}
+
+/* §23 — the accessible alternative. VISIBLE, not sr-only: the same facts the
+   diagram plots, in text, for everyone. */
+.shipmap-alt{margin-top:18px;border-top:1px solid var(--line-dark);padding-top:14px}
+.shipmap-alt-h{font-size:.9rem;font-weight:800;color:var(--ink);margin:0 0 8px}
+.shipmap-list{list-style:none;margin:10px 0 0;padding:0}
+.shipmap-list li{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line-dark)}
+.shipmap-list li:last-child{border-bottom:none}
+.shipmap-list time{font-family:var(--font-mono);font-size:.74rem;color:var(--color-slate-mid);flex:0 0 auto}
+.shipmap-place{font-size:.93rem;color:var(--ink);font-weight:600;overflow-wrap:anywhere}
+.shipmap-coords,.shipmap-speed{font-family:var(--font-mono);font-size:.72rem;color:var(--color-slate-aa)}
+
+@media(prefers-reduced-motion:no-preference){
+  .shipmap-latest{animation:shipmap-pulse 2.4s ease-in-out infinite}
+  @keyframes shipmap-pulse{0%,100%{opacity:1}50%{opacity:.55}}
+}
+@media(max-width:640px){
+  .psh-mapslot{padding:16px 14px}
+  .shipmap-list li{flex-direction:column;gap:2px}
 }

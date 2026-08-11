@@ -8,7 +8,10 @@ import {
   type StaffScope,
 } from "@/lib/staff-scope";
 import { logShipmentSignal } from "@/lib/shipments/observability";
-import type { ShipmentStatus } from "@/lib/shipments/types";
+import type {
+  ShipmentLocationVisibility,
+  ShipmentStatus,
+} from "@/lib/shipments/types";
 
 /**
  * M-75 — the authorization gate every dispatcher server action passes through
@@ -72,6 +75,13 @@ export interface ShipmentAccessGrant {
   shipperId: string;
   carrierId: string | null;
   dispatcherId: string | null;
+  /**
+   * M-80 — §9's current privacy level, carried on the grant for the same
+   * reason `status` is: the visibility action's direction rule (narrow =
+   * dispatcher, widen = admin) needs it, and re-reading it in the action
+   * would be a second round trip and a second chance to read a different row.
+   */
+  locationVisibility: ShipmentLocationVisibility;
 }
 
 export interface ShipmentAccessDenied {
@@ -125,7 +135,9 @@ export async function resolveShipmentAccess(
 
   const { data: shipment } = await supabase
     .from("shipments")
-    .select("id, status, tracking_number, shipper_id, carrier_id, dispatcher_id")
+    .select(
+      "id, status, tracking_number, shipper_id, carrier_id, dispatcher_id, location_visibility",
+    )
     .eq("id", shipmentId)
     .maybeSingle();
   if (!shipment) {
@@ -156,6 +168,7 @@ export async function resolveShipmentAccess(
     shipperId: shipment.shipper_id,
     carrierId: shipment.carrier_id,
     dispatcherId: shipment.dispatcher_id,
+    locationVisibility: shipment.location_visibility,
   };
 }
 

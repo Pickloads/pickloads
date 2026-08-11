@@ -7,6 +7,7 @@ import { partyRoleKey } from "@/lib/shipments/types";
 import { resolvePublicText } from "@/lib/shipments/phrases";
 import type { InvoiceStatus } from "@/lib/supabase/database.types";
 import { TrackingTimeline } from "@/components/tracking/TrackingTimeline";
+import { LocationPanel } from "@/components/tracking/LocationPanel";
 import {
   formatTrackingDate,
   formatTrackingDateTime,
@@ -159,6 +160,12 @@ export interface ShipmentDetailViewProps {
   documents: CustomerDocumentDto[];
   documentsFailed: boolean;
   documentsHasMore: boolean;
+  /**
+   * M-80 — §9's location read failed. Passed rather than inferred from an
+   * empty list, because "no readings yet" and "we could not read them" are
+   * different sentences and the panel says the right one.
+   */
+  locationsFailed: boolean;
   /** Older history exists beyond the events in `shipment.events`. */
   historyHasMore: boolean;
   /** Href for the next (older) page of history, or null. */
@@ -179,6 +186,7 @@ export function ShipmentDetailView({
   documents,
   documentsFailed,
   documentsHasMore,
+  locationsFailed,
   historyHasMore,
   historyMoreHref,
   historyPaged,
@@ -201,10 +209,6 @@ export function ShipmentDetailView({
   const etaByDispatcher =
     shipment.eta_source === "manual" ||
     shipment.eta_source === "dispatcher_adjusted";
-  const hasLocation =
-    shipment.current_city !== null || shipment.current_state !== null;
-  const locationClaimsLive = shipment.tracking_mode !== "manual" && hasLocation;
-
   const events = [...shipment.events].sort((a, b) =>
     a.event_time < b.event_time ? 1 : a.event_time > b.event_time ? -1 : 0,
   );
@@ -368,30 +372,19 @@ export function ShipmentDetailView({
         </dl>
       </section>
 
-      {/* ── §11 map, "when enabled" — M-80's slot, honestly labelled ───── */}
-      <section className="track-section" aria-labelledby="psh-map-heading">
-        <h2 id="psh-map-heading">{tv("Location")}</h2>
-        <div className="psh-mapslot" data-testid="shipment-map-slot">
-          <span className="pbadge">
-            {t("shipment.label.milestone_tracking")}
-          </span>
-          <p>
-            {hasLocation
-              ? `${[shipment.current_city, shipment.current_state]
-                  .filter(Boolean)
-                  .join(", ")} · ${
-                  formatTrackingDateTime(shipment.last_location_at, locale) ??
-                  ""
-                }`
-              : t("shipment.label.location_unavailable")}
-          </p>
-          <p className="track-note">
-            {locationClaimsLive
-              ? t("shipment.label.live_location_available")
-              : t("shipment.result.updates_are_manual")}
-          </p>
-        </div>
-      </section>
+      {/* ── §9's location panel — M-80 fills M-74's slot ───────────────── */}
+      <LocationPanel
+        headingId="psh-map-heading"
+        level={shipment.location_visibility}
+        trackingMode={shipment.tracking_mode}
+        currentCity={shipment.current_city}
+        currentState={shipment.current_state}
+        currentLatitude={shipment.current_latitude}
+        currentLongitude={shipment.current_longitude}
+        lastLocationAt={shipment.last_location_at}
+        readings={shipment.locations}
+        failed={locationsFailed}
+      />
 
       {/* ── §11 support messages ───────────────────────────────────────── */}
       <section className="track-section" aria-labelledby="psh-support-heading">

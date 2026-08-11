@@ -7,6 +7,9 @@ import {
   ETA_KINDS,
   ETA_CONFIDENCES,
   DISPATCHER_ETA_SOURCES,
+  SHIPMENT_LOCATION_VISIBILITIES,
+  TRACKING_CONSENT_STATUSES,
+  TRACKING_PROVIDERS,
 } from "@/lib/shipments/types";
 
 /**
@@ -319,4 +322,67 @@ export const correctionSchema = z.object({
     .max(600, "Keep the reason under 600 characters."),
   /** Optional customer-visible sentence, when the error was customer-visible. */
   public_message: message,
+});
+
+/* ------------------------------------------------------------------ *
+ * M-80 — §9 location visibility and Mode B provider links
+ * ------------------------------------------------------------------ */
+
+/**
+ * §9's four privacy levels, write side.
+ *
+ * The DIRECTION rule (narrow = dispatcher, widen = admin) is deliberately NOT
+ * here: it depends on the shipment's CURRENT level, which a schema cannot
+ * see. It lives in `src/lib/shipments/location-visibility.ts` for the UI and
+ * the action, and in 0027's `set_shipment_location_visibility()` as the
+ * authority. What this schema does is stop anything that is not one of the
+ * four values from reaching either.
+ */
+export const locationVisibilitySchema = z.object({
+  shipment_id: shipmentId,
+  level: z.enum(SHIPMENT_LOCATION_VISIBILITIES),
+});
+
+/**
+ * §9 Mode B — attach a per-shipment driver-location link.
+ *
+ * `tracking_url` is validated three ways before it can be stored, because it
+ * is an operator-pasted string that later becomes an `href` on a staff page
+ * and a bearer locator to a live truck position:
+ *
+ *   1. **https only.** `javascript:` and `data:` would make a pasted string a
+ *      script source; `http:` would put the position on the wire in clear.
+ *   2. **no integration credential** (§15). The marker list mirrors 0027's
+ *      CHECK and `observability.ts`'s redaction set. An OPAQUE path or query
+ *      token is untouched — that is what a share link IS, and refusing it
+ *      would refuse Mode B itself.
+ *   3. the database refuses both again (0027's two CHECKs), which is the
+ *      layer that holds if this one is ever bypassed.
+ */
+const CREDENTIAL_IN_URL =
+  /(client_secret|api[_-]?key|access_token|refresh_token|private_key|bearer[ %]|authorization=|-----BEGIN|sk_|whsec_)/i;
+
+export const providerLinkSchema = z.object({
+  shipment_id: shipmentId,
+  provider: z.enum(TRACKING_PROVIDERS),
+  external_tracking_id: optionalText(200),
+  tracking_url: z
+    .union([z.literal(""), z.string().trim().max(2000)])
+    .transform((v) => (v ? v : null))
+    .refine(
+      (v) => v === null || /^https:\/\/[^\s]+$/.test(v),
+      "The tracking link must be a full https:// URL.",
+    )
+    .refine(
+      (v) => v === null || !CREDENTIAL_IN_URL.test(v),
+      "That link carries an API credential. Integration credentials belong in environment variables, never in the database (§15) — paste the driver-location link only.",
+    ),
+  expires_at: optionalDateTime,
+  consent_status: z.enum(TRACKING_CONSENT_STATUSES),
+});
+
+export const revokeProviderLinkSchema = z.object({
+  shipment_id: shipmentId,
+  connection_id: z.uuid("Invalid connection."),
+  reason: optionalText(300),
 });

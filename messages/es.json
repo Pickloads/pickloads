@@ -1158,6 +1158,20 @@
       "resuming": "Actualizando…",
       "resumed": "✓ REACTIVADO — Los correos de actualización de envíos están activos otra vez para esta dirección.",
       "scope_note": "Esto solo cubre los correos de actualización de envíos. Freight Insights (nuestro boletín) tiene su propio enlace para darse de baja, y los correos de cuenta, facturación y soporte que pediste siguen funcionando."
+    },
+    "location": {
+      "heading": "Ubicación",
+      "summary": "{count} actualizaciones de ubicación registradas. La más reciente: {place}.",
+      "summary_empty": "Aún no se ha registrado ninguna actualización de ubicación para este envío.",
+      "place_unknown": "lugar no registrado",
+      "live_note": "Las posiciones provienen de la conexión de seguimiento del transportista.",
+      "manual_note": "Las actualizaciones las registran dispatch y el conductor. PickLoads no está conectado a un proveedor de GPS o ELD, así que no hay una posición del camión en vivo que mostrar.",
+      "read_failed": "No pudimos cargar el historial de ubicaciones en este momento. El estado y la línea de tiempo de arriba siguen siendo actuales.",
+      "map_title": "Diagrama de ruta de las posiciones registradas",
+      "text_alternative_heading": "Actualizaciones de ubicación registradas",
+      "coordinates": "{lat}, {lon}",
+      "speed": "{mph} mph",
+      "more_readings": "Hay {count} actualizaciones de ubicación más antiguas registradas."
     }
   }
 }

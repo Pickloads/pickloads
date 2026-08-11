@@ -10,6 +10,7 @@ import {
 } from "@/lib/shipments/access-code";
 import { normalizeTrackingNumber } from "@/lib/shipments/tracking-number";
 import { PUBLIC_EXCEPTION_COLUMNS } from "@/lib/shipments/exceptions";
+import { listPublicLocations } from "@/lib/shipments/locations";
 import type {
   ShipmentEventRow,
   ShipmentExceptionRow,
@@ -99,6 +100,16 @@ export const MIN_RESPONSE_MS = 350;
  * to answer "is there more?" without a second round trip.
  */
 export const PUBLIC_EVENT_LIMIT = 25;
+
+/**
+ * M-80 — the same §25 bound for §9's location history.
+ *
+ * Twenty, not twenty-five: the public audience receives city/state and never
+ * coordinates, so twenty readings is already more places than a five-day run
+ * produces, and every one of them is a row on a page anybody on the internet
+ * can request.
+ */
+export const PUBLIC_LOCATION_LIMIT = 20;
 
 /**
  * M-78 — the same §25 bound for the §21 exception banner.
@@ -526,10 +537,31 @@ export async function lookupPublicTracking(
     resolution_event_id: null,
   }));
 
+  /*
+   * M-80 — §9's location history for the public audience.
+   *
+   * A THIRD read rather than a widened join, and it fails SOFT for the same
+   * reason M-78's exception read does: a missing location panel is a missing
+   * answer on a page whose status, ETA and timeline are all still correct,
+   * and refusing the whole lookup over it would take a customer's tracking
+   * page away to avoid a degraded one.
+   *
+   * `listPublicLocations` returns nothing at all at `hidden`/`milestone_only`,
+   * and its PROJECTION omits coordinates and speed even at `exact` — §9's
+   * public cap applied in SQL, before `toPublicTrackingDto` applies it again.
+   */
+  const locations = await listPublicLocations(
+    client,
+    shipment.id,
+    shipment.location_visibility,
+    PUBLIC_LOCATION_LIMIT,
+  );
+
   const tracking = toPublicTrackingDto({
     shipment,
     events,
     exceptions,
+    locations,
   });
 
   await settle(startedAt);

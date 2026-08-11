@@ -1158,6 +1158,20 @@
       "resuming": "Updating…",
       "resumed": "✓ RESUMED — Shipment update emails are on again for this address.",
       "scope_note": "This only covers shipment update emails. Freight Insights (our newsletter) has its own unsubscribe link, and account, billing and support emails you asked for keep working."
+    },
+    "location": {
+      "heading": "Location",
+      "summary": "{count} location updates on record. Most recent: {place}.",
+      "summary_empty": "No location updates have been recorded for this shipment yet.",
+      "place_unknown": "place not recorded",
+      "live_note": "Positions come from the carrier's tracking connection.",
+      "manual_note": "Updates are recorded by dispatch and by the driver. PickLoads is not connected to a GPS or ELD provider, so there is no live truck position to show.",
+      "read_failed": "We couldn't load the location history just now. The status and timeline above are still current.",
+      "map_title": "Route diagram of recorded positions",
+      "text_alternative_heading": "Recorded location updates",
+      "coordinates": "{lat}, {lon}",
+      "speed": "{mph} mph",
+      "more_readings": "{count} older location updates are on record."
     }
   }
 }

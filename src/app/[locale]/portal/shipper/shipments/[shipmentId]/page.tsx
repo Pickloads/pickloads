@@ -18,6 +18,7 @@ import {
   listCustomerExceptions,
   toCustomerExceptionRows,
 } from "@/lib/shipments/exceptions";
+import { listCustomerLocations } from "@/lib/shipments/locations";
 import { ShipmentDetailView } from "@/components/portal/ShipmentDetailView";
 import type { ShipmentEventRow, ShipmentRow } from "@/lib/shipments/types";
 
@@ -92,6 +93,11 @@ export default async function ShipperShipmentDetailPage({
   // through 0025's `my_shipment_exceptions()` under the caller's own session,
   // which resolves the audience from their memberships and whose return type
   // carries neither `internal_description` nor `resolution`.
+  // M-80 adds a SEVENTH, same principle: §9's location history through
+  // 0027's `my_shipment_locations()` under the caller's own session, which
+  // resolves the audience from their memberships and applies the four privacy
+  // levels IN SQL — so a `hidden` shipment returns zero rows rather than rows
+  // this process then has to remember to redact.
   const [
     summary,
     history,
@@ -99,6 +105,7 @@ export default async function ShipperShipmentDetailPage({
     contactResult,
     documentResult,
     exceptionResult,
+    locationResult,
   ] = await Promise.all([
     getShipmentSummary(supabase, shipperId, shipmentId),
     getShipmentTimelinePage(supabase, shipmentId, { before }),
@@ -106,6 +113,7 @@ export default async function ShipperShipmentDetailPage({
     getShipmentContacts(supabase, shipmentId),
     listShipmentDocuments(supabase, shipmentId, "shipper"),
     listCustomerExceptions(supabase, shipmentId),
+    listCustomerLocations(supabase, shipmentId),
   ]);
 
   if (summary === null) notFound();
@@ -166,6 +174,7 @@ export default async function ShipperShipmentDetailPage({
     // already drops any exception with no public description, so an internal
     // exception the shipper has not been told about renders nothing.
     exceptions: toCustomerExceptionRows(exceptionResult.exceptions),
+    locations: locationResult.locations,
   });
 
   const listPath = getPathname({ href: "/portal/shipper/shipments", locale });
@@ -188,6 +197,7 @@ export default async function ShipperShipmentDetailPage({
 
       <ShipmentDetailView
         shipment={shipment}
+        locationsFailed={locationResult.failed}
         invoices={invoiceResult.invoices}
         invoicesFailed={invoiceResult.failed}
         contacts={contactResult.contacts}

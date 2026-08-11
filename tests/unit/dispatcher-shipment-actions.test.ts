@@ -304,6 +304,13 @@ describe("§14 actions — the gate, proved per action", () => {
         // triage fields. Both go through the same gate.
         "resolveExceptionAction",
         "triageExceptionAction",
+        // M-80 — §9's four privacy levels (write side) and Mode B's
+        // per-shipment link lifecycle. All three go through the same
+        // `resolveShipmentAccess` gate, which the scenarios below prove per
+        // action rather than by assertion.
+        "setLocationVisibilityAction",
+        "attachProviderLinkAction",
+        "revokeProviderLinkAction",
       ].sort(),
     );
   });

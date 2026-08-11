@@ -19,6 +19,11 @@ import { listStaffExceptions } from "@/lib/shipments/exceptions";
 import { ShipmentStaffDetailView } from "@/components/portal/ShipmentStaffDetailView";
 import { getDriverTokens } from "@/lib/shipments/carrier-shipments";
 import { isDriverTokenConfigured } from "@/lib/shipments/driver-token";
+import {
+  listProviderConnections,
+  listStaffLocations,
+} from "@/lib/shipments/locations";
+import { providerStatuses } from "@/lib/shipments/providers";
 
 export const dynamic = "force-dynamic";
 
@@ -99,6 +104,8 @@ export default async function StaffShipmentPage({
     driverTokens,
     documents,
     exceptions,
+    locationResult,
+    connectionResult,
   ] = await Promise.all([
     getStaffTimelinePage(supabase, shipmentId, sp.before),
     getShipmentAssignments(supabase, shipmentId),
@@ -109,6 +116,11 @@ export default async function StaffShipmentPage({
     getDriverTokens(supabase, shipmentId),
     listShipmentDocumentsForStaff(supabase, shipmentId),
     listStaffExceptions(supabase, shipmentId),
+    // M-80 — §9's location history and Mode B links, both under 0027's staff
+    // policy on the COOKIE-BOUND client. Joining the existing fan-out rather
+    // than adding two more round trips (§25).
+    listStaffLocations(supabase, shipmentId),
+    listProviderConnections(supabase, shipmentId),
   ]);
 
   const actorRole = session.role === "admin" ? "admin" : "dispatcher";
@@ -162,6 +174,14 @@ export default async function StaffShipmentPage({
         driverLinksEnabled={isDriverTokenConfigured()}
         exceptions={exceptions.exceptions}
         exceptionsFailed={exceptions.failed}
+        locations={locationResult.locations}
+        locationsFailed={locationResult.failed}
+        connections={connectionResult.connections}
+        connectionsFailed={connectionResult.failed}
+        /* The adapter contract table. Computed on the SERVER because
+           `isConfigured()` reads `process.env`, which a client component
+           cannot and must not. Every row is `connected: false`. */
+        providers={providerStatuses()}
       />
     </main>
   );

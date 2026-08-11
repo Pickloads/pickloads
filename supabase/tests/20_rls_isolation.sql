@@ -2475,3 +2475,444 @@ select rls_test.affects(
   $$insert into shipment_notification_attempts (queue_id, attempt_no, outcome)
     values ('fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a02', 3, 'failed')$$, 1,
   'NON-VACUITY: APPENDING an attempt IS allowed — the trigger blocks rewrites, not writes');
+
+-- ===========================================================================
+-- §15 · M-80 — §9's location series and provider connections (migration 0027)
+--
+-- FIVE claims this section is accountable for:
+--
+--   1. BOTH TABLES ARE STAFF-ONLY. Not "customers see a filtered set" —
+--      customers see NOTHING from the tables. `shipment_locations.raw_metadata`
+--      is a third party's payload and `tracking_provider_connections.
+--      tracking_url` is a bearer locator to a live truck position; a ROW policy
+--      cannot restrict a COLUMN and staff share `authenticated` with
+--      customers, so the base tables carry the staff policy alone.
+--   2. THE ACCESSOR IS THE CUSTOMER PATH, and its RETURN TYPE is the
+--      allow-list — no `raw_metadata`, no `external_event_id`, no `provider`.
+--      The audience is resolved from the caller's own memberships INSIDE the
+--      function, never from an argument.
+--   3. §9's FOUR LEVELS ARE APPLIED IN SQL. `approximate` nulls the
+--      coordinates and the speed; `hidden` returns zero rows; `exact` returns
+--      the fix. Proved by moving one shipment's dial and reading it back.
+--   4. THE SENTINELS ARE UNREACHABLE. Every fixture row carries a unique
+--      string in `raw_metadata` and every connection one in `tracking_url`;
+--      no customer path returns either.
+--   5. THE RETENTION EXECUTOR ACTUALLY DELETES, and is granted to
+--      `service_role` alone.
+--
+-- Non-vacuity throughout: every zero is mirrored by a staff read that is not
+-- zero, so an empty table can never be mistaken for a policy result.
+-- ===========================================================================
+
+reset role;
+set request.jwt.claim.sub = '';
+
+-- ---- 1 · Catalog facts, not inferred from a refusal --------------------
+
+select rls_test.ok(
+  (select relrowsecurity from pg_class where relname = 'shipment_locations'),
+  'RLS is ENABLED on shipment_locations');
+select rls_test.ok(
+  (select relrowsecurity from pg_class where relname = 'tracking_provider_connections'),
+  'RLS is ENABLED on tracking_provider_connections');
+
+select rls_test.eq((select count(*) from pg_policies
+   where tablename = 'shipment_locations'), 1,
+  '§9: shipment_locations carries exactly ONE policy — no customer band exists at the table level');
+select rls_test.eq((select count(*) from pg_policies
+   where tablename = 'tracking_provider_connections'), 1,
+  '§9: tracking_provider_connections carries exactly ONE policy');
+
+select rls_test.ok(
+  (select bool_or(has_table_privilege('authenticated', 'shipment_locations', p))
+     from unnest(array['INSERT','UPDATE','DELETE']) p) = false,
+  'authenticated holds NO WRITE privilege on shipment_locations — and DELETE is the one this table exists to keep in one pair of hands');
+select rls_test.ok(
+  has_table_privilege('authenticated', 'shipment_locations', 'SELECT'),
+  'NON-VACUITY: authenticated DOES hold SELECT, so every customer zero below is a POLICY result and not a permission error');
+select rls_test.ok(
+  (select bool_or(has_table_privilege('anon', 'shipment_locations', p))
+     from unnest(array['SELECT','INSERT','UPDATE','DELETE']) p) = false,
+  '§4/§19: anon holds NO privilege at all on shipment_locations');
+select rls_test.ok(
+  (select bool_or(has_table_privilege('anon', 'tracking_provider_connections', p))
+     from unnest(array['SELECT','INSERT','UPDATE','DELETE']) p) = false,
+  'anon holds NO privilege at all on tracking_provider_connections');
+select rls_test.ok(
+  (select bool_or(has_table_privilege('authenticated', 'tracking_provider_connections', p))
+     from unnest(array['INSERT','UPDATE','DELETE']) p) = false,
+  'authenticated holds NO WRITE privilege on tracking_provider_connections');
+
+-- §9's dedupe is a database fact, read out of the catalog.
+select rls_test.ok(
+  (select count(*) from pg_indexes
+    where tablename = 'shipment_locations'
+      and indexname = 'idx_shipment_locations_external_event'
+      and indexdef ilike '%unique%'
+      and indexdef ilike '%shipment_id%'
+      and indexdef ilike '%provider%'
+      and indexdef ilike '%external_event_id%') = 1,
+  '§9 DEDUPE: a UNIQUE index spans (shipment_id, provider, external_event_id) — duplicate provider events are refused by the database, not by an adapter remembering to check');
+select rls_test.ok(
+  (select count(*) from pg_indexes
+    where tablename = 'tracking_provider_connections'
+      and indexname = 'idx_tracking_provider_connections_active'
+      and indexdef ilike '%unique%') = 1,
+  'at most ONE ACTIVE provider connection per shipment — enforced by a partial unique index');
+
+-- The RETURN TYPE of the customer accessor IS the allow-list.
+select rls_test.ok(
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'my_shipment_locations'
+     and 'raw_metadata' = any (p.proargnames)) = 0,
+  '§9 PROOF: `raw_metadata` is NOT an OUT column of my_shipment_locations() — the projection is a TYPE, not a string');
+select rls_test.ok(
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'my_shipment_locations'
+     and 'provider' = any (p.proargnames)) = 0,
+  '§9 PROOF: `provider` is NOT an OUT column either');
+select rls_test.ok(
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'my_shipment_locations'
+     and 'external_event_id' = any (p.proargnames)) = 0,
+  '§9 PROOF: `external_event_id` is NOT an OUT column either');
+select rls_test.ok(
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'my_shipment_locations'
+     and 'latitude' = any (p.proargnames)) = 1,
+  'NON-VACUITY: `latitude` IS an OUT column, so the three zeros above are omissions and not a typo');
+
+-- ---- 2 · The base tables reach NO customer ----------------------------
+
+set role authenticated;
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1';
+select rls_test.reads_nothing('shipment_locations',
+  '§9 PROOF: the SHIPPER of the shipment reads NOTHING from the location TABLE — raw provider metadata is unreachable at every column');
+select rls_test.reads_nothing('tracking_provider_connections',
+  '§9 PROOF: the shipper reads NOTHING from the provider connection table — the Mode B link is staff-only');
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';
+select rls_test.reads_nothing('shipment_locations',
+  'the assigned CARRIER reads nothing from the location table either');
+select rls_test.reads_nothing('tracking_provider_connections',
+  'the assigned carrier reads nothing from the connection table');
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab01';
+select rls_test.reads_nothing('shipment_locations',
+  'the linked BROKER PARTNER reads nothing from the location table');
+
+set role anon;
+set request.jwt.claim.sub = '';
+select rls_test.rejects_with($$select count(*) from shipment_locations$$,
+  '42501', 'ANON cannot select locations AT ALL — §4 gives them no anonymous table surface');
+select rls_test.rejects_with($$select count(*) from tracking_provider_connections$$,
+  '42501', 'ANON cannot select provider connections AT ALL');
+select rls_test.rejects_with(
+  $$select * from my_shipment_locations('ffffffff-ffff-ffff-ffff-ffffffff0a01')$$,
+  '42501', 'ANON cannot execute the customer accessor either — the public cap is applied on the SERVICE-ROLE path M-73 owns, not by giving anon a function');
+
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000e1';
+select rls_test.eq((select count(*) from shipment_locations), 7,
+  'a DISPATCHER reads all seven location rows — every customer zero above is a policy decision, not an empty table');
+select rls_test.eq((select count(*) from tracking_provider_connections), 2,
+  'a DISPATCHER reads both provider connections');
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000f1';
+select rls_test.eq((select count(*) from shipment_locations), 7,
+  'an ADMIN reads all seven');
+
+-- ---- 3 · §9's four levels, through the accessor ------------------------
+
+-- Shipment A is `approximate`; shipment B is `hidden`.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1';
+select rls_test.eq(
+  (select count(*) from my_shipment_locations('ffffffff-ffff-ffff-ffff-ffffffff0a01')), 5,
+  '§9 PROOF: the shipper reads their own five readings through the accessor');
+select rls_test.eq(
+  (select count(*) from my_shipment_locations('ffffffff-ffff-ffff-ffff-ffffffff0a01')
+    where latitude is not null), 0,
+  '§9 PROOF (approximate): every coordinate is NULLED IN SQL, even on the reading that has one');
+select rls_test.eq(
+  (select count(*) from my_shipment_locations('ffffffff-ffff-ffff-ffff-ffffffff0a01')
+    where speed_mph is not null), 0,
+  '§9 PROOF (approximate): vehicle SPEED is withheld too — "if permitted" is not "if present"');
+select rls_test.eq(
+  (select count(*) from my_shipment_locations('ffffffff-ffff-ffff-ffff-ffffffff0a01')
+    where city is not null), 5,
+  'NON-VACUITY: city/state ARE returned at `approximate`, so the two zeros above are redaction and not an empty result');
+select rls_test.eq(
+  (select count(*) from my_shipment_locations('ffffffff-ffff-ffff-ffff-ffffffff0b01')), 0,
+  '§19 PROOF: SHIPPER A READS NOTHING OF SHIPMENT B THROUGH THE ACCESSOR');
+
+-- CARRIER A hauls shipment A: the accessor resolves the audience from THEIR
+-- memberships, not from an argument.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';
+select rls_test.eq(
+  (select count(*) from my_shipment_locations('ffffffff-ffff-ffff-ffff-ffffffff0a01')), 5,
+  'the assigned CARRIER reads the same five readings');
+select rls_test.eq(
+  (select count(*) from my_shipment_locations('ffffffff-ffff-ffff-ffff-ffffffff0b01')), 0,
+  'CARRIER A reads nothing of shipment B');
+
+-- BROKER A is linked to shipment A.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab01';
+select rls_test.eq(
+  (select count(*) from my_shipment_locations('ffffffff-ffff-ffff-ffff-ffffffff0a01')), 5,
+  'the linked BROKER PARTNER reads the readings through the accessor');
+
+-- A logged-in stranger with no membership on either shipment.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000b1';
+select rls_test.eq(
+  (select count(*) from my_shipment_locations('ffffffff-ffff-ffff-ffff-ffffffff0a01')), 0,
+  'a signed-in user with NO membership on the shipment reads nothing — the audience comes from memberships, never from the argument');
+
+-- `hidden` is zero rows for the OWNER of the shipment, which is the point.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c2';
+select rls_test.eq(
+  (select count(*) from my_shipment_locations('ffffffff-ffff-ffff-ffff-ffffffff0b01')), 0,
+  '§9 PROOF (hidden): shipment B''s OWN shipper reads ZERO readings — indistinguishable from "none recorded", so the setting is not a signal');
+
+-- Move the dial to `exact` as the owner, and read it back as the shipper.
+reset role;
+update shipments set location_visibility = 'exact'
+ where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01';
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1';
+select rls_test.eq(
+  (select count(*) from my_shipment_locations('ffffffff-ffff-ffff-ffff-ffffffff0a01')
+    where latitude is not null), 1,
+  '§9 PROOF (exact): the fix IS returned at the most revealing level — the redaction above was the LEVEL, not a missing column');
+select rls_test.eq(
+  (select count(*) from my_shipment_locations('ffffffff-ffff-ffff-ffff-ffffffff0a01')
+    where speed_mph is not null), 1,
+  '§9 PROOF (exact): vehicle speed is returned too, and only because the provider connection has consent = granted');
+
+-- Revoke consent and the SPEED disappears while the position stays: §9's
+-- "vehicle speed, IF PERMITTED" is a separate permission, not a synonym.
+reset role;
+update tracking_provider_connections set consent_status = 'revoked'
+ where id = '2c2c2c2c-2c2c-2c2c-2c2c-2c2c2c2c0a01';
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1';
+select rls_test.eq(
+  (select count(*) from my_shipment_locations('ffffffff-ffff-ffff-ffff-ffffffff0a01')
+    where speed_mph is not null), 0,
+  '§9 PROOF: with driver consent REVOKED the speed is withheld — even at `exact`');
+select rls_test.eq(
+  (select count(*) from my_shipment_locations('ffffffff-ffff-ffff-ffff-ffffffff0a01')
+    where latitude is not null), 1,
+  'NON-VACUITY: the position is still returned, so the zero above is about CONSENT and not about the level');
+
+reset role;
+update tracking_provider_connections set consent_status = 'granted'
+ where id = '2c2c2c2c-2c2c-2c2c-2c2c-2c2c2c2c0a01';
+update shipments set location_visibility = 'approximate'
+ where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01';
+
+-- ---- 4 · The SENTINEL sweep, in SQL ------------------------------------
+
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1';
+select rls_test.eq(
+  (select count(*) from my_shipment_locations('ffffffff-ffff-ffff-ffff-ffffffff0a01') t
+    where to_jsonb(t)::text like '%SENTINEL-RAW-PROVIDER-PAYLOAD-DO-NOT-LEAK%'), 0,
+  '§9 SENTINEL: the RAW PROVIDER PAYLOAD appears nowhere in the customer accessor''s output');
+select rls_test.eq(
+  (select count(*) from my_shipment_locations('ffffffff-ffff-ffff-ffff-ffffffff0a01') t
+    where to_jsonb(t)::text like '%SENTINEL-TRACKING-URL-DO-NOT-LEAK%'), 0,
+  '§9 SENTINEL: the Mode B TRACKING URL appears nowhere in the customer accessor''s output');
+
+reset role;
+select rls_test.eq(
+  (select count(*) from shipment_locations
+    where raw_metadata::text like '%SENTINEL-RAW-PROVIDER-PAYLOAD-DO-NOT-LEAK%'), 5,
+  'NON-VACUITY: the raw-payload sentinel IS in the table on five rows, so the customer zero above is a projection result');
+select rls_test.eq(
+  (select count(*) from tracking_provider_connections
+    where tracking_url like '%SENTINEL-TRACKING-URL-DO-NOT-LEAK%'), 2,
+  'NON-VACUITY: the tracking-URL sentinel IS stored, so the customer zero above is a policy result');
+
+-- ---- 5 · The write path is service_role ONLY --------------------------
+
+select rls_test.ok(
+  has_function_privilege('service_role',
+    'public.record_shipment_location(uuid, timestamptz, numeric, numeric, text, text, numeric, integer, shipment_event_source, tracking_provider, text, jsonb)', 'EXECUTE'),
+  'service_role CAN execute record_shipment_location()');
+select rls_test.ok(
+  has_function_privilege('authenticated',
+    'public.record_shipment_location(uuid, timestamptz, numeric, numeric, text, text, numeric, integer, shipment_event_source, tracking_provider, text, jsonb)', 'EXECUTE') = false,
+  '§19: an AUTHENTICATED session cannot execute record_shipment_location() — even an admin one');
+select rls_test.ok(
+  has_function_privilege('authenticated',
+    'public.set_shipment_location_visibility(uuid, shipment_location_visibility, uuid, text)', 'EXECUTE') = false,
+  '§9/§15: the visibility dial is not turnable from a browser session');
+select rls_test.ok(
+  has_function_privilege('authenticated',
+    'public.purge_expired_shipment_locations(integer, integer)', 'EXECUTE') = false,
+  '§9: the RETENTION EXECUTOR is not callable from a browser session');
+select rls_test.ok(
+  has_function_privilege('anon',
+    'public.purge_expired_shipment_locations(integer, integer)', 'EXECUTE') = false,
+  'nor from the anon key');
+select rls_test.ok(
+  has_function_privilege('authenticated',
+    'public.my_shipment_locations(uuid, integer)', 'EXECUTE'),
+  'NON-VACUITY: the customer ACCESSOR is granted to authenticated, so the four refusals above are about the WRITE path');
+
+set role anon;
+select rls_test.rejects_with(
+  $$select record_shipment_location('ffffffff-ffff-ffff-ffff-ffffffff0a01', now(), 1, 1, 'X', 'VA', null, null, 'gps', 'other', null, '{}'::jsonb)$$,
+  '42501', 'ANON cannot record a location — no fabricated position can enter through the public key');
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000f1';
+select rls_test.rejects_with(
+  $$select set_shipment_location_visibility('ffffffff-ffff-ffff-ffff-ffffffff0a01','exact','00000000-0000-0000-0000-0000000000f1','admin')$$,
+  '42501', 'even an ADMIN session cannot turn the dial directly — the server action holds the service-role key');
+
+-- ---- 6 · Table guarantees, as the OWNER --------------------------------
+--
+-- RLS is bypassed here on purpose: these are CHECKs and TRIGGERS, and they
+-- must hold for the service role too. `BYPASSRLS` is not `BYPASSTRIGGER`.
+
+reset role;
+set request.jwt.claim.sub = '';
+
+select rls_test.rejects_with(
+  $$update shipment_locations set city = 'Rewritten'
+     where id = '1c1c1c1c-1c1c-1c1c-1c1c-1c1c1c1c0a01'$$,
+  'PL409', '§9: a location reading is IMMUTABLE — you do not edit a fact about a moment, you let it expire');
+
+select rls_test.rejects_with(
+  $$insert into shipment_locations (shipment_id, latitude, source)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 40.0, 'gps')$$,
+  '23514', 'half a coordinate pair is refused — half a fix on a map is a fake position (§30)');
+select rls_test.rejects_with(
+  $$insert into shipment_locations (shipment_id, source) values ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 'dispatcher')$$,
+  '23514', 'a reading that names neither a place nor a position is refused');
+select rls_test.rejects_with(
+  $$insert into shipment_locations (shipment_id, city, source, provider)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 'X', 'dispatcher', 'motive')$$,
+  '23514', 'a DISPATCHER-sourced reading cannot claim a telematics provider — provenance is what §30 is about');
+select rls_test.rejects_with(
+  $$insert into shipment_locations (shipment_id, city, source, external_event_id)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 'X', 'dispatcher', 'evt-x')$$,
+  '23514', 'an external event id without a provider dedupes nothing and misdescribes the row');
+select rls_test.rejects_with(
+  $$insert into shipment_locations (shipment_id, latitude, longitude, source, provider, speed_mph)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 40.0, -74.0, 'gps', 'other', 4000)$$,
+  '23514', 'a 4000 mph truck is a malformed payload, not a fast one');
+select rls_test.rejects_with(
+  $$insert into shipment_locations (shipment_id, latitude, longitude, source, provider, external_event_id)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 37.5407, -77.4360, 'eld', 'motive', 'motive:evt-0a01')$$,
+  '23505', '§9 DEDUPE: the same provider event id on the same shipment is refused by the UNIQUE index');
+
+-- NON-VACUITY: the legal versions all succeed.
+select rls_test.affects(
+  $$insert into shipment_locations (shipment_id, city, state, source)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 'Roanoke', 'VA', 'dispatcher')$$, 1,
+  'NON-VACUITY: a Mode A place-only reading IS accepted');
+select rls_test.affects(
+  $$insert into shipment_locations (shipment_id, latitude, longitude, source, provider, external_event_id)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 37.0, -77.0, 'eld', 'motive', 'motive:evt-NEW')$$, 1,
+  'NON-VACUITY: a DIFFERENT provider event id IS accepted, so the 23505 above is about duplication');
+
+-- §9's retention promise, made structural: the ledger keeps no coordinates.
+select rls_test.rejects_with(
+  $$insert into shipment_events (shipment_id, event_type, source, latitude, longitude, visibility)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 'location_update', 'gps', 37.5, -77.4, 'public')$$,
+  'PL422', '§9 RETENTION: shipment_events REFUSES a coordinate — the ledger is append-only and therefore un-purgeable, so precise positions go where retention can reach them');
+
+-- And the mirror: a Mode A event with a place DOES produce history.
+select rls_test.affects(
+  $$insert into shipment_events (shipment_id, event_type, source, city, state, visibility)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 'location_update', 'dispatcher', 'Lynchburg', 'VA', 'public')$$, 1,
+  'NON-VACUITY: the SAME insert without coordinates is accepted');
+select rls_test.eq(
+  (select count(*) from shipment_locations
+    where shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01' and city = 'Lynchburg'), 1,
+  '§9 MIRROR: a Mode A event carrying a city produced a purgeable location row with NO call-site change — the harvest doctrine, applied to locations');
+
+-- Provider connections: what a connection IS cannot change, and revocation
+-- is one-way.
+select rls_test.rejects_with(
+  $$update tracking_provider_connections set provider = 'geotab'
+     where id = '2c2c2c2c-2c2c-2c2c-2c2c-2c2c2c2c0a01'$$,
+  'PL409', 'a connection''s PROVIDER is immutable — revoke it and attach a new one');
+select rls_test.rejects_with(
+  $$update tracking_provider_connections set shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'
+     where id = '2c2c2c2c-2c2c-2c2c-2c2c-2c2c2c2c0a01'$$,
+  'PL409', 'a connection cannot be re-pointed at another shipment');
+select rls_test.rejects_with(
+  $$update tracking_provider_connections set active = true
+     where id = '2c2c2c2c-2c2c-2c2c-2c2c-2c2c2c2c0b01'$$,
+  'PL409', 'a REVOKED connection cannot be re-activated — §30''s "Tracking link expired" is one-way');
+select rls_test.affects(
+  $$update tracking_provider_connections set consent_status = 'granted'
+     where id = '2c2c2c2c-2c2c-2c2c-2c2c-2c2c2c2c0a01'$$, 1,
+  'NON-VACUITY: consent IS updatable, so the three PL409s above are about identity and lifecycle');
+
+-- §15: the table holds NO integration credential.
+select rls_test.rejects_with(
+  $$insert into tracking_provider_connections (shipment_id, provider, tracking_url)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 'geotab', 'https://x.test/a?api_key=SECRET')$$,
+  '23514', '§15: a tracking URL carrying an API KEY is refused — integration credentials live in environment variables, never in database plaintext');
+select rls_test.rejects_with(
+  $$insert into tracking_provider_connections (shipment_id, provider, tracking_url)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 'geotab', 'https://x.test/a?access_token=abc')$$,
+  '23514', '§15: nor one carrying an access token');
+select rls_test.rejects_with(
+  $$insert into tracking_provider_connections (shipment_id, provider, tracking_url)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 'geotab', 'http://x.test/a')$$,
+  '23514', 'a plaintext http:// link is refused — a live truck position must not travel in clear');
+select rls_test.rejects_with(
+  $$insert into tracking_provider_connections (shipment_id, provider, tracking_url)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 'geotab', 'javascript:alert(1)')$$,
+  '23514', 'a javascript: URL is refused — an operator-pasted string becomes an href on a staff page');
+select rls_test.rejects_with(
+  $$insert into tracking_provider_connections (shipment_id, provider)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 'geotab')$$,
+  '23514', 'a connection naming neither a link nor an external id connects to nothing');
+select rls_test.affects(
+  $$insert into tracking_provider_connections (shipment_id, provider, tracking_url, active)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 'geotab', 'https://x.test/share/opaque-token-abc', false)$$, 1,
+  'NON-VACUITY: an OPAQUE share link IS accepted — refusing it would refuse Mode B itself, which is what §9 asks us to store');
+
+-- ---- 7 · THE RETENTION EXECUTOR ACTUALLY DELETES ----------------------
+
+select rls_test.eq(
+  (select count(*) from shipment_locations
+    where id = '1c1c1c1c-1c1c-1c1c-1c1c-1c1c1c1c0a03'), 1,
+  'NON-VACUITY: the 400-day-old reading EXISTS before the purge');
+select rls_test.ok(
+  ((select purge_expired_shipment_locations() ->> 'deleted')::int) >= 1,
+  '§9 RETENTION EXECUTOR: the purge reports deleting at least one row');
+select rls_test.eq(
+  (select count(*) from shipment_locations
+    where id = '1c1c1c1c-1c1c-1c1c-1c1c-1c1c1c1c0a03'), 0,
+  '§9 RETENTION EXECUTOR: the EXPIRED reading is GONE — the policy has an enforcer');
+select rls_test.eq(
+  (select count(*) from shipment_locations
+    where id = '1c1c1c1c-1c1c-1c1c-1c1c-1c1c1c1c0a01'), 1,
+  'NON-VACUITY: the FRESH reading survived — the purge deletes by window, not by table');
+select rls_test.eq(
+  ((select purge_expired_shipment_locations() ->> 'deleted')::int)::bigint, 0::bigint,
+  'the purge is IDEMPOTENT — a second run on the same day deletes nothing');
+select rls_test.eq(
+  ((select purge_expired_shipment_locations() ->> 'retention_days')::int)::bigint, 90::bigint,
+  '§9: the window comes from the `location_retention_days` switchboard key, seeded at 90');
+
+-- Shorten the window and watch it take effect immediately: that direction is
+-- the one that matters for a privacy control.
+update company_settings set value = '1'::jsonb where key = 'location_retention_days';
+select rls_test.eq(
+  ((select location_retention_days())::int)::bigint, 1::bigint,
+  '§9 CONFIGURABLE: changing the switchboard changes the window with no deploy');
+select rls_test.ok(
+  ((select purge_expired_shipment_locations() ->> 'deleted')::int) >= 1,
+  '§9 CONFIGURABLE: shortening the window deletes readings that were previously in range');
+update company_settings set value = '"not a number"'::jsonb where key = 'location_retention_days';
+select rls_test.eq(
+  ((select location_retention_days())::int)::bigint, 90::bigint,
+  '§9 FAILS SAFE: an unparseable retention setting falls back to 90 days — never to "keep forever"');
+update company_settings set value = '90'::jsonb where key = 'location_retention_days';

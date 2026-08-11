@@ -5,6 +5,7 @@ import type { CustomerEventDto, PublicTrackingDto } from "@/lib/shipments/dto";
 import { resolvePublicText } from "@/lib/shipments/phrases";
 import { TrackingTimeline } from "@/components/tracking/TrackingTimeline";
 import { TrackingSupportForm } from "@/components/tracking/TrackingSupportForm";
+import { LocationPanel } from "@/components/tracking/LocationPanel";
 import {
   formatTrackingDate,
   formatTrackingDateTime,
@@ -268,6 +269,25 @@ export function TrackingResult({
 
       {/* ── §8 progress timeline (+ §23 text equivalent) ── */}
       <TrackingTimeline tracking={tracking} />
+
+      {/*
+        ── §9's location panel — M-80's, honest ────────────────────────────
+        The DTO already capped this audience at city/state at EVERY privacy
+        level, so nothing here can plot a coordinate for a public visitor and
+        the map never mounts on this page. What renders is §30's label, the
+        last recorded place, and §23's text equivalent.
+      */}
+      <LocationPanel
+        headingId="track-location-heading"
+        level={tracking.location_visibility}
+        trackingMode={tracking.tracking_mode}
+        currentCity={tracking.current_city}
+        currentState={tracking.current_state}
+        currentLatitude={tracking.current_latitude}
+        currentLongitude={tracking.current_longitude}
+        lastLocationAt={tracking.last_location_at}
+        readings={tracking.locations}
+      />
 
       {/* ── update history — §25-bounded ── */}
       <section className="track-section" aria-labelledby="track-events-heading">

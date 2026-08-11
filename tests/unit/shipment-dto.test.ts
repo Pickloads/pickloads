@@ -263,6 +263,10 @@ const PUBLIC_KEYS = [
   "cancelled_at",
   "events",
   "exceptions",
+  // M-80 — §9's location history. Present at every audience; what VARIES is
+  // its contents, not the key, for the same non-signalling reason the
+  // current-position block nulls rather than omits.
+  "locations",
 ];
 
 const PUBLIC_EVENT_KEYS = [
@@ -335,6 +339,7 @@ describe("public DTO key set (§4, §19)", () => {
     expect(Object.keys(sparse).sort()).toEqual([...PUBLIC_KEYS].sort());
     expect(sparse.events).toEqual([]);
     expect(sparse.exceptions).toEqual([]);
+    expect(sparse.locations).toEqual([]);
   });
 
   it("ANTI-VACUITY: the same assertion fails on a widened allow-list", () => {
@@ -414,6 +419,7 @@ describe("audience key sets", () => {
     "cancellation_reason",
     "events",
     "exceptions",
+    "locations",
   ];
 
   it("shipper DTO exposes no financial column at all", () => {

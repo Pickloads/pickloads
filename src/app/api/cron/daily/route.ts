@@ -7,6 +7,7 @@ import {
   InternalNotification,
   type NotificationRow,
 } from "@/emails/InternalNotification";
+import { purgeExpiredLocations } from "@/lib/shipments/locations";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,17 @@ export const dynamic = "force-dynamic";
  *    window, every run.
  * 2. Callbacks due today (open leads): one digest per assigned dispatcher,
  *    unassigned callbacks to the internal inbox.
+ * 3. **M-80 — §9's location-history retention purge.** The executor
+ *    `docs/FINAL-IMPLEMENTATION-PLAN` §4 records as missing ("a policy with
+ *    no purger"). Deletes `shipment_locations` rows past the configurable
+ *    `location_retention_days` window. It runs HERE rather than on its own
+ *    schedule for two reasons: the work is a single bounded statement, and a
+ *    second cron entry is a second thing to forget to configure — this route
+ *    is already in `vercel.json`, already `CRON_SECRET`-guarded and already
+ *    the place an operator looks when a daily job did not run. The batch
+ *    bound means a backlog drains over several nights rather than locking
+ *    the table once; `moreRemaining` in the response says when that is
+ *    happening.
  *
  * Uses the ADMIN client throughout: a cron has no user session, and it needs
  * auth-email lookups (profiles carries no email column). Graceful: without
@@ -202,9 +214,22 @@ export async function GET(request: Request) {
     callbackDigests += 1;
   }
 
+  /* ------------- 3. §9 location-history retention purge ------------- */
+  // Never allowed to break the digests above: a failed purge is reported in
+  // the response and logged as §26's `location_provider_failure`, and the
+  // insurance and callback alerts still went out.
+  const retention = await purgeExpiredLocations();
+
   return NextResponse.json({
     ok: true,
     date: todayUtc,
+    locationRetention: {
+      ok: retention.ok,
+      retentionDays: retention.retentionDays,
+      deleted: retention.deleted,
+      moreRemaining: retention.moreRemaining,
+      ...(retention.reason ? { reason: retention.reason } : {}),
+    },
     insurance: {
       expiringWithin30d: digestRows.length,
       carrierAlertsSent: carrierAlerts,

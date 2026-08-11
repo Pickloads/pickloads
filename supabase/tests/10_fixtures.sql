@@ -624,3 +624,82 @@ insert into shipment_notification_attempts (
 
 insert into notification_suppressions (email, scope, reason) values
   ('dock@shipper-a.test', 'shipment', 'fixture: customer opt-out via token');
+
+-- ---------------------------------------------------------------------------
+-- M-80 (0027) — §9's location series and Mode B provider connections.
+--
+-- THREE THINGS THESE FIXTURES MAKE TESTABLE:
+--
+--   1. `raw_metadata` carries a SENTINEL on every row, so "no customer path
+--      returns the raw provider payload" is asserted against a string that is
+--      genuinely there for staff rather than against an empty column.
+--   2. Shipment A is `approximate` and shipment B is `hidden` (set in the
+--      shipments block above), so the two ends of §9's privacy scale are both
+--      live without any assertion having to mutate a row first.
+--   3. One reading carries COORDINATES and a SPEED. Without it, "the customer
+--      accessor nulls the coordinates at `approximate`" would pass on a row
+--      that never had any.
+--
+-- NOTE: one row per shipment already exists before this block runs — 0027's
+-- `trg_shipment_events_location_mirror` created it from the fixture
+-- `shipment_events` that carry a city. That is the Mode A history §9 asks
+-- for, produced with no call-site change anywhere, and 20_rls_isolation.sql
+-- asserts it explicitly.
+-- ---------------------------------------------------------------------------
+
+insert into shipment_locations (
+  id, shipment_id, recorded_at, latitude, longitude, city, state,
+  speed_mph, heading_degrees, source, provider, external_event_id,
+  raw_metadata, retention_expires_at
+) values
+  -- Provider-shaped reading WITH a fix and a speed (§9 Mode C).
+  ('1c1c1c1c-1c1c-1c1c-1c1c-1c1c1c1c0a01', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   now() - interval '2 hours', 37.5407, -77.4360, 'Richmond', 'VA',
+   62.0, 190, 'eld', 'motive', 'motive:evt-0a01',
+   '{"vendor":"SENTINEL-RAW-PROVIDER-PAYLOAD-DO-NOT-LEAK"}'::jsonb,
+   now() + interval '90 days'),
+  -- Manual (Mode A) reading: a place, no position. The launch-day shape.
+  ('1c1c1c1c-1c1c-1c1c-1c1c-1c1c1c1c0a02', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   now() - interval '8 hours', null, null, 'Baltimore', 'MD',
+   null, null, 'dispatcher', null, null,
+   '{"note":"SENTINEL-RAW-PROVIDER-PAYLOAD-DO-NOT-LEAK"}'::jsonb,
+   now() + interval '90 days'),
+  -- ALREADY EXPIRED, so the retention purge has something real to delete and
+  -- "the purger deletes" is not a vacuous assertion.
+  ('1c1c1c1c-1c1c-1c1c-1c1c-1c1c1c1c0a03', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   now() - interval '400 days', null, null, 'Newark', 'NJ',
+   null, null, 'dispatcher', null, null,
+   '{"note":"SENTINEL-RAW-PROVIDER-PAYLOAD-DO-NOT-LEAK"}'::jsonb,
+   now() - interval '310 days'),
+  -- TEN DAYS OLD and inside the 90-day window. This is the row that makes
+  -- "shortening the window takes effect immediately" testable: it survives a
+  -- 90-day purge and is deleted by a 1-day one.
+  ('1c1c1c1c-1c1c-1c1c-1c1c-1c1c1c1c0a04', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   now() - interval '10 days', null, null, 'Charlotte', 'NC',
+   null, null, 'dispatcher', null, null,
+   '{"note":"SENTINEL-RAW-PROVIDER-PAYLOAD-DO-NOT-LEAK"}'::jsonb,
+   now() + interval '80 days'),
+  -- Shipment B, so every cross-tenant zero is a policy result too.
+  ('1c1c1c1c-1c1c-1c1c-1c1c-1c1c1c1c0b01', 'ffffffff-ffff-ffff-ffff-ffffffff0b01',
+   now() - interval '3 hours', 41.8781, -87.6298, 'Chicago', 'IL',
+   58.0, 95, 'gps', 'samsara', 'samsara:evt-0b01',
+   '{"vendor":"SENTINEL-RAW-PROVIDER-PAYLOAD-DO-NOT-LEAK"}'::jsonb,
+   now() + interval '90 days');
+
+-- §9 Mode B. `tracking_url` is a plausible OPAQUE share link and carries a
+-- sentinel, because "no customer path returns the tracking URL" is the other
+-- claim this table has to survive.
+insert into tracking_provider_connections (
+  id, shipment_id, provider, external_tracking_id, tracking_url,
+  expires_at, consent_status, active, connected_by, last_error
+) values
+  ('2c2c2c2c-2c2c-2c2c-2c2c-2c2c2c2c0a01', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'motive', 'veh-0a01',
+   'https://share.example.test/t/SENTINEL-TRACKING-URL-DO-NOT-LEAK',
+   now() + interval '2 days', 'granted', true,
+   '00000000-0000-0000-0000-0000000000e1', null),
+  ('2c2c2c2c-2c2c-2c2c-2c2c-2c2c2c2c0b01', 'ffffffff-ffff-ffff-ffff-ffffffff0b01',
+   'samsara', 'veh-0b01',
+   'https://share.example.test/t/SENTINEL-TRACKING-URL-DO-NOT-LEAK-B',
+   now() - interval '1 day', 'revoked', false,
+   '00000000-0000-0000-0000-0000000000e1', 'fixture: expired');

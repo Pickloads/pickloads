@@ -319,7 +319,10 @@ describe("tracking result — §30 honesty and §4 exposure", () => {
 
   it("says milestone tracking — never live tracking — in manual mode", () => {
     const { container } = renderResult();
-    expect(screen.getByText("Milestone tracking")).toBeTruthy();
+    // M-80 — the label now appears TWICE: the header note M-73 shipped, and
+    // the location panel's badge. `getAllByText` rather than `getByText`, and
+    // the count is asserted so a future third copy is a visible decision.
+    expect(screen.getAllByText("Milestone tracking")).toHaveLength(2);
     const text = (container.textContent ?? "").toLowerCase();
     for (const claim of [
       "live tracking",
@@ -333,7 +336,11 @@ describe("tracking result — §30 honesty and §4 exposure", () => {
 
   it("says the location is unavailable rather than inventing one", () => {
     renderResult({ current_city: null, current_state: null, last_location_at: null });
-    expect(screen.getByText("Location temporarily unavailable")).toBeTruthy();
+    // M-80: the header note and the location panel both say it — the badge,
+    // and the panel's current-position line. Neither invents a place.
+    expect(
+      screen.getAllByText("Location temporarily unavailable").length,
+    ).toBeGreaterThanOrEqual(2);
   });
 
   it("D-6: translates a library phrase and LABELS novel free text", () => {

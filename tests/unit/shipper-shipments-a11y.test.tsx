@@ -431,6 +431,7 @@ function renderDetail(
       documents={DOCUMENTS}
       documentsFailed={false}
       documentsHasMore={false}
+      locationsFailed={false}
       historyHasMore={false}
       historyMoreHref={null}
       historyPaged={false}
@@ -748,9 +749,20 @@ describe("detail structure (§11, §22, §23, §30)", () => {
     const slot = container.querySelector('[data-testid="shipment-map-slot"]')!;
     expect(slot).not.toBeNull();
     expect(slot.textContent).toContain("Milestone tracking");
-    expect(slot.textContent).toContain("does not show a live GPS position");
-    // No canvas, no iframe, no tile container — nothing that looks like a map.
+    /*
+     * M-80 replaced M-74's placeholder sentence with the shared panel's
+     * `shipment.location.manual_note`, which is MORE specific: it names the
+     * missing thing ("not connected to a GPS or ELD provider") rather than
+     * only denying a live position. The assertion moves with the copy.
+     */
+    expect(slot.textContent).toContain(
+      "not connected to a GPS or ELD provider",
+    );
+    // Still no canvas, no iframe, no image and no SVG: this fixture has no
+    // disclosed coordinate, so `mapMayMount` is false and the lazy chunk is
+    // never even requested. The accessible text alternative is what renders.
     expect(slot.querySelector("canvas, iframe, img, svg")).toBeNull();
+    expect(slot.textContent).toContain("Recorded location updates");
   });
 
   it("§30: no forbidden claim anywhere in the rendered detail view", () => {

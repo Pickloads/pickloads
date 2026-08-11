@@ -598,6 +598,12 @@ import type {
   ShipmentExceptionRow,
   ShipmentExceptionSeverity,
   ShipmentExceptionType,
+  /** M-80 (0027) — §9's location series and Mode B/C provider connections. */
+  ShipmentLocationRow,
+  ShipmentLocationVisibility,
+  TrackingProvider,
+  TrackingConsentStatus,
+  TrackingProviderConnectionRow,
 } from "@/lib/shipments/types";
 
 /**
@@ -1037,6 +1043,39 @@ export type Database = {
         Update: Partial<NotificationSuppressionRow>;
         Relationships: [];
       };
+      /* M-80 (0027) — §9's PURGEABLE position series.
+       *
+       * STAFF-ONLY at the table level, for the same reason `shipment_
+       * exceptions` is: a ROW policy cannot restrict a COLUMN, `raw_metadata`
+       * is a third party's payload, and staff share `authenticated` with
+       * customers so a column REVOKE would blind dispatch. Customers read
+       * `my_shipment_locations()` instead, whose RETURN TYPE is the
+       * allow-list and which applies §9's four privacy levels in SQL.
+       *
+       * `Insert`/`Update` are unreachable from `src/`: the only writers are
+       * `record_shipment_location()` (service_role) and 0027's
+       * `shipment_events` mirror trigger, and UPDATE is refused outright by
+       * `trg_shipment_locations_no_update`. DELETE belongs to
+       * `purge_expired_shipment_locations()` alone. */
+      shipment_locations: {
+        Row: AsRow<ShipmentLocationRow>;
+        Insert: Insertable<AsRow<ShipmentLocationRow>, "shipment_id" | "source">;
+        Update: Partial<AsRow<ShipmentLocationRow>>;
+        Relationships: [];
+      };
+      /* M-80 (0027) — §9 Mode B's per-shipment tracking link and Mode C
+       * groundwork. STAFF ONLY: no customer policy exists, and `tracking_url`
+       * reaches no customer DTO at any audience. Holds NO integration
+       * credential (§15) — a CHECK refuses credential-shaped URLs. */
+      tracking_provider_connections: {
+        Row: AsRow<TrackingProviderConnectionRow>;
+        Insert: Insertable<
+          AsRow<TrackingProviderConnectionRow>,
+          "shipment_id" | "provider"
+        >;
+        Update: Partial<AsRow<TrackingProviderConnectionRow>>;
+        Relationships: [];
+      };
       broker_partners: {
         Row: BrokerPartnerRow;
         Insert: Insertable<BrokerPartnerRow, "company_name">;
@@ -1460,6 +1499,98 @@ export type Database = {
           attempts: number;
           available_at: string;
         };
+      };
+
+      /* ---------- M-80 (0027) — §9's locations, providers and retention ----
+       *
+       * Five are SECURITY DEFINER with EXECUTE granted to `service_role`
+       * alone (`src/lib/shipments/locations.ts` is the only caller in
+       * `src/`); `my_shipment_locations` is the ONE granted to
+       * `authenticated`, because it is a READ whose projection and audience
+       * resolution are the security control. */
+
+      /** The customer location history. Audience resolved from the caller's
+       *  own memberships INSIDE the function; §9's four privacy levels
+       *  applied in SQL; the return type carries no `raw_metadata`, no
+       *  `external_event_id` and no `provider`. */
+      my_shipment_locations: {
+        Args: { p_shipment_id: string; p_limit?: number };
+        Returns: {
+          recorded_at: string;
+          city: string | null;
+          state: string | null;
+          latitude: number | null;
+          longitude: number | null;
+          speed_mph: number | null;
+          source: ShipmentEventSource;
+        }[];
+      };
+      /** Ingest one reading. Dedupes on the partial unique index and reports
+       *  which happened; advances `shipments.current_*` only when the reading
+       *  is NEWER than what is on the row. */
+      record_shipment_location: {
+        Args: {
+          p_shipment_id: string;
+          p_recorded_at?: string | null;
+          p_latitude?: number | null;
+          p_longitude?: number | null;
+          p_city?: string | null;
+          p_state?: string | null;
+          p_speed_mph?: number | null;
+          p_heading_degrees?: number | null;
+          p_source?: ShipmentEventSource;
+          p_provider?: TrackingProvider | null;
+          p_external_event_id?: string | null;
+          p_raw_metadata?: Record<string, unknown>;
+        };
+        Returns: { deduped: boolean; location_id: string | null };
+      };
+      /** §9's four levels, write side. Narrowing is a dispatcher action;
+       *  WIDENING is admin only (PL403) — see
+       *  `src/lib/shipments/location-visibility.ts`. */
+      set_shipment_location_visibility: {
+        Args: {
+          p_shipment_id: string;
+          p_level: ShipmentLocationVisibility;
+          p_actor_id: string | null;
+          p_actor_role: string;
+        };
+        Returns: unknown;
+      };
+      /** Attach a Mode B link, revoking any active one in the same
+       *  statement. */
+      attach_tracking_provider_connection: {
+        Args: {
+          p_shipment_id: string;
+          p_provider: TrackingProvider;
+          p_external_tracking_id?: string | null;
+          p_tracking_url?: string | null;
+          p_expires_at?: string | null;
+          p_consent_status?: TrackingConsentStatus;
+          p_actor_id?: string | null;
+        };
+        Returns: unknown;
+      };
+      revoke_tracking_provider_connection: {
+        Args: {
+          p_connection_id: string;
+          p_actor_id?: string | null;
+          p_reason?: string | null;
+        };
+        Returns: unknown;
+      };
+      /** THE RETENTION EXECUTOR (§9). Bounded per call; returns the window
+       *  used, the cutoff, the number deleted and whether more remain.
+       *  Called nightly by `/api/cron/daily`. */
+      purge_expired_shipment_locations: {
+        Args: { p_retention_days?: number | null; p_limit?: number | null };
+        Returns: unknown;
+      };
+      /** The configured window in days. Fails safe to 90 — never to
+       *  "keep forever". */
+      location_retention_days: {
+        Args: Record<string, never>;
+        Returns: number;
       };
     };
   };

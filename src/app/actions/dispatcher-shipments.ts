@@ -34,6 +34,9 @@ import {
   resolveExceptionSchema,
   statusUpdateSchema,
   triageExceptionSchema,
+  locationVisibilitySchema,
+  providerLinkSchema,
+  revokeProviderLinkSchema,
 } from "@/lib/validation/dispatcher-shipments";
 /* M-76 — §13's driver-link lifecycle reuses the carrier module's schemas
  * rather than declaring a second pair: the dispatcher and carrier issuance
@@ -79,6 +82,16 @@ import {
   resolveStaffActor,
   type ShipmentAccessGrant,
 } from "@/lib/shipments/staff-access";
+import {
+  attachProviderConnection,
+  revokeProviderConnection,
+  setShipmentLocationVisibility,
+} from "@/lib/shipments/locations";
+import {
+  LOCATION_VISIBILITY_LABELS,
+  LOCATION_VISIBILITY_REFUSAL_MESSAGES,
+  mayChangeLocationVisibility,
+} from "@/lib/shipments/location-visibility";
 import type { ShipmentStatus } from "@/lib/shipments/types";
 
 /**
@@ -1339,4 +1352,169 @@ export async function revokeDriverTokenAction(
       ? "That link was already revoked."
       : "Driver link revoked. It stops working immediately.",
   );
+}
+
+/* ================================================================== *
+ * 16 · M-80 — §9's four privacy levels, write side
+ * ================================================================== */
+
+/**
+ * Move a shipment's location visibility.
+ *
+ * THREE LAYERS, and they are not redundant:
+ *
+ *   1. **Zod** — the posted value is one of §9's four levels, or nothing
+ *      happens.
+ *   2. **`mayChangeLocationVisibility`** — the DIRECTION rule, applied before
+ *      a round trip, so a dispatcher who tries to widen gets a sentence
+ *      explaining what to do next rather than a database error code.
+ *   3. **0027's `set_shipment_location_visibility()`** — the same rank
+ *      comparison inside the database, which is the authority. If this action
+ *      were ever bypassed, that layer still refuses with `PL403`.
+ *
+ * Layer 2 exists for the message, not for the security. Saying so is better
+ * than letting a future reader assume the app-level check is what protects
+ * the setting.
+ */
+export async function setLocationVisibilityAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const access = await gate(formData);
+  if (!access.ok) return error(access.message);
+
+  const parsed = locationVisibilitySchema.safeParse({
+    shipment_id: field(formData, "shipment_id"),
+    level: field(formData, "level"),
+  });
+  if (!parsed.success) return error(firstIssueMessage(parsed.error));
+
+  const decision = mayChangeLocationVisibility(
+    access.actorRole,
+    access.locationVisibility,
+    parsed.data.level,
+  );
+  if (!decision.allowed) {
+    return error(
+      LOCATION_VISIBILITY_REFUSAL_MESSAGES[decision.refusal ?? "unknown_level"],
+    );
+  }
+
+  const result = await setShipmentLocationVisibility({
+    shipmentId: access.shipmentId,
+    level: parsed.data.level,
+    actorId: access.session.userId,
+    actorRole: access.actorRole,
+  });
+  if (!result.ok) return error(result.message);
+
+  refresh(access.shipmentId);
+  return ok(
+    `Location visibility is now "${LOCATION_VISIBILITY_LABELS[parsed.data.level].label}". Customers see the change on their next page load.`,
+  );
+}
+
+/* ================================================================== *
+ * 17 · M-80 — §9 Mode B per-shipment tracking link
+ * ================================================================== */
+
+/**
+ * Attach a provider tracking link.
+ *
+ * NO PROVIDER IS CONNECTED, and this action does not pretend otherwise: it
+ * records a link a dispatcher was given out of band and its lifecycle
+ * (expiry, consent, revocation). It fetches nothing, polls nothing and
+ * produces no position — `src/lib/shipments/providers/` has no transport for
+ * any named vendor, by §9's own instruction not to implement a fake
+ * connection.
+ *
+ * What attaching DOES change is the shipment's `tracking_mode`, which is what
+ * §30's honest labels key on: with a live link the surfaces may say "Live
+ * location available" once a reading exists; without one they say "Milestone
+ * tracking", which is the truth today.
+ */
+export async function attachProviderLinkAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const access = await gate(formData);
+  if (!access.ok) return error(access.message);
+
+  const parsed = providerLinkSchema.safeParse({
+    shipment_id: field(formData, "shipment_id"),
+    provider: field(formData, "provider"),
+    external_tracking_id: field(formData, "external_tracking_id"),
+    tracking_url: field(formData, "tracking_url"),
+    expires_at: field(formData, "expires_at"),
+    consent_status: field(formData, "consent_status"),
+  });
+  if (!parsed.success) return error(firstIssueMessage(parsed.error));
+
+  if (
+    parsed.data.tracking_url === null &&
+    parsed.data.external_tracking_id === null
+  ) {
+    return error(
+      "Give the driver-location link, the provider's tracking ID, or both — a connection that names neither connects to nothing.",
+    );
+  }
+
+  const result = await attachProviderConnection({
+    shipmentId: access.shipmentId,
+    provider: parsed.data.provider,
+    externalTrackingId: parsed.data.external_tracking_id,
+    trackingUrl: parsed.data.tracking_url,
+    expiresAt: parsed.data.expires_at,
+    consentStatus: parsed.data.consent_status,
+    actorId: access.session.userId,
+  });
+  if (!result.ok) return error(result.message);
+
+  refresh(access.shipmentId);
+  return ok(
+    "Tracking link attached. It is staff-only: no customer surface shows the link itself, and no position is fetched — PickLoads has no telematics connection.",
+  );
+}
+
+/**
+ * Revoke one connection.
+ *
+ * The gate proved this staff member may act on this SHIPMENT; it has not
+ * proved the posted connection belongs to it. Same reasoning, and same
+ * scoping read, as `revokeDriverTokenAction` above — without it a dispatcher
+ * could revoke any connection in the system by posting its id.
+ */
+export async function revokeProviderLinkAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const access = await gate(formData);
+  if (!access.ok) return error(access.message);
+
+  const parsed = revokeProviderLinkSchema.safeParse({
+    shipment_id: field(formData, "shipment_id"),
+    connection_id: field(formData, "connection_id"),
+    reason: field(formData, "reason"),
+  });
+  if (!parsed.success) return error(firstIssueMessage(parsed.error));
+
+  const supabase = await createClient();
+  const { data: connection } = await supabase
+    .from("tracking_provider_connections")
+    .select("id, shipment_id")
+    .eq("id", parsed.data.connection_id)
+    .eq("shipment_id", access.shipmentId)
+    .maybeSingle();
+  if (!connection) return error("That connection is not on this shipment.");
+
+  const result = await revokeProviderConnection({
+    connectionId: parsed.data.connection_id,
+    shipmentId: access.shipmentId,
+    actorId: access.session.userId,
+    reason: parsed.data.reason,
+  });
+  if (!result.ok) return error(result.message);
+
+  refresh(access.shipmentId);
+  return ok("Tracking link revoked. This shipment is milestone-tracked again.");
 }

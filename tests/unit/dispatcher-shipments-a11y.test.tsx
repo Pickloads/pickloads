@@ -2,6 +2,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import axe from "axe-core";
+import { NextIntlClientProvider } from "next-intl";
+
+import messages from "../../messages/en.json";
 
 import {
   BOARD_COLUMNS,
@@ -23,8 +26,11 @@ import type {
 } from "@/lib/shipments/staff-detail";
 import type {
   ShipmentExceptionRow,
+  ShipmentLocationRow,
   ShipmentPartyRow,
+  TrackingProviderConnectionRow,
 } from "@/lib/shipments/types";
+import { providerStatuses } from "@/lib/shipments/providers";
 
 /**
  * M-75 — §22/§23 for the three new staff routes, scanned with axe-core against
@@ -97,6 +103,10 @@ vi.mock("@/app/actions/dispatcher-shipments", () => {
     setAppointmentAction: noop,
     updateEtaAction: noop,
     updateStatusAction: noop,
+    // M-80 — §9's visibility control and Mode B's link lifecycle.
+    setLocationVisibilityAction: noop,
+    attachProviderLinkAction: noop,
+    revokeProviderLinkAction: noop,
   };
 });
 
@@ -370,43 +380,127 @@ const STAFF_DOCUMENTS: StaffDocumentView[] = [
   },
 ];
 
-function detail(overrides: Partial<Parameters<typeof ShipmentStaffDetailView>[0]> = {}) {
+/**
+ * M-80 — §9 readings and ONE ACTIVE Mode B link.
+ *
+ * Coordinates are present on purpose: the staff panel is the only audience
+ * that always receives them, so this is where the map can actually mount and
+ * where the axe scan therefore covers the SVG as well as the text equivalent.
+ */
+const STAFF_LOCATIONS: ShipmentLocationRow[] = [
+  {
+    id: "loc-1",
+    shipment_id: SHIPMENT.id,
+    recorded_at: "2026-09-04T14:00:00.000Z",
+    latitude: 37.5407,
+    longitude: -77.436,
+    city: "Richmond",
+    state: "VA",
+    speed_mph: 61,
+    heading_degrees: 190,
+    source: "dispatcher",
+    provider: null,
+    external_event_id: null,
+    raw_metadata: null,
+    retention_expires_at: "2026-12-03T14:00:00.000Z",
+  },
+  {
+    id: "loc-2",
+    shipment_id: SHIPMENT.id,
+    recorded_at: "2026-09-03T14:00:00.000Z",
+    latitude: 39.2904,
+    longitude: -76.6122,
+    city: "Baltimore",
+    state: "MD",
+    speed_mph: null,
+    heading_degrees: null,
+    source: "dispatcher",
+    provider: null,
+    external_event_id: null,
+    raw_metadata: null,
+    retention_expires_at: null,
+  },
+];
+
+const PROVIDER_CONNECTIONS: TrackingProviderConnectionRow[] = [
+  {
+    id: "conn-1",
+    shipment_id: SHIPMENT.id,
+    provider: "motive",
+    external_tracking_id: "veh-9911",
+    tracking_url: "https://track.example.test/s/opaque-share-id",
+    expires_at: "2026-09-10T00:00:00.000Z",
+    consent_status: "granted",
+    active: true,
+    connected_by: "u-1",
+    connected_at: "2026-09-01T00:00:00.000Z",
+    last_polled_at: null,
+    last_error: null,
+  },
+];
+
+/** The real registry, so the contract table is the shipped one. */
+const PROVIDER_STATUSES = providerStatuses();
+
+/**
+ * M-80 — the staff detail view now embeds `LocationPanel`, which is shared
+ * verbatim with `/track` and the shipper portal and therefore reads the
+ * `shipment` i18n namespace. The dispatcher page is English-only staff
+ * chrome, but it renders inside `[locale]/layout.tsx`'s
+ * `NextIntlClientProvider` in production, so the harness supplies the same
+ * context rather than forking the component into a translation-free copy.
+ */
+function detail(
+  overrides: Partial<Parameters<typeof ShipmentStaffDetailView>[0]> = {},
+) {
   return (
-    <ShipmentStaffDetailView
-      shipment={SHIPMENT}
-      events={EVENTS}
-      nextCursor="2026-09-02T08:00:00.000Z"
-      historyFailed={false}
-      assignments={ASSIGNMENTS}
-      parties={PARTIES}
-      carriers={[{ id: "c-1", label: "Probe Carrier" }]}
-      staff={[{ id: "u-2", label: "Other Dispatcher" }]}
-      drivers={[{ id: "d-1", label: "A Driver" }]}
-      trucks={[{ id: "t-1", label: "101 · Reefer" }]}
-      availableTransitions={["arrived_at_delivery", "delayed", "cancelled"]}
-      isAdmin
-      carrierNames={{ "c-1": "Probe Carrier" }}
-      /* M-76 — §13's driver links. One ACTIVE link by default so the block is
+    <NextIntlClientProvider locale="en" messages={messages}>
+      <ShipmentStaffDetailView
+        shipment={SHIPMENT}
+        events={EVENTS}
+        nextCursor="2026-09-02T08:00:00.000Z"
+        historyFailed={false}
+        assignments={ASSIGNMENTS}
+        parties={PARTIES}
+        carriers={[{ id: "c-1", label: "Probe Carrier" }]}
+        staff={[{ id: "u-2", label: "Other Dispatcher" }]}
+        drivers={[{ id: "d-1", label: "A Driver" }]}
+        trucks={[{ id: "t-1", label: "101 · Reefer" }]}
+        availableTransitions={["arrived_at_delivery", "delayed", "cancelled"]}
+        isAdmin
+        carrierNames={{ "c-1": "Probe Carrier" }}
+        /* M-76 — §13's driver links. One ACTIVE link by default so the block is
          non-vacuous: with an empty list every assertion about the table would
          be true whether or not it rendered. */
-      driverTokens={DRIVER_TOKENS}
-      driverTokensFailed={false}
-      driverLinksEnabled
-      /* M-77 — one PENDING and one APPROVED document, so the review controls
+        driverTokens={DRIVER_TOKENS}
+        driverTokensFailed={false}
+        driverLinksEnabled
+        /* M-77 — one PENDING and one APPROVED document, so the review controls
          and the "already decided" branch are both exercised. */
-      documents={STAFF_DOCUMENTS}
-      documentsFailed={false}
-      documentsHasMore={false}
-      exceptions={STAFF_EXCEPTIONS}
-      exceptionsFailed={false}
-      {...overrides}
-    />
+        documents={STAFF_DOCUMENTS}
+        documentsFailed={false}
+        documentsHasMore={false}
+        exceptions={STAFF_EXCEPTIONS}
+        exceptionsFailed={false}
+        /* M-80 — §9's location history and a live Mode B link, so the panel,
+         the text equivalent and the connection table are all non-vacuous. */
+        locations={STAFF_LOCATIONS}
+        locationsFailed={false}
+        connections={PROVIDER_CONNECTIONS}
+        connectionsFailed={false}
+        providers={PROVIDER_STATUSES}
+        {...overrides}
+      />
+    </NextIntlClientProvider>
   );
 }
 
 async function scan(): Promise<axe.Result[]> {
   const results = await axe.run(document.body, {
-    runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] },
+    runOnly: {
+      type: "tag",
+      values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"],
+    },
   });
   return results.violations;
 }
@@ -545,7 +639,9 @@ describe("§23 — axe on the shipment detail page", () => {
 
   it("has no violations when the history fails to load", async () => {
     render(
-      <main>{detail({ events: [], nextCursor: null, historyFailed: true })}</main>,
+      <main>
+        {detail({ events: [], nextCursor: null, historyFailed: true })}
+      </main>,
     );
     expect(await scan()).toEqual([]);
   });

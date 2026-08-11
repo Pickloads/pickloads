@@ -22,6 +22,9 @@ import {
   updateStatusAction,
   issueDriverTokenAction,
   revokeDriverTokenAction,
+  setLocationVisibilityAction,
+  attachProviderLinkAction,
+  revokeProviderLinkAction,
 } from "@/app/actions/dispatcher-shipments";
 import { initialFormState, type FormState } from "@/lib/form-state";
 import {
@@ -34,8 +37,15 @@ import {
   DISPATCHER_ETA_SOURCES,
   SHIPMENT_EXCEPTION_SEVERITIES,
   SHIPMENT_EXCEPTION_TYPES,
+  SHIPMENT_LOCATION_VISIBILITIES,
+  TRACKING_CONSENT_STATUSES,
+  type ShipmentLocationVisibility,
   type ShipmentStatus,
 } from "@/lib/shipments/types";
+import {
+  LOCATION_VISIBILITY_LABELS,
+  LOCATION_VISIBILITY_RANK,
+} from "@/lib/shipments/location-visibility";
 import {
   CALL_DIRECTIONS,
   CALL_PARTIES,
@@ -1399,6 +1409,196 @@ export function RevokeDriverLinkForm({
     <form action={formAction}>
       <Hidden id={shipmentId} />
       <input type="hidden" name="token_id" value={tokenId} />
+      <button className="btn btn-ghost btn-sm" type="submit" aria-busy={pending}>
+        Revoke
+      </button>
+      {state.status === "error" && state.message ? (
+        <span className="err-msg" role="alert">
+          {state.message}
+        </span>
+      ) : null}
+    </form>
+  );
+}
+
+/* ================================================================== *
+ * M-80 — §9's four privacy levels, and Mode B tracking links
+ * ================================================================== */
+
+/**
+ * The location-visibility control.
+ *
+ * The four levels are `<input type="radio">`, not a `<select>`: this is a
+ * privacy decision, all four options need their consequence spelled out
+ * beside them, and a dropdown hides three of the four until you open it. The
+ * consequence text is `LOCATION_VISIBILITY_LABELS[…].help`, one source shared
+ * with the doc.
+ *
+ * A DISPATCHER SEES ALL FOUR AND CAN CHOOSE ANY. The direction rule (widening
+ * is admin-only) is NOT enforced by hiding options, because a hidden option
+ * teaches nothing — the radio is disabled with a visible reason instead, so a
+ * dispatcher learns that widening exists and who to ask. The action refuses it
+ * again, and 0027 refuses it a third time; this layer is for the explanation.
+ */
+export function LocationVisibilityForm({
+  shipmentId,
+  current,
+  isAdmin,
+}: {
+  shipmentId: string;
+  current: ShipmentLocationVisibility;
+  isAdmin: boolean;
+}) {
+  return (
+    <ActionCard
+      title="Customer location visibility"
+      description={
+        <>
+          How much of this truck&apos;s position the shipper, carrier and
+          broker see. The PUBLIC tracking page is capped at city and state at
+          every level. Narrowing is a dispatcher action; widening is an admin
+          action.
+        </>
+      }
+      action={setLocationVisibilityAction}
+      submitLabel="Save visibility"
+      busyLabel="Saving…"
+      tone="ghost"
+    >
+      <Hidden id={shipmentId} />
+      <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
+        <legend>Location visibility</legend>
+        {SHIPMENT_LOCATION_VISIBILITIES.map((level) => {
+          const widening =
+            LOCATION_VISIBILITY_RANK[level] > LOCATION_VISIBILITY_RANK[current];
+          const blocked = widening && !isAdmin;
+          return (
+            <label
+              key={level}
+              htmlFor={`lv-${level}`}
+              style={{ display: "block", textTransform: "none", margin: "8px 0" }}
+            >
+              <input
+                id={`lv-${level}`}
+                type="radio"
+                name="level"
+                value={level}
+                defaultChecked={level === current}
+                disabled={blocked}
+                style={{ width: "auto", minHeight: 20, marginRight: 8 }}
+              />
+              {LOCATION_VISIBILITY_LABELS[level].label}
+              {level === current ? " — current" : ""}
+              {blocked ? " — admin only" : ""}
+              <span className="pempty" style={{ display: "block", padding: 0 }}>
+                {LOCATION_VISIBILITY_LABELS[level].help}
+              </span>
+            </label>
+          );
+        })}
+      </fieldset>
+    </ActionCard>
+  );
+}
+
+/**
+ * §9 Mode B — attach a per-shipment driver-location link.
+ *
+ * THE HONEST FRAMING IS PART OF THE UI, not only the doc: the card says in
+ * its own description that PickLoads holds no telematics connection, that
+ * nothing is fetched, and that the link is staff-only. A dispatcher who
+ * pastes a link here should not come away believing a map is about to appear.
+ */
+export function ProviderLinkForm({
+  shipmentId,
+  providers,
+}: {
+  shipmentId: string;
+  /** From `providerStatuses()` — vendor names and whether env vars exist. */
+  providers: readonly { provider: string; displayName: string; configured: boolean }[];
+}) {
+  return (
+    <ActionCard
+      title="Tracking provider link"
+      description={
+        <>
+          Record a driver-location link a provider gave you, with its expiry
+          and consent state. <strong>No provider is connected:</strong>{" "}
+          PickLoads fetches nothing and stores no API credentials — those live
+          in environment variables, never in the database. The link is
+          staff-only; no customer surface shows it.
+        </>
+      }
+      action={attachProviderLinkAction}
+      submitLabel="Attach link"
+      busyLabel="Attaching…"
+      tone="ghost"
+    >
+      <Hidden id={shipmentId} />
+      <div className="field">
+        <label htmlFor="tp-provider">Provider</label>
+        <select id="tp-provider" name="provider" defaultValue="other">
+          {providers.map((p) => (
+            <option key={p.provider} value={p.provider}>
+              {p.displayName}
+              {p.configured ? " (credentials present)" : " (not configured)"}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="field">
+        <label htmlFor="tp-url">Driver-location link (https)</label>
+        <input
+          id="tp-url"
+          name="tracking_url"
+          type="url"
+          inputMode="url"
+          maxLength={2000}
+          placeholder="https://…"
+        />
+      </div>
+      <div className="field">
+        <label htmlFor="tp-ext">Provider tracking ID</label>
+        <input id="tp-ext" name="external_tracking_id" type="text" maxLength={200} />
+      </div>
+      <div className="field">
+        <label htmlFor="tp-exp">Link expires</label>
+        <input id="tp-exp" name="expires_at" type="datetime-local" />
+      </div>
+      <div className="field">
+        <label htmlFor="tp-consent">Driver consent</label>
+        <select id="tp-consent" name="consent_status" defaultValue="pending">
+          {TRACKING_CONSENT_STATUSES.map((c) => (
+            <option key={c} value={c}>
+              {c.replace(/_/g, " ")}
+            </option>
+          ))}
+        </select>
+      </div>
+    </ActionCard>
+  );
+}
+
+/** Revoke one connection. A WRITE, so a form with its own busy + alert. */
+export function RevokeProviderLinkForm({
+  shipmentId,
+  connectionId,
+}: {
+  shipmentId: string;
+  connectionId: string;
+}) {
+  const router = useRouter();
+  const [state, formAction, pending] = useActionState(
+    revokeProviderLinkAction,
+    initialFormState,
+  );
+  useEffect(() => {
+    if (state.status === "success") router.refresh();
+  }, [state, router]);
+  return (
+    <form action={formAction}>
+      <Hidden id={shipmentId} />
+      <input type="hidden" name="connection_id" value={connectionId} />
       <button className="btn btn-ghost btn-sm" type="submit" aria-busy={pending}>
         Revoke
       </button>
