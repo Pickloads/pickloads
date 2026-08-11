@@ -1,4 +1,6 @@
 import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
+import { resolve } from "node:path";
 
 /**
  * M-82 — regenerate the browser-harness fixtures before the Playwright run.
@@ -26,8 +28,24 @@ const SUITES = [
   "tests/unit/shipment-map-a11y.test.tsx",
 ];
 
+/**
+ * vitest's real entry script, resolved from this package's own dependency.
+ *
+ * Anchored on the project's `package.json` rather than `import.meta.url`:
+ * Playwright loads this setup file as CommonJS, where `import.meta` is a
+ * syntax error. `process.cwd()` is the project root under `playwright test`.
+ */
+const VITEST_BIN = createRequire(resolve(process.cwd(), "package.json")).resolve(
+  "vitest/vitest.mjs",
+);
+
 export default function globalSetup(): void {
-  execFileSync("npx", ["vitest", "run", ...SUITES], {
+  // `npx` is a shell shim (`npx.cmd`) on Windows, so execFileSync cannot find
+  // it without a shell and the whole run dies at setup with a bare
+  // `spawnSync npx ENOENT`. Resolve vitest's own entry point instead: it is a
+  // real .mjs file on every platform, needs no shell, and cannot pick up a
+  // different `vitest` from the PATH.
+  execFileSync(process.execPath, [VITEST_BIN, "run", ...SUITES], {
     stdio: "inherit",
     env: process.env,
   });

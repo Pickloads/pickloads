@@ -13,7 +13,8 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
+    "build:e2e": "node scripts/with-e2e-env.mjs npm run build",
+    "test:e2e": "node scripts/with-e2e-env.mjs npx playwright test",
     "test:rls": "bash scripts/run-rls-tests.sh",
     "test:integration": "bash scripts/run-integration-tests.sh"
   },

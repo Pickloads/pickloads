@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...except the e2e lane's, which is committed on purpose and holds no secret.
+# See .env.e2e's own header for why, and scripts/with-e2e-env.mjs for how it
+# is loaded (explicitly, for two commands, never automatically).
+!.env.e2e
 
 # vercel
 .vercel
