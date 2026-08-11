@@ -402,3 +402,90 @@ insert into shipment_driver_token_access
    'granted', null, '198.51.100.10', 'itest-ua'),
   (null, null, 'not_found', null, '203.0.113.4', 'scanner/1.0'),
   (null, null, 'rate_limited', 'fails=8 total=9', '203.0.113.4', 'scanner/1.0');
+
+-- ===========================================================================
+-- M-77 — shipment_documents fixtures (migration 0024)
+--
+-- ONE ROW PER MATRIX OUTCOME, which is what makes the audience assertions in
+-- 20_rls_isolation.sql statements about the §16 MATRIX rather than about the
+-- table's emptiness. On shipment A:
+--
+--   bol   approved  → shipper + carrier + broker    (three bands at once)
+--   pod   approved  → shipper + carrier + broker
+--   rate_confirmation approved → carrier ONLY       (§4: never the public,
+--                                 §16: not the shipper, §12: not the broker)
+--   invoice approved → shipper ONLY                 (§12: no shipper billing)
+--   claim  approved  → NOBODY but staff             (§16 private claim review)
+--   pod    PENDING   → nobody                       ("approved" is load-bearing)
+--   bol    approved but visibility narrowed to staff_only → nobody
+--
+-- Shipment B carries an approved BOL so "carrier A reads nothing of shipment
+-- B" is non-vacuous on the document table too.
+--
+-- Loaded as the OWNER, so RLS does not apply here — but the VISIBILITY trigger
+-- and both CHECKs do, which is why every `visibility` below is one the matrix
+-- licenses for its type.
+-- ===========================================================================
+
+insert into shipment_documents (
+  id, shipment_id, doc_type, visibility, storage_path, file_name,
+  mime_type, size_bytes, status, uploaded_by, reviewed_by, reviewed_at,
+  approved_by, approved_at
+) values
+  -- BOL — the three-band row, and the §12 "BOL, when authorized" case.
+  ('fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a01', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'bol', 'shipper', 'ffffffff-ffff-ffff-ffff-ffffffff0a01/aaaa-bol.pdf', 'bol.pdf',
+   'application/pdf', 240000, 'approved',
+   '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000e1',
+   now() - interval '2 hours', '00000000-0000-0000-0000-0000000000e1',
+   now() - interval '2 hours'),
+  -- POD — §12 names it outright, with no "when authorized" qualifier.
+  ('fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a02', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'pod', 'shipper', 'ffffffff-ffff-ffff-ffff-ffffffff0a01/bbbb-pod.jpg', 'pod.jpg',
+   'image/jpeg', 910000, 'approved',
+   '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000e1',
+   now() - interval '1 hour', '00000000-0000-0000-0000-0000000000e1',
+   now() - interval '1 hour'),
+  -- Carrier rate confirmation — the row §4 forbids the public and §16 gives
+  -- the carrier alone. If any customer assertion below is wrong, THIS is the
+  -- row that leaks a rate.
+  ('fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a03', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'rate_confirmation', 'carrier',
+   'ffffffff-ffff-ffff-ffff-ffffffff0a01/cccc-ratecon.pdf', 'ratecon.pdf',
+   'application/pdf', 120000, 'approved',
+   '00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-0000000000e1',
+   now() - interval '3 hours', '00000000-0000-0000-0000-0000000000e1',
+   now() - interval '3 hours'),
+  -- Shipper invoice — §12 forbids a broker seeing shipper billing.
+  ('fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a04', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'invoice', 'shipper', 'ffffffff-ffff-ffff-ffff-ffffffff0a01/dddd-invoice.pdf',
+   'invoice.pdf', 'application/pdf', 60000, 'approved',
+   '00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-0000000000e1',
+   now() - interval '30 minutes', '00000000-0000-0000-0000-0000000000e1',
+   now() - interval '30 minutes'),
+  -- Private claim review — approved, and still staff-only by TYPE.
+  ('fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a05', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'claim', 'staff_only', 'ffffffff-ffff-ffff-ffff-ffffffff0a01/eeee-claim.pdf',
+   'claim.pdf', 'application/pdf', 30000, 'approved',
+   '00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-0000000000e1',
+   now() - interval '20 minutes', '00000000-0000-0000-0000-0000000000e1',
+   now() - interval '20 minutes'),
+  -- PENDING POD — the "approved" clause, made testable.
+  ('fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a06', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'pod', 'shipper', 'ffffffff-ffff-ffff-ffff-ffffffff0a01/ffff-pod2.jpg',
+   'pod-unchecked.jpg', 'image/jpeg', 800000, 'pending',
+   '00000000-0000-0000-0000-0000000000a1', null, null, null, null),
+  -- APPROVED but NARROWED — the `visibility` clause, made testable.
+  ('fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a07', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'bol', 'staff_only', 'ffffffff-ffff-ffff-ffff-ffffffff0a01/gggg-bol2.pdf',
+   'bol-held.pdf', 'application/pdf', 210000, 'approved',
+   '00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-0000000000e1',
+   now() - interval '10 minutes', '00000000-0000-0000-0000-0000000000e1',
+   now() - interval '10 minutes'),
+  -- Shipment B, so every cross-tenant zero is a POLICY result.
+  ('fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0b01', 'ffffffff-ffff-ffff-ffff-ffffffff0b01',
+   'bol', 'shipper', 'ffffffff-ffff-ffff-ffff-ffffffff0b01/aaaa-bol.pdf', 'bol-b.pdf',
+   'application/pdf', 200000, 'approved',
+   '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-0000000000e1',
+   now() - interval '5 hours', '00000000-0000-0000-0000-0000000000e1',
+   now() - interval '5 hours');

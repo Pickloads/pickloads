@@ -978,9 +978,7 @@
       "unloading": "Déchargement",
       "delivered": "Livré",
       "update_eta": "Mettre à jour l'heure estimée",
-      "submit_exception": "Signaler un problème",
-      "upload_bol": "Téléverser la lettre de voiture",
-      "upload_pod": "Téléverser la preuve de livraison"
+      "submit_exception": "Signaler un problème"
     },
     "consent": {
       "pending": "Sans réponse",
@@ -1004,7 +1002,6 @@
       "expires": "Ce lien cesse de fonctionner le {when}.",
       "no_money": "Cette page n'affiche jamais de tarifs, de factures ni le prix du client.",
       "honest_note": "Les mises à jour sont ce que vous saisissez ici. Cette page ne suit pas votre téléphone et n'affiche aucune position GPS en direct.",
-      "docs_deferred": "L'envoi de photos de la lettre de voiture et de la preuve de livraison n'existe pas encore — transmettez-les à la régulation comme d'habitude.",
       "call": "Appeler la régulation",
       "status_legend": "Que vient-il de se passer ?",
       "no_actions": "Il n'y a rien à mettre à jour sur cette expédition pour le moment. Appelez le (908) 404-5373 si cela vous semble incorrect.",
@@ -1041,7 +1038,15 @@
       "stale": "Quelqu'un d'autre a mis à jour cette expédition. Rechargez la page et vérifiez avant de renvoyer.",
       "not_allowed": "Ce changement doit venir de votre régulateur. Appelez le (908) 404-5373.",
       "not_now": "Cette mise à jour ne correspond pas à l'état actuel de ce chargement. Rechargez la page.",
-      "invalid": "Nous n'avons pas pu l'enregistrer. Rechargez la page et réessayez."
+      "invalid": "Nous n'avons pas pu l'enregistrer. Rechargez la page et réessayez.",
+      "docs_title": "Envoyer une photo",
+      "docs_blurb": "Prenez une photo du BOL ou du POD signé et envoyez-la. La régulation la vérifie avant que le client ne la voie.",
+      "doc_sent": "Envoyé. La régulation va le vérifier.",
+      "doc_missing": "Choisissez d'abord une photo ou un fichier.",
+      "doc_invalid": "Choisissez BOL ou POD.",
+      "doc_too_large": "Ce fichier dépasse 10 Mo. Reprenez la photo en qualité inférieure.",
+      "doc_bad_type": "Ce type de fichier ne convient pas. Envoyez une photo ou un PDF.",
+      "doc_failed": "L'envoi a échoué. Réessayez ou appelez le (908) 404-5373."
     },
     "carrier": {
       "crumb": "Portail transporteur",
@@ -1084,8 +1089,40 @@
       "link_expires": "Expire",
       "link_uses": "Utilisations",
       "link_driver": "Chauffeur",
-      "link_consent": "Partage de position",
-      "docs_deferred": "L'envoi de la lettre de voiture et de la preuve de livraison n'existe pas encore. Continuez à transmettre les documents à la régulation comme d'habitude — nous vous préviendrons quand ce sera disponible."
+      "link_consent": "Partage de position"
+    },
+    "document": {
+      "quote": "Devis",
+      "shipper_confirmation": "Confirmation du client",
+      "rate_confirmation": "Confirmation de tarif du transporteur",
+      "bol": "Connaissement (BOL)",
+      "lumper_receipt": "Reçu de manutention",
+      "detention_documentation": "Justificatif d'immobilisation",
+      "delivery_receipt": "Reçu de livraison",
+      "pod": "Preuve de livraison (POD)",
+      "invoice": "Facture",
+      "claim": "Document de réclamation",
+      "other": "Autre document",
+      "title": "Documents",
+      "empty": "Aucun document approuvé sur cet envoi pour le moment.",
+      "failed": "Nous n'avons pas pu charger les documents. Rechargez la page ou appelez le (908) 404-5373.",
+      "more": "Des documents plus anciens existent. Demandez à la régulation ce que vous ne voyez pas ici.",
+      "link_note": "Les liens de téléchargement sont privés et cessent de fonctionner au bout de cinq minutes. Demandez-en un nouveau.",
+      "download": "Télécharger",
+      "col_type": "Document",
+      "col_file": "Fichier",
+      "col_size": "Taille",
+      "col_approved": "Approuvé",
+      "col_action": "Action",
+      "shipper_blurb": "Connaissements, preuves de livraison, factures et documents approuvés de cet envoi. Ils apparaissent ici une fois vérifiés par notre équipe.",
+      "carrier_blurb": "Les documents que vous et la régulation avez déposés sur ce chargement. Votre confirmation de tarif s'y trouve ; le prix du client, non.",
+      "upload": "Envoyer",
+      "uploading": "Envoi en cours…",
+      "upload_title": "Envoyer un document",
+      "carrier_upload_blurb": "Envoyez le BOL, le POD ou le reçu d'un accessoire. La régulation le vérifie avant que le client ne le voie. PDF, JPG, PNG ou HEIC, jusqu'à 10 Mo.",
+      "field_type": "Type de document",
+      "field_file": "Fichier",
+      "field_hint": "PDF, JPG, PNG ou HEIC · 10 Mo maxi"
     }
   }
 }

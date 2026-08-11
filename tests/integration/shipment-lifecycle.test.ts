@@ -31,9 +31,10 @@ import type { ShipmentStatus } from "@/lib/shipments/types";
  *   §27 · assign carrier           → same walk
  *   §27 · create shipment event    → same walk
  *   §27 · update status            → same walk
- *   (public tracking lookup, portal lookup, carrier update, document upload,
- *    POD upload, notification generation and exception lifecycle need M-73,
- *    M-74, M-76, M-77, M-78 and M-79 — M-83b adds them as they land.)
+ *   (public tracking lookup, portal lookup, carrier update, document upload
+ *    and POD upload have since landed with M-73, M-74, M-76 and M-77 in their
+ *    own files; notification generation and exception lifecycle need M-78 and
+ *    M-79 — M-83b adds them as they land.)
  *
  * WHAT MAKES THIS AN INTEGRATION TEST AND NOT A SECOND UNIT SUITE: every
  * decision is made by the REAL engine (`evaluateTransition`, imported from
@@ -310,7 +311,17 @@ describe("§27 · create shipment → assign carrier → create event → update
     expect(facts(shipmentId).deliveredAt).not.toBeNull();
   });
 
-  it("refuses pod_uploaded — M-77 owns documents, so the fact is null", () => {
+  /*
+   * M-72 wrote this test as *"refuses pod_uploaded — M-77 owns documents, so
+   * the fact is null"*, and that reason is now obsolete: M-77 (0024) completed
+   * `shipment_transition_facts()` with 0019's own replacement SQL, so the fact
+   * is a real lookup. The REFUSAL survives, for the better reason — this
+   * shipment has no approved POD, and §20 says it needs one.
+   * `tests/integration/shipment-documents.test.ts` is the walk where the
+   * approval arrives and this same transition succeeds.
+   */
+  it("refuses pod_uploaded — this shipment has no approved POD (§20)", () => {
+    expect(facts(shipmentId).approvedPodDocumentId).toBeNull();
     const result = transition({ shipmentId, to: "pod_uploaded", actor: "dispatcher" });
     expect(result.ok).toBe(false);
     if (result.ok) return;

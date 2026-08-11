@@ -978,9 +978,7 @@
       "unloading": "Descargando",
       "delivered": "Entregado",
       "update_eta": "Actualizar la hora estimada",
-      "submit_exception": "Reportar un problema",
-      "upload_bol": "Subir el conocimiento de embarque",
-      "upload_pod": "Subir la prueba de entrega"
+      "submit_exception": "Reportar un problema"
     },
     "consent": {
       "pending": "Sin responder",
@@ -1004,7 +1002,6 @@
       "expires": "Este enlace deja de funcionar el {when}.",
       "no_money": "Esta página nunca muestra tarifas, facturas ni el precio del cliente.",
       "honest_note": "Las actualizaciones son lo que escribes aquí. Esta página no rastrea tu teléfono ni muestra una posición GPS en vivo.",
-      "docs_deferred": "La carga de fotos del conocimiento de embarque y la prueba de entrega aún no está lista — envíalos a dispatch como siempre.",
       "call": "Llamar a dispatch",
       "status_legend": "¿Qué acaba de pasar?",
       "no_actions": "Ahora mismo no hay nada que actualizar en este envío. Llama al (908) 404-5373 si crees que es un error.",
@@ -1041,7 +1038,15 @@
       "stale": "Alguien más actualizó este envío. Recarga la página y revisa antes de enviar otra vez.",
       "not_allowed": "Ese cambio lo tiene que hacer tu dispatcher. Llama al (908) 404-5373.",
       "not_now": "Esa actualización no coincide con el estado actual de esta carga. Recarga la página.",
-      "invalid": "No pudimos registrarlo. Recarga la página e inténtalo de nuevo."
+      "invalid": "No pudimos registrarlo. Recarga la página e inténtalo de nuevo.",
+      "docs_title": "Enviar una foto",
+      "docs_blurb": "Haga una foto del BOL o del POD firmado y envíela. La central la revisa antes de que la vea el cliente.",
+      "doc_sent": "Enviado. La central lo revisará.",
+      "doc_missing": "Elija primero una foto o un archivo.",
+      "doc_invalid": "Elija BOL o POD.",
+      "doc_too_large": "Ese archivo supera los 10 MB. Repita la foto con menor calidad.",
+      "doc_bad_type": "Ese tipo de archivo no sirve. Envíe una foto o un PDF.",
+      "doc_failed": "No se envió. Inténtelo otra vez o llame al (908) 404-5373."
     },
     "carrier": {
       "crumb": "Portal del carrier",
@@ -1084,8 +1089,40 @@
       "link_expires": "Caduca",
       "link_uses": "Veces usado",
       "link_driver": "Conductor",
-      "link_consent": "Compartir ubicación",
-      "docs_deferred": "La carga del conocimiento de embarque y la prueba de entrega aún no está lista. Sigue enviando los documentos a dispatch como siempre — te avisaremos cuando esté aquí."
+      "link_consent": "Compartir ubicación"
+    },
+    "document": {
+      "quote": "Cotización",
+      "shipper_confirmation": "Confirmación del cliente",
+      "rate_confirmation": "Confirmación de tarifa del transportista",
+      "bol": "Conocimiento de embarque (BOL)",
+      "lumper_receipt": "Recibo de estibador",
+      "detention_documentation": "Documentación de detención",
+      "delivery_receipt": "Recibo de entrega",
+      "pod": "Comprobante de entrega (POD)",
+      "invoice": "Factura",
+      "claim": "Documento de reclamación",
+      "other": "Otro documento",
+      "title": "Documentos",
+      "empty": "Todavía no hay documentos aprobados en este envío.",
+      "failed": "No pudimos cargar los documentos en este momento. Recargue la página o llame al (908) 404-5373.",
+      "more": "Existen documentos más antiguos. Pida a la central lo que no vea aquí.",
+      "link_note": "Los enlaces de descarga son privados y dejan de funcionar a los cinco minutos. Pida uno nuevo.",
+      "download": "Descargar",
+      "col_type": "Documento",
+      "col_file": "Archivo",
+      "col_size": "Tamaño",
+      "col_approved": "Aprobado",
+      "col_action": "Acción",
+      "shipper_blurb": "Conocimientos de embarque, comprobantes de entrega, facturas y documentación aprobada de este envío. Aparecen aquí cuando nuestro equipo los ha revisado.",
+      "carrier_blurb": "La documentación que usted y la central han presentado en esta carga. Su confirmación de tarifa está aquí; el precio del cliente no.",
+      "upload": "Subir",
+      "uploading": "Subiendo…",
+      "upload_title": "Enviar un documento",
+      "carrier_upload_blurb": "Envíe el BOL, el POD o el recibo de un accesorio. La central lo revisa antes de que lo vea el cliente. PDF, JPG, PNG o HEIC, hasta 10 MB.",
+      "field_type": "Tipo de documento",
+      "field_file": "Archivo",
+      "field_hint": "PDF, JPG, PNG o HEIC · máx. 10 MB"
     }
   }
 }

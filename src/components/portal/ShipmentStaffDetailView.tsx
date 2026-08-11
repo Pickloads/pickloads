@@ -17,6 +17,15 @@ import {
   type AssignOption,
 } from "@/components/portal/ShipmentOpsForms";
 import { statusLabel } from "@/components/portal/ShipmentBoardView";
+import {
+  StaffShipmentDocuments,
+  type StaffDocumentView,
+} from "@/components/portal/ShipmentDocumentReview";
+import {
+  getStaffDocumentUrlAction,
+  reviewDocumentAction,
+  staffUploadDocumentAction,
+} from "@/app/actions/shipment-documents";
 import type {
   StaffAssignmentRow,
   StaffShipmentRow,
@@ -350,6 +359,10 @@ export interface ShipmentStaffDetailProps {
   driverTokensFailed: boolean;
   /** True when `DRIVER_TOKEN_SECRET` is set — §30: no button we cannot honour. */
   driverLinksEnabled: boolean;
+  /** M-77 — §16's documents on this shipment, with the review trail (§15). */
+  documents: StaffDocumentView[];
+  documentsFailed: boolean;
+  documentsHasMore: boolean;
 }
 
 export function ShipmentStaffDetailView(props: ShipmentStaffDetailProps) {
@@ -456,14 +469,28 @@ export function ShipmentStaffDetailView(props: ShipmentStaffDetailProps) {
         drivers={props.drivers}
       />
 
+      {/* M-77 — §14/§15's document surface. Staff file ANY of the eleven §16
+          types and are the only role that may; and the approval below is the
+          step §20's `pod_uploaded` waits on. */}
+      <span className="psec">Documents</span>
+      <StaffShipmentDocuments
+        shipmentId={shipment.id}
+        documents={props.documents}
+        failed={props.documentsFailed}
+        hasMore={props.documentsHasMore}
+        uploadAction={staffUploadDocumentAction}
+        reviewAction={reviewDocumentAction}
+        downloadAction={getStaffDocumentUrlAction}
+      />
+
       <span className="psec">Not here yet</span>
       <p className="pempty" style={{ padding: "0 0 20px" }}>
         {/* §30 applies to staff surfaces too: name what is missing rather than
             leaving a dispatcher to discover it mid-shift. */}
-        Documents and POD upload, exception resolution, the full ETA history and
-        localized customer emails are not built yet. Logging an exception,
-        requesting a POD and sending an in-portal notification all work today —
-        the pieces above name exactly what they do.
+        Exception resolution, the full ETA history and localized customer emails
+        are not built yet. Logging an exception, requesting a POD, filing and
+        approving documents and sending an in-portal notification all work today
+        — the pieces above name exactly what they do.
       </p>
     </>
   );

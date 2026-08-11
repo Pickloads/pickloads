@@ -14,6 +14,7 @@ import {
 } from "@/lib/shipments/carrier-shipments";
 import { offeredCarrierActions } from "@/lib/shipments/carrier-updates";
 import { isDriverTokenConfigured } from "@/lib/shipments/driver-token";
+import { listShipmentDocuments } from "@/lib/shipments/document-store";
 import { CarrierShipmentDetailView } from "@/components/portal/CarrierShipmentDetailView";
 import type { ShipmentEventRow, ShipmentRow } from "@/lib/shipments/types";
 
@@ -88,10 +89,14 @@ export default async function CarrierShipmentDetailPage({
     Array.isArray(sp.before) ? sp.before[0] : sp.before,
   );
 
-  const [summary, history, tokenResult] = await Promise.all([
+  const [summary, history, tokenResult, documentResult] = await Promise.all([
     getCarrierShipmentSummary(supabase, carrierId, shipmentId),
     getCarrierTimelinePage(supabase, shipmentId, { before }),
     getDriverTokens(supabase, shipmentId),
+    // M-77 — the §16 CARRIER band, bounded, in the same fan-out. 0024's
+    // "carrier member read shipment documents" policy is what decides; the
+    // audience argument is the second opinion, and it cannot widen the first.
+    listShipmentDocuments(supabase, shipmentId, "carrier"),
   ]);
 
   if (summary === null) notFound();
@@ -147,9 +152,12 @@ export default async function CarrierShipmentDetailPage({
    * §20's facts, derived from what this page already holds. See the header for
    * why this is advisory and where the authoritative check lives.
    *
-   * `approvedPodDocumentId` stays null because M-77 has not landed, so
-   * `pod_uploaded` is refused — which is correct and is not a carrier action
-   * anyway. `closeoutCompletedAt` stays null because closeout is a brokerage
+   * `approvedPodDocumentId` stays null because `pod_uploaded` is not a
+   * CARRIER action: `ACTOR_PERMITTED_TARGETS.carrier` excludes it, so the
+   * offered-action list would drop it whatever the fact said. M-77 made the
+   * fact real in `shipment_transition_facts()` (0024) for the staff path,
+   * where the transition actually lives — this page reads nothing from it.
+   * `closeoutCompletedAt` stays null because closeout is a brokerage
    * assertion a carrier does not make.
    */
   const facts = {
@@ -192,6 +200,9 @@ export default async function CarrierShipmentDetailPage({
         offeredActions={offeredActions}
         tokens={tokenResult.tokens}
         tokensFailed={tokenResult.failed}
+        documents={documentResult.documents}
+        documentsFailed={documentResult.failed}
+        documentsHasMore={documentResult.hasMore}
         historyHasMore={history.hasMore}
         historyMoreHref={
           history.nextBefore === null

@@ -73,13 +73,32 @@ describe("§13 token generation", () => {
     const shipmentId = "6f1d4a2e-9c3b-4f77-8a11-2b3c4d5e6f70";
     const carrierId = "11111111-1111-4111-8111-111111111111";
     const trackingNumber = "PL-2026-000458";
+    /*
+     * ≥ 6 characters, not ≥ 4 — a correction M-77's gate runs surfaced.
+     *
+     * The PROPERTY this test asserts is that a token is not DERIVED from an
+     * identifier. A four-hex-character coincidence inside a 43-character
+     * random string is not evidence of derivation: over ~40 start positions in
+     * a 36-symbol lowered alphabet it is ~2.4e-5 per token per fragment, and
+     * with ten such fragments × 1000 mints the suite failed roughly one run in
+     * five. That is a flaky gate, not a security signal.
+     *
+     * At six characters the same coincidence is ~1.8e-8 per token-fragment
+     * (~1e-4 over the whole loop), which is small enough that a hit really
+     * would mean the generator had started copying something. The
+     * identifiers, the tracking number and every UUID group of six or more
+     * are all still covered; what is dropped is exactly the four-character
+     * hex groups whose collision rate WAS the flake.
+     */
     const fragments = [
+      shipmentId,
+      carrierId,
       ...shipmentId.split("-"),
       ...carrierId.split("-"),
       trackingNumber,
       trackingNumber.replace(/-/g, ""),
       "000458",
-    ].filter((f) => f.length >= 4);
+    ].filter((f) => f.length >= 6);
 
     for (let i = 0; i < 1000; i++) {
       const token = mintDriverToken() ?? "";

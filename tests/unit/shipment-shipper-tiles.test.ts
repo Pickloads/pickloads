@@ -267,7 +267,9 @@ describe("getShipperTileCounts (§11, §25)", () => {
     const { client, recorder } = createRecordingClient({
       shipments: { count: 3 },
       invoices: { count: 1 },
-    });
+    },
+      { count_shipment_documents_awaiting_review: { data: 3 } },
+    );
     await getShipperTileCounts(client as never, "shipper-1", NOW);
     expect(recorder.queries.length).toBeGreaterThan(0);
     for (const query of recorder.queries) {
@@ -282,7 +284,9 @@ describe("getShipperTileCounts (§11, §25)", () => {
     const { client, recorder } = createRecordingClient({
       shipments: { count: 0 },
       invoices: { count: 0 },
-    });
+    },
+      { count_shipment_documents_awaiting_review: { data: 3 } },
+    );
     await getShipperTileCounts(client as never, "shipper-1", NOW);
     for (const query of recorder.queries) {
       const scoped = query.calls.some(
@@ -299,7 +303,9 @@ describe("getShipperTileCounts (§11, §25)", () => {
     const { client, recorder } = createRecordingClient({
       shipments: { count: 0 },
       invoices: { count: 0 },
-    });
+    },
+      { count_shipment_documents_awaiting_review: { data: 3 } },
+    );
     await getShipperTileCounts(client as never, "shipper-1", NOW);
     expect(recorder.tables().sort()).toEqual(["invoices", "shipments"]);
     expect(recorder.forTable("shipments")).toHaveLength(6);
@@ -310,7 +316,9 @@ describe("getShipperTileCounts (§11, §25)", () => {
     const { client } = createRecordingClient({
       shipments: { count: 0 },
       invoices: { count: 0 },
-    });
+    },
+      { count_shipment_documents_awaiting_review: { data: 3 } },
+    );
     const counts = await getShipperTileCounts(
       client as never,
       "shipper-1",
@@ -321,19 +329,58 @@ describe("getShipperTileCounts (§11, §25)", () => {
     expect(counts.outstanding_invoices).toBe(0);
   });
 
-  it("`documents_awaiting_review` is NULL, never 0 — M-77 owns the table", async () => {
+  /*
+   * M-77 landed the table, so the tile that was honestly "not measured" is now
+   * a real number — and it comes from a SECURITY DEFINER count rather than a
+   * `count: exact`, because §16 keeps unapproved documents out of customer
+   * hands and a plain count under a shipper session would report 0 for a
+   * queue of five. These two tests replace M-74's "it is null" assertion with
+   * the two facts that matter now: it is the RPC's answer, and it is still
+   * null when the RPC fails.
+   */
+  it("`documents_awaiting_review` comes from the §16-safe RPC, never a table scan", async () => {
     const { client, recorder } = createRecordingClient({
       shipments: { count: 4 },
       invoices: { count: 2 },
-    });
+    },
+      { count_shipment_documents_awaiting_review: { data: 3 } },
+    );
+    const counts = await getShipperTileCounts(
+      client as never,
+      "shipper-1",
+      NOW,
+    );
+    expect(counts.documents_awaiting_review).toBe(3);
+    // NOT a select on the table: a shipper cannot read pending rows at all,
+    // so a count over `shipment_documents` would silently report 0.
+    expect(recorder.tables()).not.toContain("shipment_documents");
+    expect(recorder.rpcs.map((r) => r.fn)).toContain(
+      "count_shipment_documents_awaiting_review",
+    );
+    // The function takes NO shipper argument — scope comes from
+    // `my_shipper_ids()` inside it, so a caller cannot count another org.
+    expect(recorder.rpcs[0]?.args).toBeNull();
+  });
+
+  it("a failed document count stays NULL — never 0", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { client } = createRecordingClient({
+      shipments: { count: 4 },
+      invoices: { count: 2 },
+    },
+      {
+        count_shipment_documents_awaiting_review: {
+          error: { message: "denied" },
+        },
+      },
+    );
     const counts = await getShipperTileCounts(
       client as never,
       "shipper-1",
       NOW,
     );
     expect(counts.documents_awaiting_review).toBeNull();
-    // …and nothing was queried for it: there is no table to query.
-    expect(recorder.tables()).not.toContain("shipment_documents");
+    expect(counts.booked).toBe(4);
   });
 
   it("a failed count stays NULL — a database error is not `you have zero`", async () => {
@@ -341,7 +388,13 @@ describe("getShipperTileCounts (§11, §25)", () => {
     const { client } = createRecordingClient({
       shipments: { error: { message: "denied" } },
       invoices: { error: { message: "denied" } },
-    });
+    },
+      {
+        count_shipment_documents_awaiting_review: {
+          error: { message: "denied" },
+        },
+      },
+    );
     const counts = await getShipperTileCounts(
       client as never,
       "shipper-1",
@@ -356,7 +409,9 @@ describe("getShipperTileCounts (§11, §25)", () => {
     const { client } = createRecordingClient({
       shipments: { count: 7 },
       invoices: { count: 2 },
-    });
+    },
+      { count_shipment_documents_awaiting_review: { data: 3 } },
+    );
     const counts = await getShipperTileCounts(
       client as never,
       "shipper-1",
@@ -370,7 +425,9 @@ describe("getShipperTileCounts (§11, §25)", () => {
     const { client, recorder } = createRecordingClient({
       shipments: { count: 0 },
       invoices: { count: 0 },
-    });
+    },
+      { count_shipment_documents_awaiting_review: { data: 3 } },
+    );
     await getShipperTileCounts(client as never, "shipper-1", NOW);
     const day = operatingDayBounds(NOW);
     const bounds = recorder.callsOf("gte").map((c) => c.args[1]);

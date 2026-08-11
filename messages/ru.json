@@ -978,9 +978,7 @@
       "unloading": "Unloading",
       "delivered": "Delivered",
       "update_eta": "Update ETA",
-      "submit_exception": "Report a problem",
-      "upload_bol": "Upload BOL",
-      "upload_pod": "Upload POD"
+      "submit_exception": "Report a problem"
     },
     "consent": {
       "pending": "Not answered yet",
@@ -1004,7 +1002,6 @@
       "expires": "This link stops working on {when}.",
       "no_money": "This page never shows rates, invoices or anything about the customer's price.",
       "honest_note": "Updates are what you type here. This page does not track your phone and does not show a live GPS position.",
-      "docs_deferred": "Photo upload for BOL and POD is not built yet — send those to dispatch the way you do today.",
       "call": "Call dispatch",
       "status_legend": "What just happened?",
       "no_actions": "There is nothing to update on this shipment right now. Call (908) 404-5373 if that looks wrong.",
@@ -1041,7 +1038,15 @@
       "stale": "Someone else updated this shipment. Reload the page and check before sending again.",
       "not_allowed": "That change has to come from your dispatcher. Call (908) 404-5373.",
       "not_now": "That update doesn't fit where this load is right now. Reload the page.",
-      "invalid": "We couldn't record that. Reload the page and try again."
+      "invalid": "We couldn't record that. Reload the page and try again.",
+      "docs_title": "Отправить фото",
+      "docs_blurb": "Сфотографируйте подписанный BOL или POD и отправьте. Диспетчер проверит его до того, как его увидит заказчик.",
+      "doc_sent": "Отправлено. Диспетчер проверит.",
+      "doc_missing": "Сначала выберите фото или файл.",
+      "doc_invalid": "Выберите BOL или POD.",
+      "doc_too_large": "Файл больше 10 МБ. Сделайте фото в более низком качестве.",
+      "doc_bad_type": "Такой тип файла не подходит. Отправьте фото или PDF.",
+      "doc_failed": "Отправить не удалось. Попробуйте ещё раз или позвоните по номеру (908) 404-5373."
     },
     "carrier": {
       "crumb": "Carrier portal",
@@ -1084,8 +1089,40 @@
       "link_expires": "Expires",
       "link_uses": "Times used",
       "link_driver": "Driver",
-      "link_consent": "Location sharing",
-      "docs_deferred": "BOL and POD upload is not built yet. Keep sending documents to dispatch the way you do today — we'll tell you when it lands here."
+      "link_consent": "Location sharing"
+    },
+    "document": {
+      "quote": "Расчёт стоимости",
+      "shipper_confirmation": "Подтверждение заказчика",
+      "rate_confirmation": "Подтверждение ставки перевозчика",
+      "bol": "Товарно-транспортная накладная (BOL)",
+      "lumper_receipt": "Квитанция за погрузо-разгрузочные работы",
+      "detention_documentation": "Документы по простою",
+      "delivery_receipt": "Квитанция о доставке",
+      "pod": "Подтверждение доставки (POD)",
+      "invoice": "Счёт",
+      "claim": "Документ по претензии",
+      "other": "Прочий документ",
+      "title": "Документы",
+      "empty": "По этой перевозке пока нет утверждённых документов.",
+      "failed": "Не удалось загрузить документы. Обновите страницу или позвоните по номеру (908) 404-5373.",
+      "more": "Есть более ранние документы. Запросите у диспетчера то, чего здесь не видно.",
+      "link_note": "Ссылки на скачивание закрытые и перестают работать через пять минут. Запросите новую.",
+      "download": "Скачать",
+      "col_type": "Документ",
+      "col_file": "Файл",
+      "col_size": "Размер",
+      "col_approved": "Утверждён",
+      "col_action": "Действие",
+      "shipper_blurb": "Накладные, подтверждения доставки, счета и утверждённые документы по этой перевозке. Они появляются здесь после проверки нашей командой.",
+      "carrier_blurb": "Документы, которые вы и диспетчер приложили к этому грузу. Ваше подтверждение ставки здесь; цена заказчика — нет.",
+      "upload": "Загрузить",
+      "uploading": "Загрузка…",
+      "upload_title": "Отправить документ",
+      "carrier_upload_blurb": "Отправьте BOL, POD или квитанцию по дополнительной услуге. Диспетчер проверяет её до того, как её увидит заказчик. PDF, JPG, PNG или HEIC, до 10 МБ.",
+      "field_type": "Тип документа",
+      "field_file": "Файл",
+      "field_hint": "PDF, JPG, PNG или HEIC · до 10 МБ"
     }
   }
 }

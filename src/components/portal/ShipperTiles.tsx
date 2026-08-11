@@ -15,9 +15,11 @@ import type {
  * follow from that and are implemented here rather than described:
  *
  *   * A count of `null` renders an em-dash and its own sub-label, never `0`.
- *     `null` is "we did not measure this" — because the table does not exist
- *     yet (`documents_awaiting_review`, which M-77 owns) or because the query
- *     errored. Rendering either as a zero would state a fact nobody checked.
+ *     `null` is "we did not measure this" — the query errored, or (before
+ *     M-77) the table did not exist. Rendering either as a zero would state a
+ *     fact nobody checked. Since M-77 every tile including
+ *     `documents_awaiting_review` has a real source, so `null` here now means
+ *     one thing only: the read failed.
  *   * A genuine `0` renders as `0`. That is the zero-data state §11 asks for,
  *     and it is honest: the query ran and found nothing.
  *   * Nothing here is derived from another tile. Every number is its own
@@ -72,11 +74,7 @@ export function ShipperTiles({
             </b>
             <span>{tv(TILE_LABEL[id])}</span>
             {value === null ? (
-              <span className="sub">
-                {id === "documents_awaiting_review"
-                  ? tv("Document uploads aren't live yet")
-                  : tv("Not available right now")}
-              </span>
+              <span className="sub">{tv("Not available right now")}</span>
             ) : null}
           </div>
         );

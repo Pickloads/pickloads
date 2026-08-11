@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import axe from "axe-core";
@@ -9,6 +9,10 @@ import esMessages from "../../messages/es.json";
 import frMessages from "../../messages/fr.json";
 import ruMessages from "../../messages/ru.json";
 import htMessages from "../../messages/ht.json";
+import {
+  toCustomerDocumentDtos,
+  type CustomerDocumentDto,
+} from "@/lib/shipments/documents";
 import { toShipperDto } from "@/lib/shipments/dto";
 import {
   partyRoleKey,
@@ -32,6 +36,27 @@ import type {
   ShipmentContactView,
   ShipmentInvoiceView,
 } from "@/lib/shipments/shipper-detail";
+
+/*
+ * M-77 — the documents block binds to server actions, and that module pulls
+ * `server-only` transitively through the whole document write path. Stubbing
+ * the ACTIONS keeps the real markup — which is what axe scans and what the
+ * §16 assertions read.
+ */
+vi.mock("@/app/actions/shipment-documents", () => {
+  const noop = () => Promise.resolve({ status: "idle" as const });
+  const url = () => Promise.resolve({ ok: false as const, error: "stub" });
+  return {
+    carrierUploadDocumentAction: noop,
+    driverUploadDocumentAction: noop,
+    staffUploadDocumentAction: noop,
+    reviewDocumentAction: noop,
+    getShipperDocumentUrlAction: url,
+    getCarrierDocumentUrlAction: url,
+    getBrokerDocumentUrlAction: url,
+    getStaffDocumentUrlAction: url,
+  };
+});
 
 /**
  * M-74 — §23 accessibility and §22 mobile structure for BOTH new routes,
@@ -257,6 +282,59 @@ const INVOICES: ShipmentInvoiceView[] = [
   },
 ];
 
+/**
+ * M-77 — the §16 SHIPPER band, as the server would have filtered it.
+ *
+ * A rate confirmation is in the raw list on purpose: `toCustomerDocumentDtos`
+ * drops it for this audience, so asserting its ABSENCE below is a statement
+ * about the matrix rather than about an empty fixture.
+ */
+const DOCUMENTS: CustomerDocumentDto[] = toCustomerDocumentDtos(
+  [
+    {
+      id: "d-1",
+      doc_type: "bol",
+      visibility: "shipper",
+      status: "approved",
+      file_name: "bol-signed.pdf",
+      size_bytes: 240_000,
+      uploaded_at: "2026-09-01T12:00:00.000Z",
+      approved_at: "2026-09-01T13:00:00.000Z",
+    },
+    {
+      id: "d-2",
+      doc_type: "pod",
+      visibility: "shipper",
+      status: "approved",
+      file_name: "pod-signed.jpg",
+      size_bytes: 900_000,
+      uploaded_at: "2026-09-04T18:00:00.000Z",
+      approved_at: "2026-09-04T19:00:00.000Z",
+    },
+    {
+      id: "d-3",
+      doc_type: "rate_confirmation",
+      visibility: "carrier",
+      status: "approved",
+      file_name: "ratecon.pdf",
+      size_bytes: 100_000,
+      uploaded_at: "2026-08-30T09:00:00.000Z",
+      approved_at: "2026-08-30T10:00:00.000Z",
+    },
+    {
+      id: "d-4",
+      doc_type: "pod",
+      visibility: "shipper",
+      status: "pending",
+      file_name: "pod-unchecked.jpg",
+      size_bytes: 800_000,
+      uploaded_at: "2026-09-05T08:00:00.000Z",
+      approved_at: null,
+    },
+  ],
+  "shipper",
+);
+
 const CONTACTS: ShipmentContactView[] = [
   {
     id: "p-1",
@@ -348,6 +426,9 @@ function renderDetail(
       invoices={INVOICES}
       invoicesFailed={false}
       contacts={CONTACTS}
+      documents={DOCUMENTS}
+      documentsFailed={false}
+      documentsHasMore={false}
       historyHasMore={false}
       historyMoreHref={null}
       historyPaged={false}
@@ -698,12 +779,23 @@ describe("detail structure (§11, §22, §23, §30)", () => {
     expect(container.textContent).toContain("Escrito por dispatch, en inglés");
   });
 
-  it("the documents section is an HONEST empty state until M-77", () => {
+  /* M-77 replaced M-74's honest empty state with the real §16 list. The
+     assertion that used to pin the placeholder now pins the list — including
+     the part that matters, which is that a signed URL is never an `href`. */
+  it("the documents section lists the shipper band and mints URLs via an action", () => {
     const { container } = renderDetail();
     const text = container.textContent ?? "";
-    expect(text).toContain("aren't available for download yet");
-    // No download links, no fake rows.
+    expect(text).toContain("bol-signed.pdf");
+    expect(text).toContain("pod-signed.jpg");
+    // §16: the carrier's rate confirmation is not in the shipper band, and the
+    // fixture CONTAINS one, so this zero is a filter result and not an empty
+    // list. Non-vacuity by fixture, the M-70 pattern.
+    expect(text).not.toContain("ratecon.pdf");
+    // A ≤300s bearer credential is never an href, never a download attribute.
     expect(container.querySelector("a[download]")).toBeNull();
+    expect(container.querySelector('a[href*="token"]')).toBeNull();
+    // It is a BUTTON, because the URL does not exist until it is asked for.
+    expect(screen.getAllByRole("button", { name: "Download" }).length).toBe(2);
   });
 
   it("invoice status comes from the invoice, and shows nothing when there is none", () => {

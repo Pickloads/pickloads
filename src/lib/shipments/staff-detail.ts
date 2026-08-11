@@ -328,16 +328,21 @@ export async function getCarrierFleet(
  * the RPC before writing, so this read is advisory — it decides what is
  * OFFERED, never what is ALLOWED.
  *
- * The two facts the database cannot answer stay null on purpose:
- * `approvedPodDocumentId` is M-77's, and `closeoutCompletedAt` is the human
- * assertion the completion form makes. So `pod_uploaded` and `completed` are
- * not offered as plain buttons — they have their own form controls that supply
- * the assertion, which is exactly what M-72 said M-75 must do.
+ * M-77 supplies `approvedPodDocumentId` from the document list the page has
+ * already read — so `pod_uploaded` is OFFERED once an approved POD exists and
+ * not before. Passing it here rather than defaulting it to null is what makes
+ * the button appear at the same moment the engine would start accepting the
+ * transition; the authoritative check is still 0024's
+ * `shipment_transition_facts()`, re-resolved by the action before any write.
+ *
+ * `closeoutCompletedAt` stays null on purpose: it is the human assertion the
+ * completion form makes, which is exactly what M-72 said M-75 must do.
  */
 export function staffTransitionFacts(
   shipment: Pick<StaffShipmentRow, "cancellation_reason">,
   assignments: readonly StaffAssignmentRow[],
   events: readonly StaffTimelineEvent[],
+  approvedPodDocumentId: string | null = null,
 ): TransitionFacts {
   const open = assignments.find((a) => a.released_at === null) ?? null;
   const pickupConfirmed =
@@ -353,6 +358,7 @@ export function staffTransitionFacts(
     activeAssignmentId: open?.id ?? null,
     pickupConfirmedAt: pickupConfirmed?.event_time ?? null,
     deliveredAt: delivered?.event_time ?? null,
+    approvedPodDocumentId,
     cancellationReason: shipment.cancellation_reason,
   };
 }

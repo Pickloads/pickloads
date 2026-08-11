@@ -978,9 +978,7 @@
       "unloading": "Unloading",
       "delivered": "Delivered",
       "update_eta": "Update ETA",
-      "submit_exception": "Report a problem",
-      "upload_bol": "Upload BOL",
-      "upload_pod": "Upload POD"
+      "submit_exception": "Report a problem"
     },
     "consent": {
       "pending": "Not answered yet",
@@ -1004,7 +1002,6 @@
       "expires": "This link stops working on {when}.",
       "no_money": "This page never shows rates, invoices or anything about the customer's price.",
       "honest_note": "Updates are what you type here. This page does not track your phone and does not show a live GPS position.",
-      "docs_deferred": "Photo upload for BOL and POD is not built yet — send those to dispatch the way you do today.",
       "call": "Call dispatch",
       "status_legend": "What just happened?",
       "no_actions": "There is nothing to update on this shipment right now. Call (908) 404-5373 if that looks wrong.",
@@ -1041,7 +1038,15 @@
       "stale": "Someone else updated this shipment. Reload the page and check before sending again.",
       "not_allowed": "That change has to come from your dispatcher. Call (908) 404-5373.",
       "not_now": "That update doesn't fit where this load is right now. Reload the page.",
-      "invalid": "We couldn't record that. Reload the page and try again."
+      "invalid": "We couldn't record that. Reload the page and try again.",
+      "docs_title": "Voye yon foto",
+      "docs_blurb": "Pran yon foto BOL oswa POD ki siyen an epi voye l. Dispatch tcheke l anvan kliyan an wè l.",
+      "doc_sent": "Voye. Dispatch pral tcheke l.",
+      "doc_missing": "Chwazi yon foto oswa yon fichye anvan.",
+      "doc_invalid": "Chwazi BOL oswa POD.",
+      "doc_too_large": "Fichye sa a depase 10 MB. Repran foto a ak mwens kalite.",
+      "doc_bad_type": "Kalite fichye sa a pa mache. Voye yon foto oswa yon PDF.",
+      "doc_failed": "Li pa t voye. Eseye ankò, oswa rele (908) 404-5373."
     },
     "carrier": {
       "crumb": "Carrier portal",
@@ -1084,8 +1089,40 @@
       "link_expires": "Expires",
       "link_uses": "Times used",
       "link_driver": "Driver",
-      "link_consent": "Location sharing",
-      "docs_deferred": "BOL and POD upload is not built yet. Keep sending documents to dispatch the way you do today — we'll tell you when it lands here."
+      "link_consent": "Location sharing"
+    },
+    "document": {
+      "quote": "Devi",
+      "shipper_confirmation": "Konfimasyon kliyan an",
+      "rate_confirmation": "Konfimasyon pri transpòtè a",
+      "bol": "Konesman (BOL)",
+      "lumper_receipt": "Resi chajè",
+      "detention_documentation": "Dokiman detansyon",
+      "delivery_receipt": "Resi livrezon",
+      "pod": "Prèv livrezon (POD)",
+      "invoice": "Fakti",
+      "claim": "Dokiman reklamasyon",
+      "other": "Lòt dokiman",
+      "title": "Dokiman",
+      "empty": "Poko gen dokiman apwouve sou chajman sa a.",
+      "failed": "Nou pa t kapab chaje dokiman yo kounye a. Rechaje paj la, oswa rele (908) 404-5373.",
+      "more": "Gen dokiman ki pi ansyen. Mande dispatch pou sa ou pa wè isit la.",
+      "link_note": "Lyen telechajman yo prive e yo sispann mache apre senk minit. Mande yon lòt.",
+      "download": "Telechaje",
+      "col_type": "Dokiman",
+      "col_file": "Fichye",
+      "col_size": "Gwosè",
+      "col_approved": "Apwouve",
+      "col_action": "Aksyon",
+      "shipper_blurb": "Konesman, prèv livrezon, fakti ak papye apwouve pou chajman sa a. Yo parèt isit la lè ekip nou an fin tcheke yo.",
+      "carrier_blurb": "Papye ou menm ak dispatch depoze sou chajman sa a. Konfimasyon pri ou a la; pri kliyan an pa la.",
+      "upload": "Voye",
+      "uploading": "N ap voye…",
+      "upload_title": "Voye yon dokiman",
+      "carrier_upload_blurb": "Voye BOL la, POD la oswa resi yon frè anplis. Dispatch tcheke l anvan kliyan an wè l. PDF, JPG, PNG oswa HEIC, jiska 10 MB.",
+      "field_type": "Kalite dokiman",
+      "field_file": "Fichye",
+      "field_hint": "PDF, JPG, PNG oswa HEIC · maksimòm 10 MB"
     }
   }
 }

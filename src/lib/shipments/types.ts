@@ -24,6 +24,17 @@
  * the UI in M-73, across all five locales (§24).
  */
 
+/**
+ * The ONE import in this file, and it is type-only: M-77's
+ * `ShipmentDocumentRow.status` reuses the `doc_status` enum shipped in
+ * migration 0001 rather than minting a second three-value review vocabulary.
+ * `database.types.ts` imports the shipment rows back from here; a type-only
+ * cycle is erased at compile time and carries no runtime edge.
+ */
+import type { DocStatus } from "@/lib/supabase/database.types";
+
+export type { DocStatus };
+
 /* ------------------------------------------------------------------ *
  * §6 — shipment status
  * ------------------------------------------------------------------ */
@@ -763,19 +774,59 @@ export interface ShipmentLocationRow {
   retention_expires_at: string | null;
 }
 
-/** `shipment_documents` — §16. Private bucket + signed URLs (M-77). */
+/**
+ * §16 review state. This is the SHIPPED `doc_status` enum from migration
+ * 0001 (`pending | approved | rejected | expired`), not a new type: carrier
+ * compliance documents have been reviewed against it since M-21, staff know
+ * the vocabulary, and M-58's review queue already renders it. A second
+ * three-value enum meaning the same thing is the duplication the executive
+ * directive forbids.
+ *
+ * Re-exported from `@/lib/supabase/database.types` (see the import at the top
+ * of this file) rather than redeclared, so the two can never drift.
+ */
+
+/**
+ * `shipment_documents` — §16. Private bucket + signed URLs (M-77).
+ *
+ * M-77 added FOUR fields to M-70's original interface, each because §16 or
+ * §20 cannot be implemented without them:
+ *
+ *   * `status` — §20's *"`pod_uploaded` requires an APPROVED POD document"*
+ *     needs a rejected state distinct from a not-yet-reviewed one.
+ *     `approved_at is null` cannot tell those apart, so a rejected POD would
+ *     sit forever looking like a pending one.
+ *   * `review_note` — M-58's carrier review queue has carried the reviewer's
+ *     reason since M-21; a POD rejected with no reason is a carrier phone call.
+ *   * `reviewed_by` / `reviewed_at` — who last decided, for the §15
+ *     document-access history, including on a REJECTION (`approved_by` /
+ *     `approved_at` are, by the migration's CHECK, only ever set on approval).
+ */
 export interface ShipmentDocumentRow {
   id: string;
   shipment_id: string;
   doc_type: ShipmentDocumentType;
+  /**
+   * The row-level RESTRICTION, not the audience list. The audience list is
+   * the §16 matrix in `src/lib/shipments/documents.ts`, keyed by `doc_type`;
+   * this column can only ever NARROW it to `staff_only`. Migration 0024's
+   * CHECK refuses any value the matrix does not license for the type, so a
+   * rate confirmation filed as `public` is a constraint violation and not a
+   * code review.
+   */
   visibility: ShipmentDocumentVisibility;
   /** Path inside the PRIVATE bucket. Never a public URL. */
   storage_path: string;
   file_name: string;
   mime_type: string | null;
   size_bytes: number | null;
+  /** §16 review state. Customers see only `approved` rows. */
+  status: DocStatus;
+  review_note: string | null;
   uploaded_by: string | null;
   uploaded_at: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
   approved_by: string | null;
   approved_at: string | null;
 }

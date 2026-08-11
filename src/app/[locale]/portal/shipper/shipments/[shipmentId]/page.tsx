@@ -13,6 +13,7 @@ import {
   getShipmentTimelinePage,
   parseTimelineCursor,
 } from "@/lib/shipments/shipper-detail";
+import { listShipmentDocuments } from "@/lib/shipments/document-store";
 import { ShipmentDetailView } from "@/components/portal/ShipmentDetailView";
 import type { ShipmentEventRow, ShipmentRow } from "@/lib/shipments/types";
 
@@ -78,12 +79,19 @@ export default async function ShipperShipmentDetailPage({
     Array.isArray(sp.before) ? sp.before[0] : sp.before,
   );
 
-  const [summary, history, invoiceResult, contactResult] = await Promise.all([
-    getShipmentSummary(supabase, shipperId, shipmentId),
-    getShipmentTimelinePage(supabase, shipmentId, { before }),
-    getShipmentInvoices(supabase, shipmentId),
-    getShipmentContacts(supabase, shipmentId),
-  ]);
+  // M-77 joins the fan-out rather than adding a fifth round trip: §25's "no
+  // N+1" is about the number of round trips, and five concurrent reads is one.
+  // The document read is BOUNDED (`DOCUMENT_PAGE_SIZE` + 1 to answer "is there
+  // more?"), so a shipment with four hundred documents costs what one with
+  // four costs.
+  const [summary, history, invoiceResult, contactResult, documentResult] =
+    await Promise.all([
+      getShipmentSummary(supabase, shipperId, shipmentId),
+      getShipmentTimelinePage(supabase, shipmentId, { before }),
+      getShipmentInvoices(supabase, shipmentId),
+      getShipmentContacts(supabase, shipmentId),
+      listShipmentDocuments(supabase, shipmentId, "shipper"),
+    ]);
 
   if (summary === null) notFound();
 
@@ -161,6 +169,9 @@ export default async function ShipperShipmentDetailPage({
         invoices={invoiceResult.invoices}
         invoicesFailed={invoiceResult.failed}
         contacts={contactResult.contacts}
+        documents={documentResult.documents}
+        documentsFailed={documentResult.failed}
+        documentsHasMore={documentResult.hasMore}
         historyHasMore={history.hasMore}
         historyMoreHref={
           history.nextBefore === null

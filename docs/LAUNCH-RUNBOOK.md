@@ -6,10 +6,18 @@ degrades gracefully when a secret is missing (dev warnings, honest pending
 states) — so a partial deploy never crashes, it just quietly disables the
 affected integration. **Production must have every var set.**
 
-*Last revised for M-76 (carrier update experience + driver update link):
+*Last revised for M-77 (shipment documents + POD workflow): migration
+**0024** added to the order-and-rollback table, the `0001 → 0024` chain,
+refreshed gate counts (1061 unit / 502 RLS / 194 integration / 240 e2e /
+368 pages), a **new private storage bucket (`shipment-docs`) with a manual
+creation step for non-Supabase environments**, and a **document + POD smoke
+test**. **No new environment variable.** 0024 also REPLACES a function shipped
+in 0019 — `shipment_transition_facts()` — which makes the `pod_uploaded`
+status reachable for the first time, and reachable only with a staff-approved
+POD; its rollback therefore has an ORDER, spelled out in the table below.
+Previously revised for M-76 (carrier update experience + driver update link):
 migration **0023** added to the order-and-rollback table, the `0001 → 0023`
-chain, refreshed gate counts (966 unit / 447 RLS / 157 integration / 229 e2e /
-368 pages), **one new environment variable (`DRIVER_TOKEN_SECRET`) that fails
+chain, **one new environment variable (`DRIVER_TOKEN_SECRET`) that fails
 CLOSED** plus an optional `DRIVER_TOKEN_TTL_HOURS`, and a **driver-link smoke
 test**. 0023 introduces the platform's FIRST BEARER CREDENTIAL
 (`/driver/update/[token]`) — read its threat model in
@@ -90,12 +98,47 @@ region `us-east-1` (closest to NJ ops). For **each** project, in order:
    | 0021 | `0021_invoice_shipment_link.sql` | **M-74.** `invoices.shipment_id` + `invoices.shipper_id` (both nullable, FKs to `shipments`/`shippers`); `carrier_id`'s **NOT NULL replaced by** `invoices_party_present` (`carrier_id is not null or shipper_id is not null`); 2 partial indexes; ONE policy — `"member read shipper invoices"`. **Why the relaxation:** 0009's `"member read invoices"` is keyed on `my_carrier_ids()`, so a shipper invoice naming the hauling carrier would be readable BY that carrier — disclosing the shipper gross and therefore the margin. A shipper invoice must name no carrier. 0009's carrier policy is left byte-identical and every pre-0021 row stays visible to exactly whom it was before | Full script in [`docs/modules/M-74-shipper-shipments.md`](modules/M-74-shipper-shipments.md) §Migration 0021. Drop the policy, then the 2 indexes, then — **only if you truly need the NOT NULL back** — delete the null-carrier (shipper) invoices, drop the CHECK and re-add the NOT NULL, which **fails while any shipper invoice exists**; finally drop the 2 columns. `pg_dump -t invoices` first. Roll back `src/lib/supabase/database.types.ts` and the two `/portal/shipper/shipments` routes in the same deploy; if you don't, the detail page's invoice section renders its honest "we couldn't read your invoices" state and logs — it does not leak. |
    | 0022 | `0022_shipment_operations.sql` | **M-75.** FOUR `security definer` functions and nothing else — no table, no policy, no enum, no trigger, no index: `create_shipment` (row + `shipment_created` event, key-allow-listed, 0017's §2 gate and §5 CHECK/unique index still apply above it), `assign_shipment_carrier` (assignment row + `shipments.carrier_id` + event, atomically — a split write would leave the just-assigned carrier unable to SEE the shipment under 0018's policy; refuses another carrier's driver/truck with `PL422`), `release_shipment_assignment` (stamps `released_at`, never deletes; optionally clears `carrier_id`), `set_shipment_eta` (M-71's ETA columns + an `eta_update` event carrying the PREVIOUS value). **EXECUTE granted to `service_role` only**, after an explicit `revoke all … from public` | Full script in [`docs/modules/M-75-dispatcher-operations.md`](modules/M-75-dispatcher-operations.md) §DB changes. `drop function` the four, in reverse order (signatures in the doc). **NOT destructive** — no row is deleted and no column changes; shipments already created stay readable and their statuses stay writable through 0019's engine. What stops working is *creating* a shipment, assigning a carrier and updating an ETA, so roll back the M-75 surface in the same deploy: delete `src/lib/shipments/{create,assignments,eta}.ts` and the three `/portal/admin/shipments` routes, or the build calls functions that no longer exist. 0017–0021 are untouched. |
    | 0023 | `0023_driver_update_tokens.sql` | **M-76.** Enum `driver_token_outcome`; `shipment_driver_tokens` (the platform's first bearer credential — stores an **HMAC** of the token under `DRIVER_TOKEN_SECRET` and never the token; `expires_at` NOT NULL so a permanent link cannot exist) and `shipment_driver_token_access` (append-only ledger that doubles as the rate limiter's memory, so "rate limited" and "audit logged" are ONE write); 6 indexes; `trg_driver_tokens_immutable` (shipment/carrier/hash frozen, revocation one-way) and `trg_driver_token_access_append_only`; RLS + 3 policies, **no anon policy** even though the driver page is anonymous; **the repo's first COLUMN-level privilege revoke** — `token_hash` is unreadable by `authenticated` and `anon`; 4 `security definer` functions (`issue_shipment_driver_token`, `revoke_shipment_driver_token`, `redeem_shipment_driver_token`, `set_driver_token_consent`) with **EXECUTE granted to `service_role` only** | Full script in [`docs/modules/M-76-carrier-driver-updates.md`](modules/M-76-carrier-driver-updates.md) §DB changes. Drop the 3 policies, disable RLS, drop the 4 functions (signatures in the doc), drop each trigger **before** its table, then the 2 trigger functions, the 2 tables `cascade`, then the enum. **Destructive** — it drops every issued driver link and the entire record of who presented one; `pg_dump -t shipment_driver_tokens -t shipment_driver_token_access` first. Roll back `src/lib/supabase/database.types.ts`, delete `src/lib/shipments/driver-*.ts` and the `/driver/update/[token]` route in the same deploy; the failure mode if you don't is **closed** (an unreachable redeem is an "unavailable" refusal, never an unlogged grant). **The carrier surface survives this rollback** — `/portal/carrier/shipments` reads only `shipments` and `shipment_events`; remove the driver-link block from `CarrierShipmentDetailView` and the two link actions and §13's status/ETA/exception updates keep working. 0017–0022 are untouched. |
+   | 0024 | `0024_shipment_documents.sql` | **M-77.** The private **`shipment-docs` bucket** (created by the migration itself — `public = false`, 10 MB, pdf/jpeg/png/heic); `shipment_document_audiences` (the §16 document-type → audience MATRIX as 22 rows, with CHECKs forbidding a `public` or `staff_only` cell); `shipment_documents` (4 CHECKs incl. `(status='approved') = (approved_at is not null)` and a path-prefix constraint; `storage_path` unique); 3 indexes (one partial, serving §20's POD lookup); `trg_shipment_documents_immutable` (what a document IS cannot change → PL409) and `trg_shipment_documents_visibility` (a row's band may NARROW, never widen → PL422); RLS + 4 policies (staff/shipper/carrier/**broker**), **no customer write policy** and a `revoke all … from authenticated, anon` before the SELECT grant, because Supabase's default privileges hand new tables full DML; 4 `security definer` functions — `shipment_document_reaches_audience` (`authenticated`), `add_shipment_document` + `review_shipment_document` (**`service_role` only**), `count_shipment_documents_awaiting_review` (`authenticated`, returns a COUNT and nothing else). **AND it REPLACES `shipment_transition_facts()` from 0019** — the one function in the chain a later migration was *instructed* to rewrite: 0019 shipped `approved_pod_document_id` as a literal `null` with the replacement SQL in the comment above it, addressed to M-77 by name. `pod_uploaded` becomes reachable, and only with an approved POD. | Full script in [`docs/modules/M-77-shipment-documents.md`](modules/M-77-shipment-documents.md) §Deployment. **THE ORDER MATTERS: re-run 0019's `create or replace function public.shipment_transition_facts(uuid)` block FIRST**, before dropping anything — it has the literal `null`, and doing it after the table is gone leaves every transition failing on a missing relation. Then drop the 5 policies (4 on `shipment_documents`, 1 on the matrix), the storage policy, the 4 functions, each trigger **before** its table, the 2 trigger functions, the 2 tables `cascade`, and finally `delete from storage.buckets where id = 'shipment-docs'` — **only if empty**. **Destructive** — it drops every BOL and POD filed against a shipment, and with them the evidence a delivery happened; `pg_dump -t shipment_documents` first. The **objects survive in the bucket**; the rows naming them do not, so they become unreachable rather than deleted, and emptying the bucket is a separate deliberate act. Roll back `src/lib/supabase/database.types.ts`, delete `src/lib/shipments/document*.ts`, `src/app/actions/shipment-documents.ts` and the two document components, and revert the four surface edits in the same deploy. It fails **CLOSED** either way: with the table gone and 0019's function restored, `pod_uploaded` is refused again — M-72's documented behaviour, not a new failure mode. 0017–0023 are otherwise untouched, and `carrier-docs` is untouched entirely. |
 
    After applying, sanity-check the chain the same way CI does:
 
    ```bash
-   npm run test:rls     # rebuilds a throwaway DB from 0001→0023 + seed + fixtures
+   npm run test:rls     # rebuilds a throwaway DB from 0001→0024 + seed + fixtures
    ```
+
+   **Then VERIFY the two private buckets exist and are private (M-77):**
+
+   ```sql
+   select id, public, file_size_limit, allowed_mime_types
+     from storage.buckets where id in ('carrier-docs', 'shipment-docs');
+   ```
+
+   Both rows must show `public = f`. `carrier-docs` comes from 0004,
+   `shipment-docs` from 0024, and **each migration inserts its own row** — on
+   hosted Supabase there is nothing to click.
+
+   **If the query returns fewer than two rows** (a self-hosted Postgres
+   without the `storage` schema, or an environment where the migration ran
+   against an app database rather than the Supabase one), create the missing
+   bucket **manually** before anyone uploads:
+
+   - Supabase Studio → Storage → **New bucket** → name `shipment-docs`, and
+     **leave "Public bucket" OFF**. Then set the limits in SQL:
+
+   ```sql
+   update storage.buckets
+      set public = false,
+          file_size_limit = 10485760,
+          allowed_mime_types =
+            array['application/pdf','image/jpeg','image/png','image/heic']
+    where id = 'shipment-docs';
+   ```
+
+   A bucket created **public** is the one configuration mistake this module
+   cannot survive: §16 says *"do not put shipment documents in public
+   buckets"*, and a public bucket makes every BOL, POD and rate confirmation
+   readable by URL regardless of what the row-level policies say. If in doubt,
+   re-run the verification query and read the `public` column.
 
 2. **Seed** — run `supabase/seed.sql` (idempotent, `on conflict do nothing`).
    Seeds the **9** `company_settings` keys with launch-safe defaults (see the
@@ -269,14 +312,14 @@ sets them expecting an effect:
 
 ```bash
 npm run typecheck && npm run lint && npm run build   # module gate (CLAUDE.md)
-npm test                 # 966 unit assertions
-npm run test:rls         # 447 RLS isolation assertions — see below
-npm run test:integration # 157 integration tests against local PG16 — see below
-npm run test:e2e         # 229 chromium tests against the production build
+npm test                 # 1061 unit assertions
+npm run test:rls         # 502 RLS isolation assertions — see below
+npm run test:integration # 194 integration tests against local PG16 — see below
+npm run test:e2e         # 240 chromium tests against the production build
 ```
 
 **`npm run test:rls` is a release gate, not an optional extra.** It rebuilds
-a throwaway database from `0001 → 0023` + seed + two/three-tenant fixtures and
+a throwaway database from `0001 → 0024` + seed + two/three-tenant fixtures and
 asserts that carrier A cannot reach carrier B, shipper A cannot reach shipper
 B (including *unclaimed* public quotes), anon reaches nothing but
 `company_settings` and published posts, and no session — staff or admin — can
@@ -301,7 +344,17 @@ functions refused `42501` to an **admin** session and to anon, the grants read
 straight out of `pg_proc` (so a future `grant … to authenticated` fails even if
 the refusals were satisfied for some other reason), and `shipment_exceptions` /
 `shipment_eta_history` proved **absent** so M-78's deferral cannot rot into a
-drift.
+drift. Since M-76 it also asserts the driver-link cluster, including the repo's
+first COLUMN-level revoke (`token_hash` unreadable by `authenticated` and
+`anon`). Since M-77 it also asserts **§16's document matrix**: that the matrix
+table has no `public` and no `staff_only` cell and neither can be inserted,
+that a shipper reads exactly 3 of 8 fixture documents and a broker exactly 2
+while staff read all 8 (so every customer zero is a band decision, not an empty
+table), that **carrier A reads nothing of carrier B's documents**, that a
+de-activated broker organization reads nothing, that a `pending` document and a
+`staff_only`-narrowed one reach nobody, that a **rate confirmation filed as
+`shipper` is refused by the database**, and that the two document write
+functions are refused `42501` to an admin session.
 It needs a local PostgreSQL 16; it is deliberately **not** part of `npm test`, because vitest runs on
 placeholder env with no database and that property is load-bearing for CI.
 
@@ -317,7 +370,7 @@ the tracking directive's §27 integration tier, which
 [`docs/FINAL-IMPLEMENTATION-PLAN.md`](FINAL-IMPLEMENTATION-PLAN.md) §4 records
 as *"diagnosed absent, then dropped entirely"* by the extension audit and
 restores as M-83b; M-72 ships the lane plus the four tests it can prove today.
-It builds its own throwaway database (`0001 → 0023` + seed, **not** the RLS
+It builds its own throwaway database (`0001 → 0024` + seed, **not** the RLS
 fixtures — it creates shipments through the engine) and then runs vitest
 against it, so the real TypeScript transition engine drives the real SQL write
 path: create → assign carrier → create event → update status, idempotent
@@ -635,6 +688,60 @@ effect site-wide immediately — **no deploy**.
           issuing surfaces show the honest "not configured" notice and no link
           can be created. That is the fail-closed path; a link that still
           minted would mean the guard is not wired.
+- [ ] **Documents + POD smoke test (M-77).** Needs `brokerage_active`
+      **true**, a shipment assigned to a carrier with a portal account, and
+      that shipment walked to **delivered**:
+      1. As the **carrier**, open the shipment. Under "Send a document" the
+         type list must be exactly **BOL · POD · lumper receipt · detention
+         documentation · delivery receipt**. If `Invoice`, `Quote`, `Carrier
+         rate confirmation` or `Claim document` is in that list, **stop** —
+         those are ours to issue.
+      2. Upload a POD (a phone photo is the real case). The result says
+         dispatch reviews it before the customer can see it. **Now check the
+         shipper's view: the document must NOT be there.** An unreviewed
+         document reaching a customer is the failure this step exists to
+         catch.
+      3. Try uploading a **`.pdf` that is really a text file** (rename
+         anything). It must be refused as an unsupported type — the server
+         reads magic bytes, never the extension or the browser's
+         `Content-Type`.
+      4. As **dispatcher**, open `/portal/admin/shipments/<id>`. The POD is
+         listed as **In review**. Try to move the status to **POD uploaded**:
+         the control must not be offered, and if you force it the server
+         refuses with a precondition failure naming the POD.
+      5. **Approve** the POD. Now "POD uploaded" is available and succeeds.
+         That chain — upload, human approval, transition — is §20, and it is
+         the only way that status can be reached.
+      6. Back on the **shipper's** shipment detail, the POD now appears.
+         Download it. The link opens in a new tab and **expires in five
+         minutes** — wait six and reload the tab to confirm it is dead. Copy
+         the URL out and paste it into a private window *within* the window to
+         confirm it works, then again after expiry to confirm it does not.
+      7. **The rate confirmation test.** As dispatcher, file a **Carrier rate
+         confirmation** on the same shipment and approve it. It must appear
+         for the **carrier** and must NOT appear for the **shipper** — check
+         the page and then the HTML source. If the shipper can see it, stop
+         and do not go live: that is §4's first named prohibition.
+      8. File a **Claim document** and approve it. It must appear for
+         **nobody** but staff.
+      9. Tick **"Keep this staff-only"** on a BOL upload and approve it. It
+         must stay invisible to every customer even though its type licenses
+         three audiences.
+      10. Check the ledger: `select action, target_table, detail from
+          audit_events where action = 'document.download' order by created_at
+          desc limit 5`. Every download you just did is there, with the doc
+          type, the audience and `ttl_seconds`. **There must be no URL in any
+          of them** — a signed URL in the audit trail is a live credential in
+          a log, and if you see one, stop.
+      11. As a **shipper**, load the portal overview. The "Documents awaiting
+          review" tile shows a real number, not an em-dash. Approve everything
+          and confirm it drops to `0` rather than to a dash — `0` means the
+          query ran, a dash means it failed.
+      12. **Reject** a POD with a note. Confirm the shipper's view loses it
+          and the carrier is asked for a replacement, and that `select status,
+          approved_at from shipment_documents where id = …` shows
+          `rejected` / `NULL` — the approval timestamp is cleared, so the §20
+          precondition tracks the current decision and not the history.
 - [ ] Stripe + Dropbox Sign webhook test deliveries show in
       `webhook_events`.
 

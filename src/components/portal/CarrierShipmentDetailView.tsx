@@ -14,10 +14,19 @@ import {
 import { initialFormState, type FormState } from "@/lib/form-state";
 import type { CarrierShipmentDto, CustomerEventDto } from "@/lib/shipments/dto";
 import { resolvePublicText } from "@/lib/shipments/phrases";
+import type { CarrierUpdateAction } from "@/lib/shipments/carrier-updates";
 import {
-  DEFERRED_CARRIER_ACTIONS,
-  type CarrierUpdateAction,
-} from "@/lib/shipments/carrier-updates";
+  CARRIER_UPLOADABLE_DOC_TYPES,
+  type CustomerDocumentDto,
+} from "@/lib/shipments/documents";
+import {
+  DocumentList,
+  DocumentUploadForm,
+} from "@/components/portal/ShipmentDocuments";
+import {
+  carrierUploadDocumentAction,
+  getCarrierDocumentUrlAction,
+} from "@/app/actions/shipment-documents";
 import {
   driverTokenState,
   type DriverTokenState,
@@ -57,13 +66,18 @@ import {
  * and that a terminal shipment renders the honest "nothing to update" sentence
  * rather than an empty dropdown.
  *
- * ── §30: WHAT IS NOT BUILT SAYS SO ───────────────────────────────────────
+ * ── §13's TWO UPLOAD ACTIONS ARE NOW REAL (M-77) ─────────────────────────
  *
- * BOL and POD upload are §13 actions owned by M-77. They render as a labelled,
- * non-interactive row naming the gap. A disabled button with no explanation
- * teaches a carrier that the portal is broken; an absent one teaches them the
- * feature does not exist. Saying which module owns it is the honest third
- * option, and it is the treatment M-75 gave the identical gap.
+ * M-76 rendered "Upload BOL · Upload POD" as a labelled, non-interactive row
+ * naming the gap. M-77 replaced it with the working form and the carrier's own
+ * document list. The list is the §16 CARRIER band: the carrier rate
+ * confirmation is in it (it is their contract), the shipper's quote and
+ * invoice are not, and neither is anything still pending review.
+ *
+ * The upload form offers `CARRIER_UPLOADABLE_DOC_TYPES` — the same array the
+ * server's Zod schema and `canUpload()` are built from. A `<select>` is not a
+ * control; the server refuses an "invoice" from a carrier session whatever the
+ * browser posts.
  *
  * ── §22/§23 ──────────────────────────────────────────────────────────────
  *
@@ -141,6 +155,10 @@ export interface CarrierShipmentDetailViewProps {
   offeredActions: readonly CarrierUpdateAction[];
   tokens: readonly DriverTokenView[];
   tokensFailed: boolean;
+  /** M-77 — the §16 CARRIER band, filtered on the server. */
+  documents: CustomerDocumentDto[];
+  documentsFailed: boolean;
+  documentsHasMore: boolean;
   historyHasMore: boolean;
   historyMoreHref: string | null;
   historyPaged: boolean;
@@ -173,6 +191,9 @@ export function CarrierShipmentDetailView({
   offeredActions,
   tokens,
   tokensFailed,
+  documents,
+  documentsFailed,
+  documentsHasMore,
   historyHasMore,
   historyMoreHref,
   historyPaged,
@@ -474,15 +495,26 @@ export function CarrierShipmentDetailView({
         )}
       </section>
 
-      {/* §30 — §13's two document actions, named rather than missing. */}
-      <section className="pcard" aria-labelledby="cs-docs">
-        <h2 id="cs-docs">
-          {DEFERRED_CARRIER_ACTIONS.map((a) => t(a.labelKey)).join(" · ")}
-        </h2>
-        <p className="pempty" style={{ padding: 0 }}>
-          {t("shipment.carrier.docs_deferred")}
-        </p>
-      </section>
+      {/* M-77 — §13's two upload actions, and the §16 carrier band. */}
+      <DocumentUploadForm
+        shipmentId={shipment.id}
+        docTypes={CARRIER_UPLOADABLE_DOC_TYPES}
+        action={carrierUploadDocumentAction}
+        headingId="cs-doc-upload"
+        titleKey="shipment.document.upload_title"
+        blurbKey="shipment.document.carrier_upload_blurb"
+        onDone={refresh}
+      />
+
+      <DocumentList
+        documents={documents}
+        failed={documentsFailed}
+        hasMore={documentsHasMore}
+        downloadAction={getCarrierDocumentUrlAction}
+        headingId="cs-docs"
+        titleKey="shipment.document.title"
+        blurbKey="shipment.document.carrier_blurb"
+      />
 
       {/* §7 timeline, carrier band only. */}
       <section className="track-section" aria-labelledby="cs-history">

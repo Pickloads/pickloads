@@ -6,7 +6,6 @@ import {
   CARRIER_REFUSAL_MESSAGES,
   CARRIER_UPDATE_ACTIONS,
   CARRIER_UPDATE_ACTORS,
-  DEFERRED_CARRIER_ACTIONS,
   actorMayInvoke,
   carrierAction,
   offeredCarrierActions,
@@ -20,6 +19,11 @@ import {
   type TransitionFacts,
 } from "@/lib/shipments/transitions";
 import { SHIPMENT_STATUSES, type ShipmentStatus } from "@/lib/shipments/types";
+import {
+  CARRIER_UPLOADABLE_DOC_TYPES,
+  DRIVER_UPLOADABLE_DOC_TYPES,
+  documentTypeKey,
+} from "@/lib/shipments/documents";
 import messages from "../../messages/en.json";
 import esMessages from "../../messages/es.json";
 import frMessages from "../../messages/fr.json";
@@ -91,17 +95,25 @@ describe("§13's allowed actions", () => {
     );
   });
 
-  it("claims NO document upload — §13's two upload actions are M-77's, named not missing", () => {
+  /*
+   * M-76 wrote this as *"claims NO document upload — §13's two upload actions
+   * are M-77's, named not missing"*. M-77 built them, as their own FORMS
+   * rather than as members of this list: an upload is not a transition, and a
+   * `CarrierUpdateAction` with no status is something `carrierAction()` and
+   * the engine have no meaning for. What still has to hold is that the
+   * transition list never claims to upload anything and never offers
+   * `pod_uploaded` — approving a POD is a staff act (§20).
+   */
+  it("is a list of TRANSITIONS only — uploads are forms, and `pod_uploaded` is staff's", () => {
     for (const action of CARRIER_UPDATE_ACTIONS) {
       expect(action.id).not.toMatch(/upload/);
       expect(action.status).not.toBe("pod_uploaded");
     }
-    expect(DEFERRED_CARRIER_ACTIONS.map((a) => a.id)).toEqual([
-      "upload_bol",
-      "upload_pod",
-    ]);
-    for (const deferred of DEFERRED_CARRIER_ACTIONS) {
-      expect(deferred.owner).toBe("M-77");
+    // §13's two documents are the DRIVER's whole upload allow-list, and a
+    // strict subset of the carrier's.
+    expect([...DRIVER_UPLOADABLE_DOC_TYPES]).toEqual(["bol", "pod"]);
+    for (const type of DRIVER_UPLOADABLE_DOC_TYPES) {
+      expect(CARRIER_UPLOADABLE_DOC_TYPES).toContain(type);
     }
   });
 
@@ -118,7 +130,9 @@ describe("§13's allowed actions", () => {
 
     const keys = [
       ...CARRIER_UPDATE_ACTIONS.map((a) => a.labelKey),
-      ...DEFERRED_CARRIER_ACTIONS.map((a) => a.labelKey),
+      // M-77 — the document-type labels the two upload forms render.
+      ...DRIVER_UPLOADABLE_DOC_TYPES.map(documentTypeKey),
+      ...CARRIER_UPLOADABLE_DOC_TYPES.map(documentTypeKey),
     ];
     for (const [locale, catalogue] of Object.entries(catalogues)) {
       for (const key of keys) {

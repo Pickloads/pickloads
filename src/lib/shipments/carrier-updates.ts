@@ -47,14 +47,19 @@ import {
  *
  * ── WHAT IS DELIBERATELY ABSENT ──────────────────────────────────────────
  *
- * **upload BOL** and **upload POD** are §13 actions and are **M-77's**
- * (`docs/FINAL-IMPLEMENTATION-PLAN.md` §7: *"M-77 — Shipment documents +
- * POD"*). They appear in `DEFERRED_CARRIER_ACTIONS` below and are rendered by
- * both surfaces as an honest placeholder that says which module owns them —
- * not omitted, and not a button that does nothing. `pod_uploaded` is also
- * refused by M-72's `approved_pod_required` precondition today, because no
- * document table exists to satisfy it, so a working upload button would be a
- * button whose result the engine rejects.
+ * **upload BOL** and **upload POD** are §13 actions and are not in this list
+ * — not because they are missing, but because they are not TRANSITIONS. M-77
+ * built them as their own forms (`DocumentUploadForm` on the carrier surface,
+ * the `DriverForm` block on the driver link), driven by
+ * `CARRIER_UPLOADABLE_DOC_TYPES` / `DRIVER_UPLOADABLE_DOC_TYPES` in
+ * `src/lib/shipments/documents.ts`. Folding a file upload into a list whose
+ * every other member is a status move would have made `carrierAction()` return
+ * something with no `status` and no `kind` the engine understands.
+ *
+ * `pod_uploaded` is likewise absent from `ACTOR_PERMITTED_TARGETS.carrier` and
+ * stays that way after M-77: §20 requires an APPROVED POD, approval is a staff
+ * act, and a carrier who could make the transition would be approving their
+ * own proof of delivery.
  *
  * ── WHY A CARRIER'S ACTION LIST IS NOT `availableTransitions` ALONE ───────
  *
@@ -113,12 +118,7 @@ export interface CarrierUpdateAction {
 const BOTH: readonly CarrierUpdateActor[] = ["carrier", "driver"];
 const CARRIER_ONLY: readonly CarrierUpdateActor[] = ["carrier"];
 
-/**
- * Widened past `CarrierActionId` on purpose: M-77's two deferred actions get
- * their labels from the same builder, so the placeholder rows are translated
- * like everything else rather than being English strings in a component.
- */
-function actionKey(id: CarrierActionId | "upload_bol" | "upload_pod"): string {
+function actionKey(id: CarrierActionId): string {
   return `${SHIPMENT_I18N_NAMESPACE}.action.${id}`;
 }
 
@@ -217,21 +217,6 @@ export const CARRIER_UPDATE_ACTIONS: readonly CarrierUpdateAction[] = [
     actors: BOTH,
   },
 ];
-
-/**
- * §13's two document actions, named rather than missing.
- *
- * Both surfaces render these as a disabled row with the honest sentence
- * "Document upload is not built yet" — §30's rule applied to an operator
- * surface, and the same treatment M-75 gave the identical gap on the
- * dispatcher page. `tests/unit/carrier-driver-updates.test.ts` asserts the
- * placeholder is present and that no action in `CARRIER_UPDATE_ACTIONS`
- * claims to upload anything.
- */
-export const DEFERRED_CARRIER_ACTIONS = [
-  { id: "upload_bol", labelKey: actionKey("upload_bol"), owner: "M-77" },
-  { id: "upload_pod", labelKey: actionKey("upload_pod"), owner: "M-77" },
-] as const;
 
 /** Lookup by id. Returns null for anything not in the list — never throws. */
 export function carrierAction(id: unknown): CarrierUpdateAction | null {

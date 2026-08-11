@@ -978,9 +978,7 @@
       "unloading": "Unloading",
       "delivered": "Delivered",
       "update_eta": "Update ETA",
-      "submit_exception": "Report a problem",
-      "upload_bol": "Upload BOL",
-      "upload_pod": "Upload POD"
+      "submit_exception": "Report a problem"
     },
     "consent": {
       "pending": "Not answered yet",
@@ -1004,7 +1002,6 @@
       "expires": "This link stops working on {when}.",
       "no_money": "This page never shows rates, invoices or anything about the customer's price.",
       "honest_note": "Updates are what you type here. This page does not track your phone and does not show a live GPS position.",
-      "docs_deferred": "Photo upload for BOL and POD is not built yet — send those to dispatch the way you do today.",
       "call": "Call dispatch",
       "status_legend": "What just happened?",
       "no_actions": "There is nothing to update on this shipment right now. Call (908) 404-5373 if that looks wrong.",
@@ -1041,7 +1038,15 @@
       "stale": "Someone else updated this shipment. Reload the page and check before sending again.",
       "not_allowed": "That change has to come from your dispatcher. Call (908) 404-5373.",
       "not_now": "That update doesn't fit where this load is right now. Reload the page.",
-      "invalid": "We couldn't record that. Reload the page and try again."
+      "invalid": "We couldn't record that. Reload the page and try again.",
+      "docs_title": "Send a photo",
+      "docs_blurb": "Take a photo of the signed BOL or POD and send it. Dispatch checks it before the customer sees it.",
+      "doc_sent": "Sent. Dispatch will check it.",
+      "doc_missing": "Choose a photo or file first.",
+      "doc_invalid": "Pick BOL or POD.",
+      "doc_too_large": "That file is over 10 MB. Take the photo again at lower quality.",
+      "doc_bad_type": "That file type doesn't work. Send a photo or a PDF.",
+      "doc_failed": "It didn't send. Try again, or call (908) 404-5373."
     },
     "carrier": {
       "crumb": "Carrier portal",
@@ -1084,8 +1089,40 @@
       "link_expires": "Expires",
       "link_uses": "Times used",
       "link_driver": "Driver",
-      "link_consent": "Location sharing",
-      "docs_deferred": "BOL and POD upload is not built yet. Keep sending documents to dispatch the way you do today — we'll tell you when it lands here."
+      "link_consent": "Location sharing"
+    },
+    "document": {
+      "quote": "Quote",
+      "shipper_confirmation": "Shipper confirmation",
+      "rate_confirmation": "Carrier rate confirmation",
+      "bol": "Bill of Lading",
+      "lumper_receipt": "Lumper receipt",
+      "detention_documentation": "Detention documentation",
+      "delivery_receipt": "Delivery receipt",
+      "pod": "Proof of Delivery",
+      "invoice": "Invoice",
+      "claim": "Claim document",
+      "other": "Other document",
+      "title": "Documents",
+      "empty": "No approved documents on this shipment yet.",
+      "failed": "We couldn't load the documents just now. Reload the page, or call (908) 404-5373.",
+      "more": "Older documents exist. Ask dispatch for anything you don't see here.",
+      "link_note": "Download links are private and stop working after five minutes. Ask again for a fresh one.",
+      "download": "Download",
+      "col_type": "Document",
+      "col_file": "File",
+      "col_size": "Size",
+      "col_approved": "Approved",
+      "col_action": "Action",
+      "shipper_blurb": "Bills of lading, proof of delivery, invoices and approved paperwork for this shipment. Documents appear here once our team has checked them.",
+      "carrier_blurb": "The paperwork you and dispatch have filed on this load. Your rate confirmation is here; the customer's price is not.",
+      "upload": "Upload",
+      "uploading": "Uploading…",
+      "upload_title": "Send a document",
+      "carrier_upload_blurb": "Send the BOL, the POD or the receipt behind an accessorial. Dispatch checks it before the customer sees it. PDF, JPG, PNG or HEIC, up to 10 MB.",
+      "field_type": "Document type",
+      "field_file": "File",
+      "field_hint": "PDF, JPG, PNG or HEIC · max 10 MB"
     }
   }
 }

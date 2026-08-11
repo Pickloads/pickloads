@@ -100,10 +100,14 @@ describe("MFA graceful degradation without Supabase env", () => {
   });
 });
 
-describe("signed URLs for the private carrier-docs bucket (S-01)", () => {
+describe("signed URLs for the private buckets (S-01, §16)", () => {
   const CALL_SITES = [
     "src/app/actions/admin.ts",
     "src/app/actions/carrier.ts",
+    // M-77 — `shipment-docs`, the second private bucket. Same constant, same
+    // ceiling, same scan: a numeric literal here would be a 24-hour link to a
+    // proof of delivery.
+    "src/lib/shipments/document-store.ts",
   ];
 
   it("the shared TTL is 5 minutes or less", () => {
@@ -135,6 +139,13 @@ describe("audit_events coverage for sensitive staff actions (audit §6.2)", () =
     ["src/app/actions/carrier-portal.ts", ["carrier.change_request", "agreement.resend_requested"]],
     ["src/app/actions/account.tsx", ["account.signup"]],
     ["src/app/actions/security.ts", ["staff.mfa_enrolled", "staff.mfa_verified"]],
+    // M-77 — §15's document-access history for SHIPMENT documents. Same
+    // `document.download` action string as the carrier-document paths above,
+    // so the admin security log is one query rather than two.
+    [
+      "src/lib/shipments/document-store.ts",
+      ["document.download", "shipment_document.upload", "shipment_document.review"],
+    ],
   ];
 
   for (const [file, actions] of REQUIRED) {

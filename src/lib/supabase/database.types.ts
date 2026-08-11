@@ -495,6 +495,10 @@ import type {
   ShipmentDriverTokenRow,
   ShipmentDriverTokenAccessRow,
   DriverTokenIssuerRole,
+  /** M-77 (0024) — §16 documents and the audience matrix. */
+  ShipmentDocumentRow,
+  ShipmentDocumentType,
+  ShipmentDocumentVisibility,
   ShipmentEventSource,
   ShipmentEventType,
   ShipmentEventVisibility,
@@ -810,6 +814,47 @@ export type Database = {
         Update: Partial<AsRow<ShipmentDriverTokenAccessRow>>;
         Relationships: [];
       };
+      /* M-77 (0024) — §16 shipment documents.
+       *
+       * `Insert` and `Update` are declared for shape completeness and are
+       * UNREACHABLE from `src/`: 0024 grants no customer write policy and
+       * revokes everything but SELECT from `authenticated`. Every write goes
+       * through `add_shipment_document()` / `review_shipment_document()`,
+       * granted to `service_role` only — which is what makes the per-uploader
+       * doc-type allow-list (`UPLOADABLE_DOC_TYPES`) unbypassable rather than
+       * merely conventional.
+       *
+       * NOTE WHAT CUSTOMER SURFACES NEVER PROJECT: `storage_path`. It is the
+       * argument a signed URL is minted from; `CustomerDocumentDto` in
+       * `src/lib/shipments/documents.ts` does not carry it, so a page cannot
+       * ask for a URL to a path it was never shown. */
+      shipment_documents: {
+        Row: AsRow<ShipmentDocumentRow>;
+        Insert: Insertable<
+          AsRow<ShipmentDocumentRow>,
+          "shipment_id" | "doc_type" | "visibility" | "storage_path" | "file_name"
+        >;
+        Update: Partial<AsRow<ShipmentDocumentRow>>;
+        Relationships: [];
+      };
+      /* M-77 (0024) — the §16 MATRIX itself, as rows. Read-only to every
+       * role: the seed in 0024 is the only writer, and changing who may see a
+       * POD is a migration, not an UPDATE. */
+      shipment_document_audiences: {
+        Row: {
+          doc_type: ShipmentDocumentType;
+          audience: ShipmentDocumentVisibility;
+        };
+        Insert: {
+          doc_type: ShipmentDocumentType;
+          audience: ShipmentDocumentVisibility;
+        };
+        Update: Partial<{
+          doc_type: ShipmentDocumentType;
+          audience: ShipmentDocumentVisibility;
+        }>;
+        Relationships: [];
+      };
       broker_partners: {
         Row: BrokerPartnerRow;
         Insert: Insertable<BrokerPartnerRow, "company_name">;
@@ -1042,6 +1087,63 @@ export type Database = {
           p_user_agent?: string | null;
         };
         Returns: unknown;
+      };
+
+      /* ---------- M-77 (0024) — the §16 document write path ----------
+       *
+       * Same contract as every shipment function before them: SECURITY
+       * DEFINER, EXECUTE to `service_role` only, `jsonb` in and out, narrowed
+       * once by the caller (`src/lib/shipments/document-store.ts`). Each
+       * exists because its operation is a row write AND a §7 event that must
+       * be one transaction — a document with no `document_uploaded` event is
+       * a file nobody can explain, and an event with no document is a
+       * timeline entry that lies. */
+      add_shipment_document: {
+        Args: {
+          p_shipment_id: string;
+          p_doc_type: ShipmentDocumentType;
+          p_storage_path: string;
+          p_file_name: string;
+          p_mime_type?: string | null;
+          p_size_bytes?: number | null;
+          p_actor?: string | null;
+          p_source?: ShipmentEventSource;
+          p_visibility?: ShipmentDocumentVisibility | null;
+          p_idempotency_key?: string | null;
+        };
+        Returns: unknown;
+      };
+      review_shipment_document: {
+        Args: {
+          p_document_id: string;
+          p_decision: DocStatus;
+          p_actor?: string | null;
+          p_note?: string | null;
+          p_source?: ShipmentEventSource;
+          p_public_message?: string | null;
+        };
+        Returns: unknown;
+      };
+      /** M-77 (0024) — §11's ninth shipper tile. Returns a COUNT and nothing
+       * else: §16 keeps unapproved documents out of customer hands, so a
+       * `count: exact` under a shipper session would report 0 for a queue of
+       * five. Scope comes from `my_shipper_ids()` inside the function, never
+       * from an argument. */
+      count_shipment_documents_awaiting_review: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
+      /** M-77 (0024) — the §16 matrix predicate, exposed for the RLS proofs.
+       * `authenticated` may execute it; it decides about a TYPE, never about
+       * a row, so it discloses policy and not data. */
+      shipment_document_reaches_audience: {
+        Args: {
+          p_doc_type: ShipmentDocumentType;
+          p_visibility: ShipmentDocumentVisibility;
+          p_status: DocStatus;
+          p_audience: ShipmentDocumentVisibility;
+        };
+        Returns: boolean;
       };
     };
   };

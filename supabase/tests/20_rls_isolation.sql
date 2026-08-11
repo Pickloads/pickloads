@@ -1656,3 +1656,289 @@ select rls_test.ok(
     where table_schema = 'public' and table_name = 'shipment_driver_tokens'
       and column_name = 'consent_status') like '%pending%',
   'consent_status DEFAULTS to pending — §9/§13 consent is actively granted, never inherited');
+
+-- ===========================================================================
+-- M-77 — §16 shipment documents: the MATRIX, enforced by RLS (migration 0024)
+--
+-- What this block proves that no other lane can:
+--
+--   * the matrix is enforced by POLICIES, on real rows, per session — the unit
+--     lane proves the TypeScript predicate and the integration lane proves the
+--     two representations agree, but only here does a `shipper` ROLE actually
+--     fail to read a rate confirmation;
+--   * the two NARROWING clauses (`status <> 'approved'`, `visibility =
+--     'staff_only'`) bite for every audience;
+--   * anon reads nothing at all — §4 gives documents no public surface;
+--   * no browser role can WRITE the table, so `add_shipment_document()` and
+--     `review_shipment_document()` are the only doors and the per-uploader
+--     allow-list cannot be bypassed by a hand-rolled insert.
+--
+-- The fixtures put SEVEN documents on shipment A, one per matrix outcome, so
+-- every count below is a statement about a band list rather than about an
+-- empty table.
+-- ===========================================================================
+
+\echo '--- M-77 · §16 document visibility matrix (0024) ---'
+
+-- ---- 1 · the matrix table itself -----------------------------------------
+-- It is POLICY, not data about anyone: readable by every authenticated role
+-- so a policy can join it, unreachable by anon, and writable by nobody.
+select rls_test.ok(
+  has_table_privilege('authenticated', 'shipment_document_audiences', 'SELECT'),
+  'authenticated CAN read the §16 matrix — a policy that joins it has to');
+select rls_test.ok(
+  has_table_privilege('anon', 'shipment_document_audiences', 'SELECT') = false,
+  'ANON cannot read the §16 matrix');
+select rls_test.ok(
+  has_table_privilege('authenticated', 'shipment_document_audiences', 'INSERT') = false
+    and has_table_privilege('authenticated', 'shipment_document_audiences', 'UPDATE') = false
+    and has_table_privilege('authenticated', 'shipment_document_audiences', 'DELETE') = false,
+  'no browser role can EDIT the matrix — changing who may see a POD is a migration, not an UPDATE');
+select rls_test.ok(
+  (select count(*) from shipment_document_audiences where audience = 'public') = 0,
+  'the matrix contains NO public cell (§4, §16)');
+select rls_test.ok(
+  (select count(*) from shipment_document_audiences where audience = 'staff_only') = 0,
+  'the matrix contains no staff_only cell either — staff access is the FLOOR, not a band');
+-- The §16 sentences, as rows. If one of these is missing the directive is not
+-- implemented, whatever the policies say.
+select rls_test.ok(
+  (select count(*) from shipment_document_audiences
+    where (doc_type, audience) in (
+      ('bol','shipper'), ('bol','carrier'), ('bol','broker'),
+      ('pod','shipper'), ('pod','carrier'), ('pod','broker'),
+      ('rate_confirmation','carrier'), ('invoice','shipper'))) = 8,
+  '§16/§12''s eight named cells are all present');
+select rls_test.ok(
+  (select count(*) from shipment_document_audiences where doc_type = 'claim') = 0,
+  '`claim` has NO customer cell — §16 "private claim review"');
+select rls_test.ok(
+  (select count(*) from shipment_document_audiences
+    where doc_type = 'rate_confirmation' and audience <> 'carrier') = 0,
+  'the carrier rate confirmation reaches the CARRIER and nobody else (§4, §12)');
+
+-- ---- 2 · the table's own guarantees, as the OWNER -------------------------
+-- The owner bypasses RLS entirely, so a pass here is a statement about the
+-- SCHEMA: only a trigger or a CHECK can refuse it.
+reset role;
+select rls_test.rejects_with(
+  $$insert into shipment_documents (shipment_id, doc_type, visibility, storage_path, file_name)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 'rate_confirmation', 'shipper',
+            'ffffffff-ffff-ffff-ffff-ffffffff0a01/x-rc.pdf', 'x.pdf')$$,
+  'PL422',
+  'a rate confirmation CANNOT be filed as shipper-visible — §4 is a database rule here');
+select rls_test.rejects_with(
+  $$insert into shipment_documents (shipment_id, doc_type, visibility, storage_path, file_name)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 'bol', 'public',
+            'ffffffff-ffff-ffff-ffff-ffffffff0a01/x-pub.pdf', 'x.pdf')$$,
+  'PL422',
+  'NO document may be filed public (§16 "do not put shipment documents in public buckets")');
+select rls_test.rejects_with(
+  $$insert into shipment_documents (shipment_id, doc_type, visibility, storage_path, file_name)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 'claim', 'shipper',
+            'ffffffff-ffff-ffff-ffff-ffffffff0a01/x-cl.pdf', 'x.pdf')$$,
+  'PL422',
+  'a claim document cannot be widened to a customer at all');
+select rls_test.rejects_with(
+  $$update shipment_documents set storage_path = 'ffffffff-ffff-ffff-ffff-ffffffff0a01/relink.pdf'
+     where id = 'fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a01'$$,
+  'PL409',
+  'a filed document cannot be re-pointed at a different object — approval would survive the swap');
+select rls_test.rejects_with(
+  $$update shipment_documents set doc_type = 'pod'
+     where id = 'fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a01'$$,
+  'PL409',
+  'an approved BOL cannot be re-typed into an approved POD');
+select rls_test.rejects_with(
+  $$update shipment_documents set status = 'approved'
+     where id = 'fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a06'$$,
+  '23514',
+  'status cannot reach `approved` without approved_at — §20''s POD fact reads the timestamp');
+select rls_test.rejects_with(
+  $$insert into shipment_documents (shipment_id, doc_type, visibility, storage_path, file_name)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 'bol', 'shipper',
+            'ffffffff-ffff-ffff-ffff-ffffffff0b01/hijack.pdf', 'x.pdf')$$,
+  '23514',
+  'an object under ANOTHER shipment''s prefix is refused');
+-- Non-vacuity: a LEGAL insert succeeds, so the seven refusals above are the
+-- constraints biting rather than the table being unwritable.
+insert into shipment_documents (shipment_id, doc_type, visibility, storage_path, file_name)
+values ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 'bol', 'shipper',
+        'ffffffff-ffff-ffff-ffff-ffffffff0a01/legal-control.pdf', 'ok.pdf');
+select rls_test.ok(
+  (select count(*) from shipment_documents
+    where storage_path = 'ffffffff-ffff-ffff-ffff-ffffffff0a01/legal-control.pdf') = 1,
+  'NON-VACUITY: a matrix-legal, correctly-prefixed document DOES insert');
+-- …and remove it again so the counts below stay the fixture's.
+delete from shipment_documents
+ where storage_path = 'ffffffff-ffff-ffff-ffff-ffffffff0a01/legal-control.pdf';
+
+-- ---- 3 · privileges -------------------------------------------------------
+select rls_test.ok(
+  has_table_privilege('authenticated', 'shipment_documents', 'INSERT') = false
+    and has_table_privilege('authenticated', 'shipment_documents', 'UPDATE') = false
+    and has_table_privilege('authenticated', 'shipment_documents', 'DELETE') = false,
+  'no browser role can WRITE shipment_documents — the two SECURITY DEFINER functions are the only doors');
+select rls_test.ok(
+  has_table_privilege('anon', 'shipment_documents', 'SELECT') = false,
+  'ANON holds no SELECT on shipment_documents (§4: documents have no public surface)');
+-- The function grants, as a real browser role. Run as ADMIN, the most
+-- privileged session a browser can hold: if even that cannot reach them, no
+-- session can.
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000f1';
+select rls_test.rejects_with(
+  $$select add_shipment_document('ffffffff-ffff-ffff-ffff-ffffffff0a01', 'invoice',
+      'ffffffff-ffff-ffff-ffff-ffffffff0a01/x.pdf', 'x.pdf')$$,
+  '42501',
+  'add_shipment_document is service_role only — a session cannot reach it to bypass the per-role allow-list');
+select rls_test.rejects_with(
+  $$select review_shipment_document('fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a06', 'approved')$$,
+  '42501',
+  'review_shipment_document is service_role only — nobody self-approves their own POD');
+select rls_test.rejects_with(
+  $$select shipment_transition_facts('ffffffff-ffff-ffff-ffff-ffffffff0a01')$$,
+  '42501',
+  'the §20 fact read stays service_role only after M-77 replaced it (unchanged from 0019)');
+-- The one function M-77 DOES open to a session, and the reason it is safe:
+-- it returns a COUNT and nothing else, scoped by my_shipper_ids() inside.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1';
+select rls_test.eq(count_shipment_documents_awaiting_review(), 1,
+  'shipper A CAN count its own pending documents — a number, never a row (§11, §16)');
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c2';
+select rls_test.eq(count_shipment_documents_awaiting_review(), 0,
+  'shipper B counts ZERO — the scope comes from my_shipper_ids(), not from an argument');
+set role anon;
+set request.jwt.claim.sub = '';
+select rls_test.rejects_with(
+  $$select count_shipment_documents_awaiting_review()$$,
+  '42501',
+  'ANON cannot even count — there is no anonymous document surface at all');
+reset role;
+set request.jwt.claim.sub = '';
+
+-- ---- 4 · who reads what, per §16 -----------------------------------------
+set role authenticated;
+
+-- SHIPPER A: BOL + POD + invoice. NOT the rate confirmation, NOT the claim,
+-- NOT the pending POD, NOT the narrowed BOL.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1';
+select rls_test.eq((select count(*) from shipment_documents), 3,
+  'shipper A reads EXACTLY 3 of the 8 documents — the §16 shipper band, approved and unnarrowed');
+select rls_test.eq((select count(*) from shipment_documents where doc_type = 'rate_confirmation'), 0,
+  'shipper A CANNOT read the carrier rate confirmation (§16 lists it carrier-visible only)');
+select rls_test.eq((select count(*) from shipment_documents where doc_type = 'claim'), 0,
+  'shipper A cannot read the private claim review (§16 staff-only)');
+select rls_test.eq((select count(*) from shipment_documents where status <> 'approved'), 0,
+  'shipper A cannot read a PENDING document — §16''s "approved" is load-bearing');
+select rls_test.eq((select count(*) from shipment_documents where visibility = 'staff_only'), 0,
+  'a staff_only NARROWING hides an approved BOL from its own audience');
+select rls_test.eq(
+  (select count(*) from shipment_documents
+    where shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'), 0,
+  'shipper A reads NOTHING of shipper B''s shipment documents');
+select rls_test.writes_nothing(
+  $$update shipment_documents set status = 'approved'
+     where id = 'fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a06'$$,
+  'shipper A cannot approve a document — self-service approval would defeat §20 entirely');
+
+-- SHIPPER B: nothing of shipment A. The mirror that makes A''s 3 a policy result.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c2';
+select rls_test.eq(
+  (select count(*) from shipment_documents
+    where shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'), 0,
+  'shipper B reads NOTHING of shipment A''s documents');
+
+-- CARRIER A: BOL + POD + rate confirmation. NOT the invoice (§16 names the
+-- SHIPPER invoice), not the claim, not the pending POD.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';
+select rls_test.eq((select count(*) from shipment_documents), 3,
+  'carrier A reads EXACTLY 3 — the §16 carrier band');
+select rls_test.eq((select count(*) from shipment_documents where doc_type = 'rate_confirmation'), 1,
+  'carrier A CAN read its own rate confirmation — §16 carrier-visible, and it is their contract');
+select rls_test.eq((select count(*) from shipment_documents where doc_type = 'invoice'), 0,
+  'carrier A cannot read the SHIPPER invoice');
+select rls_test.eq((select count(*) from shipment_documents where doc_type = 'claim'), 0,
+  'carrier A cannot read the private claim review');
+select rls_test.eq(
+  (select count(*) from shipment_documents
+    where shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'), 0,
+  '§19 PROOF: CARRIER A CANNOT READ CARRIER B''S SHIPMENT DOCUMENTS');
+
+-- A carrier MEMBER (not the owner) gets the same view: membership, not
+-- ownership, is the key — the same rule 0018 applies to shipments.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a2';
+select rls_test.eq((select count(*) from shipment_documents), 3,
+  'a carrier A MEMBER reads the same three — membership is the key, not ownership');
+
+-- CARRIER B: the mirror image.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000b1';
+select rls_test.eq(
+  (select count(*) from shipment_documents
+    where shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'), 0,
+  'carrier B reads NOTHING of shipment A — the non-vacuity mirror');
+select rls_test.eq((select count(*) from shipment_documents), 1,
+  'carrier B reads its OWN shipment''s BOL, so its zero above is a policy result');
+
+-- BROKER A: §12''s "POD; BOL, when authorized" — and nothing else.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab01';
+select rls_test.eq((select count(*) from shipment_documents), 2,
+  'broker A reads EXACTLY the BOL and the POD (§12)');
+select rls_test.eq((select count(*) from shipment_documents where doc_type = 'invoice'), 0,
+  'broker A cannot see shipper billing (§12)');
+select rls_test.eq((select count(*) from shipment_documents where doc_type = 'rate_confirmation'), 0,
+  'broker A cannot see the carrier rate confirmation (§12: not the carrier''s private packet)');
+select rls_test.eq((select count(*) from shipment_documents where visibility = 'staff_only'), 0,
+  'a narrowed BOL is hidden from the broker too');
+
+-- BROKER B: another organization''s shipment is not theirs.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab02';
+select rls_test.eq(
+  (select count(*) from shipment_documents
+    where shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'), 0,
+  'broker B reads NOTHING of broker A''s shipment documents');
+
+-- BROKER C: invited, NOT approved. §12 requires verification before access.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab03';
+select rls_test.reads_nothing('shipment_documents',
+  'an UNAPPROVED broker organization reads no document at all (§12)');
+
+-- An authenticated outsider with no membership anywhere.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000d1';
+select rls_test.reads_nothing('shipment_documents',
+  'an unaffiliated authenticated user reads no shipment document');
+
+-- ANON.
+set role anon;
+set request.jwt.claim.sub = '';
+select rls_test.reads_nothing('shipment_documents',
+  'ANON reads NOTHING — §4 gives shipment documents no public surface at all');
+select rls_test.reads_nothing('shipment_document_audiences',
+  'ANON cannot even read the matrix');
+
+-- STAFF — which is what makes every zero above a POLICY result rather than an
+-- empty table.
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000e1';
+select rls_test.eq((select count(*) from shipment_documents), 8,
+  'a DISPATCHER reads all eight — every customer zero above is a band decision, not an empty table');
+select rls_test.eq((select count(*) from shipment_documents where status = 'pending'), 1,
+  'staff see the pending document the customers cannot — that IS the review queue');
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000f1';
+select rls_test.eq((select count(*) from shipment_documents), 8,
+  'an ADMIN reads all eight');
+
+-- ---- 5 · §20''s POD fact, from the fixtures --------------------------------
+reset role;
+select rls_test.ok(
+  (shipment_transition_facts('ffffffff-ffff-ffff-ffff-ffffffff0a01') ->> 'approved_pod_document_id')
+    = 'fcfcfcfc-fcfc-fcfc-fcfc-fcfcfcfc0a02',
+  'M-77 completed M-72''s deferred fact: the APPROVED POD is resolved, not a literal null');
+select rls_test.ok(
+  (shipment_transition_facts('ffffffff-ffff-ffff-ffff-ffffffff0b01') ->> 'approved_pod_document_id')
+    is null,
+  'a shipment with no approved POD still resolves to null — the precondition still refuses');
+select rls_test.ok(
+  (shipment_transition_facts('ffffffff-ffff-ffff-ffff-ffffffff0a01') ->> 'closeout_completed_at')
+    is null,
+  'closeout is STILL a caller assertion — M-77 changed one fact, not two');

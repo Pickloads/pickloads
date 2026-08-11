@@ -15,6 +15,9 @@ import type {
   ShipmentContactView,
   ShipmentInvoiceView,
 } from "@/lib/shipments/shipper-detail";
+import type { CustomerDocumentDto } from "@/lib/shipments/documents";
+import { DocumentList } from "@/components/portal/ShipmentDocuments";
+import { getShipperDocumentUrlAction } from "@/app/actions/shipment-documents";
 
 /**
  * M-74 — §11's shipper shipment DETAIL view.
@@ -147,6 +150,15 @@ export interface ShipmentDetailViewProps {
   invoices: ShipmentInvoiceView[];
   invoicesFailed: boolean;
   contacts: ShipmentContactView[];
+  /**
+   * M-77 — §11's documents block, now real. Filtered to the `shipper` band of
+   * the §16 matrix by `toCustomerDocumentDtos` on the SERVER, so an approved
+   * carrier rate confirmation on this shipment is not merely unrendered here,
+   * it never reached the browser.
+   */
+  documents: CustomerDocumentDto[];
+  documentsFailed: boolean;
+  documentsHasMore: boolean;
   /** Older history exists beyond the events in `shipment.events`. */
   historyHasMore: boolean;
   /** Href for the next (older) page of history, or null. */
@@ -164,6 +176,9 @@ export function ShipmentDetailView({
   invoices,
   invoicesFailed,
   contacts,
+  documents,
+  documentsFailed,
+  documentsHasMore,
   historyHasMore,
   historyMoreHref,
   historyPaged,
@@ -392,15 +407,22 @@ export function ShipmentDetailView({
         </div>
       </section>
 
-      {/* ── §11 documents — read-only until M-77, honest empty state ───── */}
-      <section className="track-section" aria-labelledby="psh-docs-heading">
-        <h2 id="psh-docs-heading">{tv("Documents")}</h2>
-        <p className="pempty" style={{ padding: 0 }}>
-          {tv(
-            "Shipment documents — BOL, proof of delivery and approved paperwork — aren't available for download yet. Ask your dispatcher and they'll email them to you.",
-          )}
-        </p>
-      </section>
+      {/* ── §11 documents — M-77 replaced M-74's honest empty state with the
+           real list. What a shipper sees is the §16 SHIPPER band and nothing
+           else: BOL, POD, invoice and approved paperwork, each of them
+           `approved`. The carrier's rate confirmation is licensed to the
+           `carrier` band only, so it is filtered out on the server, refused by
+           0024's policy, and absent from the DTO — three independent
+           constructions of one rule. ───────────────────────────────────── */}
+      <DocumentList
+        documents={documents}
+        failed={documentsFailed}
+        hasMore={documentsHasMore}
+        downloadAction={getShipperDocumentUrlAction}
+        headingId="psh-docs-heading"
+        titleKey="shipment.document.title"
+        blurbKey="shipment.document.shipper_blurb"
+      />
 
       {/* ── §11 invoice status — from `invoices`, never from the shipment ─ */}
       <section className="track-section" aria-labelledby="psh-invoice-heading">

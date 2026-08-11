@@ -337,8 +337,14 @@ describe("§27 portal lookup — the shipper reads their own shipments", () => {
     expect(counts.booked).toBe(0);
     expect(counts.pickups_today).toBe(1); // A1's 2026-08-05 13:00Z = 09:00 ET
     expect(counts.outstanding_invoices).toBe(1);
-    // M-77's table does not exist; the tile must be "not measured", not 0.
-    expect(counts.documents_awaiting_review).toBeNull();
+    /*
+     * M-77 created `shipment_documents`, so the tile that was honestly "not
+     * measured" is now a real count — and it comes from a SECURITY DEFINER
+     * RPC run under THIS session, because §16 keeps unapproved documents out
+     * of customer hands and a plain count would report 0 for a queue of five.
+     * Zero here is the zero-data state (§11), not a null: the query ran.
+     */
+    expect(counts.documents_awaiting_review).toBe(0);
   });
 });
 

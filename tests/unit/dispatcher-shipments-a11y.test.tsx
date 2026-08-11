@@ -14,6 +14,7 @@ import {
   ShipmentBoard,
   ShipmentColumnView,
 } from "@/components/portal/ShipmentBoardView";
+import type { StaffDocumentView } from "@/components/portal/ShipmentDocumentReview";
 import { ShipmentStaffDetailView } from "@/components/portal/ShipmentStaffDetailView";
 import type {
   StaffAssignmentRow,
@@ -91,6 +92,27 @@ vi.mock("@/app/actions/dispatcher-shipments", () => {
     setAppointmentAction: noop,
     updateEtaAction: noop,
     updateStatusAction: noop,
+  };
+});
+
+/*
+ * M-77 — the documents block binds to server actions, and that module pulls
+ * `server-only` transitively through the whole document write path. Stubbing
+ * the ACTIONS keeps the real markup — which is what axe scans and what the
+ * §16 assertions read.
+ */
+vi.mock("@/app/actions/shipment-documents", () => {
+  const noop = () => Promise.resolve({ status: "idle" as const });
+  const url = () => Promise.resolve({ ok: false as const, error: "stub" });
+  return {
+    carrierUploadDocumentAction: noop,
+    driverUploadDocumentAction: noop,
+    staffUploadDocumentAction: noop,
+    reviewDocumentAction: noop,
+    getShipperDocumentUrlAction: url,
+    getCarrierDocumentUrlAction: url,
+    getBrokerDocumentUrlAction: url,
+    getStaffDocumentUrlAction: url,
   };
 });
 
@@ -278,6 +300,32 @@ const DRIVER_TOKENS = [
   },
 ];
 
+/** M-77 — one pending (review controls drawn) and one approved (not drawn). */
+const STAFF_DOCUMENTS: StaffDocumentView[] = [
+  {
+    id: "sd-1",
+    doc_type: "pod",
+    visibility: "shipper",
+    status: "pending",
+    file_name: "pod-raw.jpg",
+    size_bytes: 810_000,
+    uploaded_at: "2026-09-05T08:00:00.000Z",
+    approved_at: null,
+    review_note: null,
+  },
+  {
+    id: "sd-2",
+    doc_type: "bol",
+    visibility: "shipper",
+    status: "approved",
+    file_name: "bol-signed.pdf",
+    size_bytes: 210_000,
+    uploaded_at: "2026-09-01T08:00:00.000Z",
+    approved_at: "2026-09-01T09:00:00.000Z",
+    review_note: null,
+  },
+];
+
 function detail(overrides: Partial<Parameters<typeof ShipmentStaffDetailView>[0]> = {}) {
   return (
     <ShipmentStaffDetailView
@@ -300,6 +348,11 @@ function detail(overrides: Partial<Parameters<typeof ShipmentStaffDetailView>[0]
       driverTokens={DRIVER_TOKENS}
       driverTokensFailed={false}
       driverLinksEnabled
+      /* M-77 — one PENDING and one APPROVED document, so the review controls
+         and the "already decided" branch are both exercised. */
+      documents={STAFF_DOCUMENTS}
+      documentsFailed={false}
+      documentsHasMore={false}
       {...overrides}
     />
   );
@@ -736,8 +789,11 @@ describe("§30 — the staff surface does not overclaim either", () => {
     render(<main>{detail()}</main>);
     const text = document.body.textContent ?? "";
     expect(text).toContain("Not here yet");
-    expect(text).toContain("Documents and POD upload");
-    expect(text).toContain("exception resolution");
+    // M-77 built documents and POD approval, so the honest-gap list shrank.
+    // What is still missing is still named.
+    expect(text).toContain("Exception resolution");
+    expect(text).toContain("localized customer emails");
+    expect(text).not.toContain("Documents and POD upload");
   });
 
   it("states §5 immutability where somebody would look for an edit button", () => {

@@ -43,6 +43,18 @@ export interface QueryResult {
 /** Per-table canned results. `default` applies when a table has no entry. */
 export type ResultMap = Record<string, QueryResult>;
 
+/**
+ * M-77 — canned `rpc()` results, keyed by function name.
+ *
+ * The recorder grew an `rpc` door because §11's ninth tile is a SECURITY
+ * DEFINER count (0024) rather than a `count: exact`: §16 keeps unapproved
+ * documents out of customer hands, so a plain count under a shipper session
+ * would report 0 for a queue of five. The door is as narrow as the table
+ * door: an un-stubbed function name still THROWS, so a new RPC cannot take an
+ * unrecorded path.
+ */
+export type RpcMap = Record<string, QueryResult>;
+
 const SUPPORTED = new Set([
   "eq",
   "in",
@@ -111,9 +123,16 @@ class RecordingBuilder implements PromiseLike<QueryResult> {
   }
 }
 
+export interface RecordedRpc {
+  fn: string;
+  args: unknown;
+}
+
 export interface RecordingClient {
   /** Every query issued, in call order. */
   queries: RecordedQuery[];
+  /** Every `rpc()` call issued, in call order (M-77). */
+  rpcs: RecordedRpc[];
   /** Distinct tables touched, in first-touch order. */
   tables(): string[];
   /** All queries against one table. */
@@ -132,11 +151,15 @@ export interface RecordingClient {
  * that generic would mean reproducing PostgREST's type machinery for no
  * assertion value. `src/**` contains no assertion of any kind (CLAUDE.md).
  */
-export function createRecordingClient(results: ResultMap = {}): {
+export function createRecordingClient(
+  results: ResultMap = {},
+  rpcResults: RpcMap = {},
+): {
   client: unknown;
   recorder: RecordingClient;
 } {
   const queries: RecordedQuery[] = [];
+  const rpcs: RecordedRpc[] = [];
 
   const client = {
     from(table: string) {
@@ -166,13 +189,22 @@ export function createRecordingClient(results: ResultMap = {}): {
         },
       };
     },
-    rpc() {
-      throw new Error("recording-supabase: rpc() is not supported");
+    rpc(fn: string, args?: unknown) {
+      rpcs.push({ fn, args: args ?? null });
+      const canned = rpcResults[fn];
+      if (canned === undefined) {
+        throw new Error(
+          `recording-supabase: rpc("${fn}") has no canned result — ` +
+            "stub it explicitly rather than letting it take an unrecorded path.",
+        );
+      }
+      return Promise.resolve(canned);
     },
   };
 
   const recorder: RecordingClient = {
     queries,
+    rpcs,
     tables: () => [...new Set(queries.map((q) => q.table))],
     forTable: (table) => queries.filter((q) => q.table === table),
     callsOf: (method) =>

@@ -306,8 +306,35 @@ export function createRlsSupabaseClient(session: Session) {
         },
       };
     },
-    rpc() {
-      throw new Error("psql-rls: rpc() is not supported");
+    /**
+     * M-77 — `rpc()` under the SAME session, role and JWT claim as a select.
+     *
+     * §11's ninth tile is a SECURITY DEFINER count (0024): §16 keeps
+     * unapproved documents out of customer hands, so a plain count under a
+     * shipper session would report 0 for a queue of five. The point of running
+     * it here is that the function derives its own scope from
+     * `my_shipper_ids()` — which only resolves if `request.jwt.claim.sub` is
+     * set, which is exactly what this adapter sets. A helper that ran it as
+     * the owner would prove nothing.
+     *
+     * Arguments are refused: nothing M-77 calls through this door takes any,
+     * and accepting them would mean writing a PostgREST argument encoder that
+     * no test exercises.
+     */
+    rpc(fn: string, args?: Record<string, unknown>) {
+      if (args !== undefined && Object.keys(args).length > 0) {
+        throw new Error(
+          `psql-rls: rpc("${fn}") with arguments is not supported — ` +
+            "add an encoder when a caller needs one.",
+        );
+      }
+      const result = runAsSession(
+        session,
+        `select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) from (select ${fn}() as v) t`,
+      );
+      if (result.error) return Promise.resolve({ data: null, error: result.error });
+      const row = (result.rows[0] ?? null) as { v: unknown } | null;
+      return Promise.resolve({ data: row?.v ?? null, error: null });
     },
   };
 }

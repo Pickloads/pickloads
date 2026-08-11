@@ -14,6 +14,7 @@ import {
   staffTransitionFacts,
 } from "@/lib/shipments/staff-detail";
 import { availableTransitions } from "@/lib/shipments/transitions";
+import { listShipmentDocumentsForStaff } from "@/lib/shipments/document-store";
 import { ShipmentStaffDetailView } from "@/components/portal/ShipmentStaffDetailView";
 import { getDriverTokens } from "@/lib/shipments/carrier-shipments";
 import { isDriverTokenConfigured } from "@/lib/shipments/driver-token";
@@ -79,19 +80,50 @@ export default async function StaffShipmentPage({
   // M-76 adds a SEVENTH concurrent read: this shipment's driver links, through
   // the COOKIE-BOUND client so 0023's `"staff manage driver tokens"` policy
   // applies. Still one round trip, still §25's "no N+1".
-  const [history, assignments, parties, carriers, staff, fleet, driverTokens] =
-    await Promise.all([
-      getStaffTimelinePage(supabase, shipmentId, sp.before),
-      getShipmentAssignments(supabase, shipmentId),
-      getShipmentPartiesForStaff(supabase, shipmentId),
-      getAssignableCarriers(supabase, scope.carrierIds),
-      getStaffOptions(supabase),
-      getCarrierFleet(supabase, shipment.carrier_id),
-      getDriverTokens(supabase, shipmentId),
-    ]);
+  // M-77 adds an EIGHTH concurrent read: this shipment's §16 documents with
+  // their review trail, through the COOKIE-BOUND client so 0024's `"staff
+  // manage shipment documents"` policy applies. Still one round trip, still
+  // §25's "no N+1", and still bounded (`DOCUMENT_PAGE_SIZE` + 1).
+  const [
+    history,
+    assignments,
+    parties,
+    carriers,
+    staff,
+    fleet,
+    driverTokens,
+    documents,
+  ] = await Promise.all([
+    getStaffTimelinePage(supabase, shipmentId, sp.before),
+    getShipmentAssignments(supabase, shipmentId),
+    getShipmentPartiesForStaff(supabase, shipmentId),
+    getAssignableCarriers(supabase, scope.carrierIds),
+    getStaffOptions(supabase),
+    getCarrierFleet(supabase, shipment.carrier_id),
+    getDriverTokens(supabase, shipmentId),
+    listShipmentDocumentsForStaff(supabase, shipmentId),
+  ]);
 
   const actorRole = session.role === "admin" ? "admin" : "dispatcher";
-  const facts = staffTransitionFacts(shipment, assignments, history.events);
+  /*
+   * M-77 — §20's POD precondition, on the OFFER side. `pod_uploaded` appears
+   * as a button the moment an approved POD exists on this shipment and not
+   * before. The page's copy of the fact is the newest approved POD in the
+   * bounded page it already read; the AUTHORITATIVE fact is 0024's
+   * `shipment_transition_facts()`, which the server action re-resolves before
+   * any write — so an approved POD that fell off the bounded page costs an
+   * un-drawn button, never an accepted transition with no proof behind it.
+   */
+  const approvedPod =
+    documents.documents.find(
+      (d) => d.doc_type === "pod" && d.approved_at !== null,
+    ) ?? null;
+  const facts = staffTransitionFacts(
+    shipment,
+    assignments,
+    history.events,
+    approvedPod?.id ?? null,
+  );
 
   return (
     <main id="main">
@@ -117,6 +149,9 @@ export default async function StaffShipmentPage({
         )}
         driverTokens={driverTokens.tokens}
         driverTokensFailed={driverTokens.failed}
+        documents={documents.documents}
+        documentsFailed={documents.failed}
+        documentsHasMore={documents.hasMore}
         driverLinksEnabled={isDriverTokenConfigured()}
       />
     </main>

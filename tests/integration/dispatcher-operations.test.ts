@@ -624,7 +624,14 @@ describe("§27 dispatcher flow — create → assign → pickup → delay → ET
     expect(visibility).toBe("carrier");
   });
 
-  it("7b · `pod_uploaded` is still REFUSED — M-77 owns documents, honestly", () => {
+  /*
+   * M-75 wrote this as *"still REFUSED — M-77 owns documents, honestly"*. The
+   * reason changed with M-77 (0024 completed the fact); the OUTCOME did not,
+   * because requesting a POD is not the same as receiving one. This dispatcher
+   * asked the carrier for it and nobody has approved anything.
+   */
+  it("7b · `pod_uploaded` is still REFUSED — a REQUEST is not an approved POD", () => {
+    expect(facts(shipmentId).approvedPodDocumentId).toBeNull();
     const result = transition({ shipmentId, to: "pod_uploaded", actor: "dispatcher" });
     expect(result.ok).toBe(false);
     expect(result.code).toBe("precondition_failed");

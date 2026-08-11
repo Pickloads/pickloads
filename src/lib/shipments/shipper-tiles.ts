@@ -23,12 +23,19 @@ import type { FilterableQuery } from "@/lib/shipments/shipper-list";
  * row and adds the eight below beneath it — extending the page, not
  * duplicating it.
  *
- * **documents awaiting review** returns `null`, not `0`. `shipment_documents`
- * does not exist: M-71's doc records it as one of the seven tables
- * deliberately not created, and M-77 owns it together with the §16 visibility
- * matrix. A tile rendering `0` would be a fake metric in §11's own words —
- * it would assert "we checked, there are none" when nothing was checked. The
- * UI renders an em-dash and says uploads are not live yet.
+ * **documents awaiting review** was `null` — *"not measured"* — until M-77
+ * created `shipment_documents`. It is now a real count, and it comes from a
+ * `security definer` RPC rather than a `count: exact` like the other eight.
+ *
+ * That is not an inconsistency, it is §16: a shipper may see APPROVED
+ * documents, so a plain count under their own session would return 0 for a
+ * queue of five and be a fake metric in §11's own words. 0024's
+ * `count_shipment_documents_awaiting_review()` returns A NUMBER AND NOTHING
+ * ELSE — no id, no file name, no doc type — scoped by `my_shipper_ids()`
+ * inside the function, so a caller cannot count another organization's queue.
+ * The shipper learns "two of your documents are being checked" and learns
+ * nothing about what they are. A failed call still yields `null`, and the UI
+ * still renders an em-dash: a database error must never be shown as zero.
  *
  * ── WHY COUNTS AND NOT ROWS (§25) ─────────────────────────────────────────
  *
@@ -296,11 +303,31 @@ export async function getShipperTileCounts(
     return ["outstanding_invoices", count ?? 0] as const;
   })();
 
-  const settled = await Promise.all([...shipmentTiles, invoiceTile]);
+  // M-77 — §11's ninth tile, now measurable. In the SAME fan-out as the rest,
+  // so the wall clock is still one round trip (§25's "no N+1").
+  const documentTile = (async () => {
+    const { data, error } = await supabase.rpc(
+      "count_shipment_documents_awaiting_review",
+    );
+    if (error) {
+      console.error(
+        "[shipper-tiles] documents awaiting review failed",
+        error.message,
+      );
+      return ["documents_awaiting_review", null] as const;
+    }
+    return [
+      "documents_awaiting_review",
+      typeof data === "number" ? data : null,
+    ] as const;
+  })();
+
+  const settled = await Promise.all([
+    ...shipmentTiles,
+    invoiceTile,
+    documentTile,
+  ]);
   const counts: ShipperTileCounts = { ...EMPTY_TILE_COUNTS };
   for (const [id, value] of settled) counts[id] = value;
-  // M-77 owns `shipment_documents`. Until it lands there is nothing to count,
-  // and `0` would be a claim rather than a measurement.
-  counts.documents_awaiting_review = null;
   return counts;
 }

@@ -9,10 +9,14 @@ import {
   driverExceptionAction,
   driverStatusUpdateAction,
 } from "@/app/actions/driver-updates";
+import { driverUploadDocumentAction } from "@/app/actions/shipment-documents";
 import { initialFormState, type FormState } from "@/lib/form-state";
 import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
-import { DEFERRED_CARRIER_ACTIONS } from "@/lib/shipments/carrier-updates";
 import type { CarrierUpdateAction } from "@/lib/shipments/carrier-updates";
+import {
+  DRIVER_UPLOADABLE_DOC_TYPES,
+  documentTypeKey,
+} from "@/lib/shipments/documents";
 import type { DriverShipmentView } from "@/lib/shipments/driver-access";
 import {
   ETA_KINDS,
@@ -474,12 +478,54 @@ export function DriverUpdateView({
         </section>
       ) : null}
 
-      {/* §30 — M-77's two actions, named rather than missing. */}
+      {/* M-77 — §13's two upload actions, on the surface §13 allows them.
+          The form goes through `DriverForm`, so it carries the SAME Turnstile
+          widget and the same token field as every other driver write: an
+          upload endpoint reachable without the public-form guard would be the
+          cheapest way to fill our bucket. `DRIVER_UPLOADABLE_DOC_TYPES` is
+          exactly two values — the narrowest surface in the product does not
+          also get the widest upload. */}
       <section className="driver-card" aria-labelledby="dv-docs">
         <h2 id="dv-docs" className="driver-h2">
-          {DEFERRED_CARRIER_ACTIONS.map((a) => t(a.labelKey)).join(" · ")}
+          {t("shipment.driver.docs_title")}
         </h2>
-        <p className="driver-body">{t("shipment.driver.docs_deferred")}</p>
+        <p className="driver-body">{t("shipment.driver.docs_blurb")}</p>
+        <DriverForm
+          legend={t("shipment.driver.docs_title")}
+          action={driverUploadDocumentAction}
+          token={token}
+          submitLabel={t("shipment.document.upload")}
+          busyLabel={t("shipment.document.uploading")}
+        >
+          <div className="driver-field">
+            <label htmlFor="dv-doc-type">{t("shipment.document.field_type")}</label>
+            <select id="dv-doc-type" name="doc_type" required defaultValue="pod">
+              {DRIVER_UPLOADABLE_DOC_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {t(documentTypeKey(type))}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="driver-field">
+            <label htmlFor="dv-doc-file">{t("shipment.document.field_file")}</label>
+            <input
+              id="dv-doc-file"
+              name="file"
+              type="file"
+              required
+              /* `capture` opens the camera on a phone, which is what a driver
+                 at a dock actually has. `accept` is a HINT — the server sniffs
+                 magic bytes and never trusts either attribute. */
+              accept="application/pdf,image/jpeg,image/png,image/heic"
+              capture="environment"
+              aria-describedby="dv-doc-hint"
+            />
+            <span id="dv-doc-hint" className="driver-meta">
+              {t("shipment.document.field_hint")}
+            </span>
+          </div>
+        </DriverForm>
       </section>
 
       <footer className="driver-card">

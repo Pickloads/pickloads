@@ -13,6 +13,10 @@ import htMessages from "../../messages/ht.json";
 
 import { toCarrierDto } from "@/lib/shipments/dto";
 import { EMPTY_FILTERS } from "@/lib/shipments/shipper-list";
+import {
+  toCustomerDocumentDtos,
+  type CustomerDocumentDto,
+} from "@/lib/shipments/documents";
 import { offeredCarrierActions } from "@/lib/shipments/carrier-updates";
 import type { CarrierListRow } from "@/lib/shipments/carrier-shipments";
 import type { DriverShipmentView } from "@/lib/shipments/driver-access";
@@ -84,6 +88,27 @@ vi.mock("@/app/actions/driver-updates", () => {
     driverEtaAction: noop,
     driverExceptionAction: noop,
     driverConsentAction: noop,
+  };
+});
+
+/*
+ * M-77 — the documents block binds to server actions, and that module pulls
+ * `server-only` transitively through the whole document write path. Stubbing
+ * the ACTIONS keeps the real markup — which is what axe scans and what the
+ * §16 assertions read.
+ */
+vi.mock("@/app/actions/shipment-documents", () => {
+  const noop = () => Promise.resolve({ status: "idle" as const });
+  const url = () => Promise.resolve({ ok: false as const, error: "stub" });
+  return {
+    carrierUploadDocumentAction: noop,
+    driverUploadDocumentAction: noop,
+    staffUploadDocumentAction: noop,
+    reviewDocumentAction: noop,
+    getShipperDocumentUrlAction: url,
+    getCarrierDocumentUrlAction: url,
+    getBrokerDocumentUrlAction: url,
+    getStaffDocumentUrlAction: url,
   };
 });
 
@@ -197,6 +222,38 @@ const CARRIER_DTO = toCarrierDto({
   ],
 });
 
+/**
+ * M-77 — the §16 CARRIER band. The carrier's own rate confirmation IS in it
+ * (§16 names it carrier-visible; it is their contract), and the shipper's
+ * invoice is not — the fixture carries both so the filter is proved rather
+ * than assumed.
+ */
+const CARRIER_DOCUMENTS: CustomerDocumentDto[] = toCustomerDocumentDtos(
+  [
+    {
+      id: "cd-1",
+      doc_type: "rate_confirmation",
+      visibility: "carrier",
+      status: "approved",
+      file_name: "ratecon.pdf",
+      size_bytes: 120_000,
+      uploaded_at: "2026-09-01T10:00:00.000Z",
+      approved_at: "2026-09-01T11:00:00.000Z",
+    },
+    {
+      id: "cd-2",
+      doc_type: "invoice",
+      visibility: "shipper",
+      status: "approved",
+      file_name: "shipper-invoice.pdf",
+      size_bytes: 60_000,
+      uploaded_at: "2026-09-06T10:00:00.000Z",
+      approved_at: "2026-09-06T11:00:00.000Z",
+    },
+  ],
+  "carrier",
+);
+
 const TOKENS: DriverTokenView[] = [
   {
     id: "aaaaaaaa-1111-4111-8111-111111111111",
@@ -299,6 +356,9 @@ function carrierDetail(
         })}
         tokens={TOKENS}
         tokensFailed={false}
+        documents={CARRIER_DOCUMENTS}
+        documentsFailed={false}
+        documentsHasMore={false}
         historyHasMore
         historyMoreHref="/portal/carrier/shipments/x?before=y"
         historyPaged={false}
@@ -479,12 +539,45 @@ describe("§30 honest labels", () => {
     expect(screen.getByText(/never shows rates/i)).toBeTruthy();
   });
 
-  it("names M-77's two deferred actions rather than hiding them", () => {
+  /*
+   * M-77 built §13's two upload actions, so the assertion that pinned M-76's
+   * honest placeholder now pins the working surface. Both remain §30 claims:
+   * the driver page still promises no camera access it does not have, and the
+   * carrier page still says a filed document is not a visible one.
+   */
+  it("§13's two upload actions are BUILT, on both surfaces", () => {
     render(driverPage());
-    expect(screen.getByText(/Photo upload for BOL and POD is not built yet/i)).toBeTruthy();
+    // Heading AND <legend>: the section is announced twice on purpose, once
+    // for the document outline and once for the fieldset (§23).
+    expect(screen.getAllByText(/Send a photo/i).length).toBeGreaterThan(0);
+    // Exactly the two documents §13 names — the narrowest surface in the
+    // product does not also get the widest upload.
+    const driverTypes = [
+      ...(document.querySelector("#dv-doc-type")?.querySelectorAll("option") ??
+        []),
+    ].map((o) => o.getAttribute("value"));
+    expect(driverTypes).toEqual(["bol", "pod"]);
     cleanup();
+
     render(carrierDetail());
-    expect(screen.getByText(/BOL and POD upload is not built yet/i)).toBeTruthy();
+    const carrierTypes = [
+      ...(document
+        .querySelector("#cs-doc-upload-type")
+        ?.querySelectorAll("option") ?? []),
+    ].map((o) => o.getAttribute("value"));
+    // §13's two, plus the accessorial evidence only a carrier can produce.
+    // Never `invoice`, `quote`, `rate_confirmation` or `claim`: those are ours
+    // to issue, and a carrier who could file one could plant a document the
+    // shipper then reads as ours.
+    expect(carrierTypes).toEqual([
+      "bol",
+      "pod",
+      "lumper_receipt",
+      "detention_documentation",
+      "delivery_receipt",
+    ]);
+    expect(carrierTypes).not.toContain("invoice");
+    expect(carrierTypes).not.toContain("rate_confirmation");
   });
 });
 
