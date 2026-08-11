@@ -139,8 +139,22 @@ positioning copy. No pricing block, no earnings claim, no guarantee of loads,
 RPM, gross or broker acceptance.
 
 ### BROKERAGE · `COWORK REVIEW REQUIRED` + `LEGAL` · `COMPLIANCE`
-`/shippers`. Pre-brokerage state is honest and gated. Final wording pending;
-the gate is authoritative and must not be softened by copy.
+`/shippers`. Now gate-aware: the "Launching Soon" state renders while
+`brokerage_active` is false, and the `Service` structured-data node is
+withheld entirely until the gate opens. Final wording pending.
+
+Two items on this page need a Cowork ruling — both are timing claims inside
+the process flow that the §1a scan did not match because of their phrasing:
+
+| Current wording | Where | Risk |
+|---|---|---|
+| **"RATE IN 1 HOUR"** | process flow node | `BUSINESS` — the same turnaround commitment the quote copy just dropped, still asserted three nodes into the shipper flow |
+| **"SAME-DAY DOCS"** | process flow node | `BUSINESS` — a document-delivery commitment |
+| "Claims & paperwork handled … documents delivered same day" | service card | `BUSINESS` |
+
+Engineering has not changed them: they are approved copy and the instruction
+is to leave availability/response claims for Cowork. They are listed here
+because the quote surfaces no longer promise a time and these do.
 
 ### NEW AUTHORITY · `LEGAL REVIEW REQUIRED` · `LEGAL`
 "Not a law firm / document filing assistance only" disclaimer is present and
