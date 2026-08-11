@@ -487,15 +487,56 @@ sets them expecting an effect:
 > Build-time note: `NEXT_PUBLIC_*` values are inlined at build; changing them
 > requires a redeploy, not just a restart.
 
+### Error monitoring (M-84b) — one variable, optional
+
+| Variable | Required | Notes |
+|---|---|---|
+| `NEXT_PUBLIC_SENTRY_DSN` | **No** | Unset, blank or containing `placeholder` → the SDK is disabled everywhere. The platform runs identically; only monitoring is absent. `NEXT_PUBLIC_` is correct: a DSN is a write-only ingest key, not a secret. |
+| `NEXT_PUBLIC_SENTRY_ENVIRONMENT` | No | Defaults to `VERCEL_ENV`, then `NODE_ENV`. |
+| `NEXT_PUBLIC_SENTRY_RELEASE` | No | Defaults to `VERCEL_GIT_COMMIT_SHA`. Left undefined when unknown rather than invented. |
+| `SENTRY_AUTH_TOKEN` | No | CI source-map upload only. |
+
+**First deploy with a real DSN — a ten-minute check that is NOT covered by any
+test lane.** No event has ever been sent to a real Sentry project, because no
+DSN exists yet. After setting one, confirm on the Sentry side that: an event
+arrives; it carries the environment and release tags; and — most important —
+open one event and verify the request has **no cookies, no body, no query
+string**, that headers are only `content-type`/`user-agent`/`accept-language`,
+and that `user` carries an id and no email or IP. The scrubber is unit-tested
+against hand-built events; this confirms it against what the SDK actually
+produces. If anything sensitive appears, unset the DSN — the platform keeps
+running without it — and fix `src/lib/observability/scrub.ts` before re-enabling.
+
 ### Pre-deploy gate (run on the release commit, in this order)
 
 ```bash
 npm run typecheck && npm run lint && npm run build   # module gate (CLAUDE.md)
-npm test                 # 1488 unit assertions
+npm test                 # 1638 unit assertions
 npm run test:rls         # 806 RLS isolation assertions — see below
-npm run test:integration # 354 integration tests against local PG16 — see below
-npm run test:e2e         # 360 chromium tests against the production build
+npm run test:integration # 369 integration tests against local PG16 — see below
+npm run build:e2e        # production build WITH .env.e2e loaded — see below
+npm run test:e2e         # 371 chromium tests against that build
 ```
+
+**The e2e lane runs anywhere as of the M-84b consolidation.** Two things
+changed and both matter to an operator:
+
+* **The browser is no longer pinned.** `playwright.config.ts` used to hard-code
+  `/opt/pw-browsers/chromium`, so all 371 tests failed in ~1 ms on any machine
+  that was not one specific container — which meant the responsive and
+  accessibility gates had never actually run. A stock
+  `npx playwright install chromium` is now all that is required. An explicit
+  binary is still honoured via the OPTIONAL
+  `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`; set it only if your image provisions
+  its own, and expect a loud failure if the path is wrong.
+* **The lane has a committed environment.** `.env.e2e` holds placeholder
+  values only — no secret, ever — and is loaded by `npm run build:e2e` and
+  `npm run test:e2e` through `scripts/with-e2e-env.mjs`. **Build with
+  `build:e2e`, not `build`**: `NEXT_PUBLIC_*` is inlined at build time, so a
+  build without those values serves a bundle that disagrees with its own
+  server. A plain `npm run build` is untouched and still fails loudly on
+  missing production configuration. Values already in the environment win, so
+  CI can point the lane at a staging project without editing the file.
 
 **Since M-82 the Playwright run regenerates its own fixtures.** A `globalSetup`
 step re-runs the six tracking a11y suites in vitest (~28s) and writes the DOM
