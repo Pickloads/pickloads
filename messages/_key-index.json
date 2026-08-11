@@ -746,5 +746,8 @@
   "rich_svc_d_p": "We act as your back office: finding freight, negotiating rates and handling the paperwork under <b>your</b> operating authority.",
   "rich_boards_p": "<b>Your dispatcher works every major load source</b> — plus direct broker relationships built lane by lane.",
   "rich_ab_p2": "We started with a simple standard: <b>treat every truck like it's our own.</b> That means verifying the broker before booking, negotiating like the margin is ours, planning lanes around a driver's home time — and answering the phone at 2am when something goes wrong.",
-  "rich_ct_hours": "Mon–Fri 8am–6pm ET · Sat 9am–2pm ET<br>Dispatch support: 24/7, including holidays"
+  "rich_ct_hours": "Mon–Fri 8am–6pm ET · Sat 9am–2pm ET<br>Dispatch support: 24/7, including holidays",
+  "a_pickloads_representative_will_review_your_request_and": "A PickLoads representative will review your request and follow up with you promptly.",
+  "received_a_pickloads_representative_will_review_your_req": "✓ RECEIVED — A PickLoads representative will review your request and follow up with you promptly.",
+  "tell_us_about_your_shipment": "Tell us about your shipment."
 }

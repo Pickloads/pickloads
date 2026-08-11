@@ -7,6 +7,11 @@ import { initialFormState } from "@/lib/form-state";
 import { submitFreightQuote } from "@/app/actions/freight-quote";
 import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
 import { track } from "@/lib/analytics";
+import {
+  CONTACT_NOW,
+  RESPONSE_PROMISE,
+  RESPONSE_PROMISE_RECEIVED,
+} from "@/lib/copy/response-promise";
 
 /*
  * Shipper freight-quote form — V4 markup with U-02 label association and
@@ -75,8 +80,9 @@ export function FreightQuoteForm({
     <div className="bigform">
       <h2>{tv("Request a freight quote")}</h2>
       <p>
+        {tv("Tell us about your shipment.")} {tv(RESPONSE_PROMISE)}{" "}
         {tv(
-          "Tell us about your shipment — we respond within one business hour (Mon–Sat). Brokerage operations open with our MC activation; early requests get priority onboarding.",
+          "Brokerage operations open with our MC activation; early requests get priority onboarding.",
         )}
       </p>
       <form action={formAction} onInput={onFirstInput}>
@@ -161,9 +167,7 @@ export function FreightQuoteForm({
         className={`form-ok${state.status === "success" ? " show" : ""}`}
         role="status"
       >
-        {tv(
-          "✓ RECEIVED — Our team will reply within one business hour at the email provided. Questions now? Call (908) 404-5373 or email support@pickloads.com",
-        )}
+        {tv(RESPONSE_PROMISE_RECEIVED)} {tv(CONTACT_NOW)}
       </div>
       <div
         id="fq-err"

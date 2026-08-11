@@ -109,6 +109,24 @@ for (const [en, tr] of Object.entries(flat)) addEntry(en, tr, false);
  * docs/LAUNCH-RUNBOOK.md. Portal/admin strings stay English by design.
  */
 const SUPPLEMENTAL = {
+  // ── Approved response wording (business-supplied). Replaces the previous
+  // "within one business hour" promise on every quote surface. Defined once in
+  // src/lib/copy/response-promise.ts; translated here so the four non-English
+  // locales do not silently fall back to the English sentence.
+  "A PickLoads representative will review your request and follow up with you promptly.":
+    {
+      es: "Un representante de PickLoads revisará tu solicitud y se pondrá en contacto contigo a la brevedad.",
+      fr: "Un représentant PickLoads examinera votre demande et vous recontactera dans les meilleurs délais.",
+    },
+  "✓ RECEIVED — A PickLoads representative will review your request and follow up with you promptly.":
+    {
+      es: "✓ RECIBIDO — Un representante de PickLoads revisará tu solicitud y se pondrá en contacto contigo a la brevedad.",
+      fr: "✓ REÇU — Un représentant PickLoads examinera votre demande et vous recontactera dans les meilleurs délais.",
+    },
+  "Tell us about your shipment.": {
+    es: "Cuéntanos sobre tu envío.",
+    fr: "Parlez-nous de votre expédition.",
+  },
   "Four steps, about 10 minutes: your company info, your documents, a plain-English agreement and your own portal. A dispatcher calls you the same day.":
     {
       es: "Cuatro pasos, unos 10 minutos: los datos de tu empresa, tus documentos, un acuerdo en lenguaje claro y tu propio portal. Un dispatcher te llama el mismo día.",

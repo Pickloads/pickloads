@@ -51,7 +51,18 @@ const MAX_UNTRANSLATED: Record<string, Record<string, number>> = {
   shipment: { es: 2, fr: 7, ru: 363, ht: 363 },
   // 750 authored strings — the marketing site. The same two locales, the
   // same shape of gap, and it predates the tracking work.
-  v4: { es: 14, fr: 27, ru: 423, ht: 429 },
+  // ru/ht raised by 3 on 2026-08-11 (final-site: response wording). The
+  // approved replacement for the old "within one business hour" promise added
+  // three v4 strings — the promise, its confirmation form, and "Tell us about
+  // your shipment." es and fr are authored; ru and ht mirror English pending
+  // native review, which is the standing doctrine since M-42 and the reason
+  // these two baselines are large in the first place.
+  //
+  // Raising a ratchet is meant to be uncomfortable, and this is the honest
+  // accounting: three more strings a Russian or Haitian Creole customer reads
+  // in English. Recorded in docs/COWORK-CONTENT-REVIEW.md for the translation
+  // pass rather than papered over.
+  v4: { es: 14, fr: 27, ru: 426, ht: 432 },
 };
 
 function flatten(value: unknown, path: string, out: Map<string, string>): void {

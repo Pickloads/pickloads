@@ -6,6 +6,7 @@ import { Link } from "@/i18n/navigation";
 import { useV4 } from "@/i18n/v4";
 import { submitPortalQuote } from "@/app/actions/shipper-portal";
 import { initialFormState } from "@/lib/form-state";
+import { RESPONSE_PROMISE_RECEIVED } from "@/lib/copy/response-promise";
 import {
   QUOTE_EQUIPMENT,
   QUOTE_FREQUENCIES,
@@ -34,9 +35,11 @@ export function PortalQuoteForm({
     return (
       <div className="pcard">
         <div className="form-ok show" role="status">
-          {tv(
-            "✓ REQUEST RECEIVED — A dispatcher reviews it and calls back with a firm rate, usually within one business hour (8am–6pm ET).",
-          )}
+          {/* The SAME constant the public form uses. These two had already
+              drifted — "within one business hour (Mon–Sat)" on the public page
+              versus "usually within one business hour (8am–6pm ET)" here — and
+              a shared convention is what let them. */}
+          {tv(RESPONSE_PROMISE_RECEIVED)}
         </div>
         <p style={{ marginTop: 16 }}>
           <Link className="btn btn-amber btn-sm" href="/portal/shipper/quotes">
