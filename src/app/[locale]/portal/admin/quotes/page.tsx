@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Link } from "@/i18n/navigation";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { QuoteStatusForm } from "@/components/portal/QuoteAdminForms";
@@ -6,6 +7,21 @@ import { QUOTE_STATUS } from "@/lib/shipper-quotes";
 import type { LeadStatus } from "@/lib/supabase/database.types";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * M-75 — the quote stages from which a conversion is honest.
+ *
+ * `agreement` / `waiting_documents` render as "Quoted" and `active` as
+ * "Booked" (`QUOTE_STATUS`, M-56). Converting from "Received" or "In review"
+ * would create a shipment for freight the customer has not agreed to move,
+ * which §20's `quote_accepted` → `carrier_search` edge exists precisely to
+ * order correctly.
+ */
+const CONVERTIBLE_QUOTE_STATUSES: readonly LeadStatus[] = [
+  "agreement",
+  "waiting_documents",
+  "active",
+];
 
 export const metadata: Metadata = {
   title: "Freight quotes — PickLoads",
@@ -133,6 +149,20 @@ export default async function AdminQuotesPage({
                         status={q.status}
                         quotedRate={q.quoted_rate}
                       />
+                      {/* M-75 / §14 "convert accepted quote to shipment". The
+                          link is offered only once the customer has said yes —
+                          converting a quote nobody accepted creates freight
+                          nobody ordered. The conversion page re-checks the §2
+                          brokerage gate and the already-converted guard. */}
+                      {q.shipper_id && CONVERTIBLE_QUOTE_STATUSES.includes(q.status) ? (
+                        <Link
+                          className="btn btn-ghost btn-sm"
+                          style={{ marginTop: 6, display: "inline-block" }}
+                          href={`/portal/admin/shipments/new?quote=${q.id}`}
+                        >
+                          → Shipment
+                        </Link>
+                      ) : null}
                     </td>
                   </tr>
                 );

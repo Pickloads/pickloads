@@ -49,6 +49,13 @@ const PAGES = [
  * `tests/unit/shipper-shipments-a11y.test.tsx` — and
  * `tests/e2e/shipper-shipments.spec.ts` asserts the session gate, so the
  * split is proved rather than assumed.
+ *
+ * M-75 — `/portal/admin/shipments`, its `new` and `[shipmentId]` routes are
+ * absent for the same reason and are covered the same way: they sit behind a
+ * staff session AND the M-61 MFA step-up, they are axe-scanned in seven states
+ * in `tests/unit/dispatcher-shipments-a11y.test.tsx` (board, scoped board,
+ * expanded column, failed column, full detail, dispatcher detail, terminal
+ * detail), and `tests/e2e/dispatcher-shipments.spec.ts` asserts the gate.
  */
 
 for (const path of PAGES) {

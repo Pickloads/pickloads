@@ -496,6 +496,9 @@ import type {
   ShipmentEventVisibility,
   ShipmentStatus,
   EtaKind,
+  /** M-75 (0022) — `set_shipment_eta`'s two §10 enums. */
+  EtaSource,
+  EtaConfidence,
 } from "@/lib/shipments/types";
 
 /**
@@ -884,6 +887,72 @@ export type Database = {
           p_event_time?: string;
           p_metadata?: unknown;
           p_idempotency_key?: string | null;
+        };
+        Returns: unknown;
+      };
+
+      /* ---------- M-75 (0022) — the dispatcher write path ----------
+       *
+       * Same contract as 0019's five: SECURITY DEFINER, EXECUTE to
+       * `service_role` only, `jsonb` in and out, narrowed once by the caller
+       * (`src/lib/shipments/{create,assignments,eta}.ts`). Each exists
+       * because its operation is two-to-three writes that must be one
+       * transaction — see the migration header for the argument. */
+      create_shipment: {
+        Args: {
+          p_payload: unknown;
+          p_actor?: string | null;
+          p_source?: ShipmentEventSource;
+          p_public_message?: string | null;
+          p_internal_message?: string | null;
+        };
+        Returns: unknown;
+      };
+      assign_shipment_carrier: {
+        Args: {
+          p_shipment_id: string;
+          p_carrier_id: string;
+          p_driver_id?: string | null;
+          p_truck_id?: string | null;
+          p_dispatcher_id?: string | null;
+          p_actor?: string | null;
+          p_source?: ShipmentEventSource;
+          p_visibility?: ShipmentEventVisibility;
+          p_public_message?: string | null;
+          p_internal_message?: string | null;
+          p_idempotency_key?: string | null;
+        };
+        Returns: unknown;
+      };
+      release_shipment_assignment: {
+        Args: {
+          p_shipment_id: string;
+          p_reason?: string | null;
+          p_actor?: string | null;
+          p_source?: ShipmentEventSource;
+          p_visibility?: ShipmentEventVisibility;
+          p_public_message?: string | null;
+          p_internal_message?: string | null;
+          p_clear_carrier?: boolean;
+          p_idempotency_key?: string | null;
+        };
+        Returns: unknown;
+      };
+      set_shipment_eta: {
+        Args: {
+          p_shipment_id: string;
+          p_kind: EtaKind;
+          p_new_eta_at: string | null;
+          p_eta_source: EtaSource;
+          p_eta_confidence?: EtaConfidence | null;
+          p_delay_minutes?: number | null;
+          p_reason_public?: string | null;
+          p_reason_internal?: string | null;
+          p_actor?: string | null;
+          p_source?: ShipmentEventSource;
+          p_visibility?: ShipmentEventVisibility;
+          p_idempotency_key?: string | null;
+          p_public_message?: string | null;
         };
         Returns: unknown;
       };

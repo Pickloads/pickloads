@@ -270,6 +270,25 @@ export const ETA_SOURCES = [
 ] as const satisfies readonly EtaSource[];
 
 /**
+ * M-75 — the strict subset a DISPATCHER FORM may set.
+ *
+ * §30's honest-label rule, expressed as a type. `calculated` and `provider`
+ * describe machinery that does not exist yet (M-78's ETA calculator, M-80's
+ * telematics adapters), and a dropdown offering them would let an operator
+ * label a typed guess as a computed prediction — exactly the claim §30
+ * forbids. It lives HERE, beside the full list, rather than in the server
+ * module that writes ETAs, because the dispatcher form is a client component
+ * and vocabulary is not a secret (the same reason this whole module carries
+ * no `server-only`).
+ */
+export const DISPATCHER_ETA_SOURCES = [
+  "manual",
+  "dispatcher_adjusted",
+] as const satisfies readonly EtaSource[];
+
+export type DispatcherEtaSource = (typeof DISPATCHER_ETA_SOURCES)[number];
+
+/**
  * §10 `eta_confidence`. The directive names the field but not its domain;
  * three bands is the smallest honest set — anything finer would imply a
  * precision manual ETAs do not have (§30).

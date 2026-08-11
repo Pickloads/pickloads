@@ -6,11 +6,18 @@ degrades gracefully when a secret is missing (dev warnings, honest pending
 states) — so a partial deploy never crashes, it just quietly disables the
 affected integration. **Production must have every var set.**
 
-*Last revised for M-74 (shipper shipment list + detail): migration **0021**
-added to the order-and-rollback table, the `0001 → 0021` chain, and refreshed
-gate counts (578 unit / 386 RLS / 78 integration / 179 e2e / 353 pages).
-**No new environment variable and no new `company_settings` key** — the two new
-routes are gated by the `brokerage_active` switch that already exists. 0021 is
+*Last revised for M-75 (dispatcher shipment operations): migration **0022**
+added to the order-and-rollback table, the `0001 → 0022` chain, and refreshed
+gate counts (799 unit / 397 RLS / 128 integration / 187 e2e / 363 pages).
+**No new environment variable and no new `company_settings` key** — but
+`brokerage_active` now gates a STAFF surface as well as the customer-facing
+labels M-69 wired: with it off, `/portal/admin/shipments/new` renders an honest
+card instead of a form and the create action refuses with a staff-readable
+reason, while shipments already in flight stay fully operable. 0022 is the
+first migration in this programme that is **purely additive and
+non-destructive to roll back** — four `security definer` functions and nothing
+else. Previously revised for M-74 (shipper shipment list + detail): migration
+**0021** and its gate counts. 0021 is
 the first migration in this programme that RELAXES a shipped constraint
 (`invoices.carrier_id` NOT NULL → a CHECK) and its rollback note says exactly
 what that costs. Previously revised for M-73 (public secure tracking,
@@ -71,11 +78,12 @@ region `us-east-1` (closest to NJ ops). For **each** project, in order:
    | 0019 | `0019_shipment_events.sql` | **M-72.** `shipment_events` (all 18 §7 fields; globally unique `idempotency_key`, per-shipment unique `external_event_id`); 6 indexes; `trg_shipment_events_append_only` (refuses UPDATE/DELETE for **every** role, service role included); RLS + 4 policies mirroring `AUDIENCE_EVENT_VISIBILITY`, **no anon policy**; 5 `security definer` functions (`shipment_transition_facts`, `apply_shipment_transition`, `append_shipment_event`, `set_shipment_appointment`, `apply_shipment_correction`) with **EXECUTE granted to `service_role` only** | Full script in [`docs/modules/M-72-transition-engine.md`](modules/M-72-transition-engine.md) §DB changes. Drop the 4 policies, disable RLS, drop the 5 functions (full signatures in the doc), drop the trigger **before** the table, then the trigger function, then `shipment_events cascade`. **Destructive** — dump `shipment_events` first; it is the entire timeline of every shipment. Roll back `src/lib/supabase/database.types.ts` and delete `src/lib/shipments/apply-transition.ts` in the same deploy. `shipments`/`shipment_parties`/`shipment_assignments` are untouched and keep working — statuses simply stop being writable through the engine. |
    | 0020 | `0020_shipment_tracking_access.sql` | **M-73.** `shipment_tracking_access` — the §19 public-tracking access ledger (8 columns, both FKs `NO ACTION`, length CHECKs); 4 indexes (per-IP, per-attempted-number, per-shipment, failures); `trg_shipment_tracking_access_append_only` (refuses UPDATE/DELETE for **every** role, service role included); RLS with **one** policy — staff SELECT — and **no anon policy and no write policy at all**, so every row arrives through the service role | Full script in [`docs/modules/M-73-public-tracking.md`](modules/M-73-public-tracking.md) §DB changes. Drop the policy, disable RLS, drop the trigger **before** the table, then the trigger function, then `shipment_tracking_access cascade`. Do **not** drop the `tracking_access_outcome` type — 0017 created it. **Destructive** — this is the only record of enumeration attempts against the platform; `pg_dump -t shipment_tracking_access` first. Roll back `src/lib/supabase/database.types.ts` and remove `src/lib/shipments/public-lookup.ts` + the `/track` route in the same deploy; the failure mode if you don't is *closed* (the lookup refuses when it cannot log), so `/track` says "temporarily unavailable" rather than serving unlogged lookups. |
    | 0021 | `0021_invoice_shipment_link.sql` | **M-74.** `invoices.shipment_id` + `invoices.shipper_id` (both nullable, FKs to `shipments`/`shippers`); `carrier_id`'s **NOT NULL replaced by** `invoices_party_present` (`carrier_id is not null or shipper_id is not null`); 2 partial indexes; ONE policy — `"member read shipper invoices"`. **Why the relaxation:** 0009's `"member read invoices"` is keyed on `my_carrier_ids()`, so a shipper invoice naming the hauling carrier would be readable BY that carrier — disclosing the shipper gross and therefore the margin. A shipper invoice must name no carrier. 0009's carrier policy is left byte-identical and every pre-0021 row stays visible to exactly whom it was before | Full script in [`docs/modules/M-74-shipper-shipments.md`](modules/M-74-shipper-shipments.md) §Migration 0021. Drop the policy, then the 2 indexes, then — **only if you truly need the NOT NULL back** — delete the null-carrier (shipper) invoices, drop the CHECK and re-add the NOT NULL, which **fails while any shipper invoice exists**; finally drop the 2 columns. `pg_dump -t invoices` first. Roll back `src/lib/supabase/database.types.ts` and the two `/portal/shipper/shipments` routes in the same deploy; if you don't, the detail page's invoice section renders its honest "we couldn't read your invoices" state and logs — it does not leak. |
+   | 0022 | `0022_shipment_operations.sql` | **M-75.** FOUR `security definer` functions and nothing else — no table, no policy, no enum, no trigger, no index: `create_shipment` (row + `shipment_created` event, key-allow-listed, 0017's §2 gate and §5 CHECK/unique index still apply above it), `assign_shipment_carrier` (assignment row + `shipments.carrier_id` + event, atomically — a split write would leave the just-assigned carrier unable to SEE the shipment under 0018's policy; refuses another carrier's driver/truck with `PL422`), `release_shipment_assignment` (stamps `released_at`, never deletes; optionally clears `carrier_id`), `set_shipment_eta` (M-71's ETA columns + an `eta_update` event carrying the PREVIOUS value). **EXECUTE granted to `service_role` only**, after an explicit `revoke all … from public` | Full script in [`docs/modules/M-75-dispatcher-operations.md`](modules/M-75-dispatcher-operations.md) §DB changes. `drop function` the four, in reverse order (signatures in the doc). **NOT destructive** — no row is deleted and no column changes; shipments already created stay readable and their statuses stay writable through 0019's engine. What stops working is *creating* a shipment, assigning a carrier and updating an ETA, so roll back the M-75 surface in the same deploy: delete `src/lib/shipments/{create,assignments,eta}.ts` and the three `/portal/admin/shipments` routes, or the build calls functions that no longer exist. 0017–0021 are untouched. |
 
    After applying, sanity-check the chain the same way CI does:
 
    ```bash
-   npm run test:rls     # rebuilds a throwaway DB from 0001→0021 + seed + fixtures
+   npm run test:rls     # rebuilds a throwaway DB from 0001→0022 + seed + fixtures
    ```
 
 2. **Seed** — run `supabase/seed.sql` (idempotent, `on conflict do nothing`).
@@ -243,14 +251,14 @@ sets them expecting an effect:
 
 ```bash
 npm run typecheck && npm run lint && npm run build   # module gate (CLAUDE.md)
-npm test                 # 578 unit assertions
-npm run test:rls         # 386 RLS isolation assertions — see below
-npm run test:integration # 78 integration tests against local PG16 — see below
-npm run test:e2e         # 179 chromium tests against the production build
+npm test                 # 799 unit assertions
+npm run test:rls         # 397 RLS isolation assertions — see below
+npm run test:integration # 128 integration tests against local PG16 — see below
+npm run test:e2e         # 187 chromium tests against the production build
 ```
 
 **`npm run test:rls` is a release gate, not an optional extra.** It rebuilds
-a throwaway database from `0001 → 0021` + seed + two/three-tenant fixtures and
+a throwaway database from `0001 → 0022` + seed + two/three-tenant fixtures and
 asserts that carrier A cannot reach carrier B, shipper A cannot reach shipper
 B (including *unclaimed* public quotes), anon reaches nothing but
 `company_settings` and published posts, and no session — staff or admin — can
@@ -270,6 +278,12 @@ the assigned carrier / a broker partner all read nothing from it while staff
 read everything, that **no session can insert into it at all** — staff included,
 because a session that could write the ledger could forge the evidence — and
 that its append-only trigger refuses UPDATE and DELETE for the table owner.
+Since M-75 it also asserts the dispatcher write path: all four migration-0022
+functions refused `42501` to an **admin** session and to anon, the grants read
+straight out of `pg_proc` (so a future `grant … to authenticated` fails even if
+the refusals were satisfied for some other reason), and `shipment_exceptions` /
+`shipment_eta_history` proved **absent** so M-78's deferral cannot rot into a
+drift.
 It needs a local PostgreSQL 16; it is deliberately **not** part of `npm test`, because vitest runs on
 placeholder env with no database and that property is load-bearing for CI.
 
@@ -285,7 +299,7 @@ the tracking directive's §27 integration tier, which
 [`docs/FINAL-IMPLEMENTATION-PLAN.md`](FINAL-IMPLEMENTATION-PLAN.md) §4 records
 as *"diagnosed absent, then dropped entirely"* by the extension audit and
 restores as M-83b; M-72 ships the lane plus the four tests it can prove today.
-It builds its own throwaway database (`0001 → 0021` + seed, **not** the RLS
+It builds its own throwaway database (`0001 → 0022` + seed, **not** the RLS
 fixtures — it creates shipments through the engine) and then runs vitest
 against it, so the real TypeScript transition engine drives the real SQL write
 path: create → assign carrier → create event → update status, idempotent
@@ -295,7 +309,16 @@ named test — the public tracking lookup** — as fourteen scenarios driving th
 real `lookupPublicTracking` against the real schema through a psql-backed
 PostgREST adapter: happy path, wrong secondary value, unknown number, an
 admin-suspended shipment, a rate-limit trip, and a sweep of the whole access
-ledger proving the submitted secret is stored in no form.
+ledger proving the submitted secret is stored in no form. **M-74 adds §27's
+sixth — the shipper portal lookup — and M-75 adds the seventh, §27's
+DISPATCHER FLOW end to end**: create → assign carrier (with driver and truck)
+→ the pickup status walk → record a delay → update the ETA → mark delivered →
+request the POD → complete with the §20 closeout assertion, alongside the
+refusals that make it a control (another carrier's driver, a second open
+assignment, a no-op ETA, `pod_uploaded` still refused until M-77, `completed`
+refused without closeout), the §2 gate refusing creation and failing closed,
+the §20 correction leaving the original event byte-identical, and dispatcher A
+vs dispatcher B in both directions with an admin control.
 
 ```bash
 npm run test:integration   # PGHOST / PGPORT / PGUSER / INTEGRATION_TEST_DB override defaults
@@ -410,7 +433,7 @@ effect site-wide immediately — **no deploy**.
 | `mc_number` | `{"status":"pending","value":null}` | Footer, compliance block, FAQ. Stays `pending` until FMCSA grants — see the one-pager below. |
 | `usdot_number` | `{"status":"pending","value":null}` | Footer, compliance block. |
 | `bond_status` | `{"status":"in_process","value":"BMC-84 $75K"}` | Surety-bond display. `in_process` until BMC-84 is actually filed. |
-| `brokerage_active` | `false` | Every "brokerage live" message: shipper pages drop "Launching Soon", and the **shipper portal's Shipments & Tracking** surface flips from the honest waitlist (D1/D6) to the first-shipment empty state. Flip only when the bond is effective and broker processes exist. |
+| `brokerage_active` | `false` | Every "brokerage live" message: shipper pages drop "Launching Soon", and the **shipper portal's Shipments & Tracking** surface flips from the honest waitlist (D1/D6) to the first-shipment empty state. **Since M-75 it also gates a STAFF surface**: with it off, `/portal/admin/shipments/new` renders an honest card instead of a create form, the create action refuses with a staff-readable reason, and 0017's trigger refuses the INSERT underneath both — while shipments already in flight stay fully operable (status, ETA, notes, assignments all keep working, by design). Flip only when the bond is effective and broker processes exist. |
 | `testimonials_visible` | `false` | V4 sample testimonials stay hidden until 5+ verified reviews exist. |
 | `stats` | `{"fee":"5%","avg_rate":null,"support":"24/7","states":"48"}` | Home stats tiles. **`null` renders hidden** — never invent a figure to fill it. |
 | `packet_downloads_live` | `false` | Carrier-packet download buttons — off until lawyer-approved PDFs are uploaded. |
@@ -497,6 +520,46 @@ effect site-wide immediately — **no deploy**.
       6. Flip `brokerage_active` back to `false`. The shipper who now HAS
          shipments must still see them, with the "new bookings are paused"
          note — in-flight freight never disappears.
+- [ ] **Dispatcher operations smoke test (M-75).** Sign in as a **dispatcher**
+      (not an admin) with at least one carrier assigned on
+      `/portal/admin/users`:
+      1. While `brokerage_active` is **false**, `/portal/admin/shipments/new`
+         shows the honest "brokerage is switched off" card — **not** a form.
+         The board shows the same note above the columns. If a form appears,
+         stop: the §2 gate is not wired.
+      2. Flip `brokerage_active` to `true`. Create a shipment. The tracking
+         number appears in `PL-YYYY-######` form and is stated on the detail
+         page as **fixed at creation** — there must be no edit control for it
+         anywhere.
+      3. The board shows eight columns (**Needs Carrier · Carrier Assigned ·
+         Pickup Today · In Transit · Delivery Today · Delayed · POD Pending ·
+         Completed**) with a count in each heading and a "Scoped view" note
+         naming your assigned-carrier count. Turn JavaScript **off** and
+         re-apply a filter: the bar is a plain GET form and must still work.
+      4. Paste the whole tracking number into the search box, then just the
+         last six digits. Both find the shipment. Ask an admin for a tracking
+         number outside your scope and search it: it must return **nothing**,
+         not "not yours".
+      5. Assign a carrier, then move the status to **Carrier Assigned**. Try
+         moving straight to **Completed** — it must be refused with a stated
+         reason, not silently ignored. Walk pickup → delivered, record a delay
+         and an ETA (confirm the ETA is labelled as entered by dispatch),
+         request the POD, then complete it with the closeout box ticked.
+      6. Record a call and an email, add one **internal note** and one
+         **public update**. Open the same shipment in the shipper portal (or
+         `/track`): the public update is there and the internal note is
+         **not**. If an internal note reaches a customer surface, stop.
+      7. Open two browser tabs on the same shipment, change the status in one,
+         then submit from the other. The second must say *"Somebody else moved
+         this shipment… Reload"* — never a generic error and never a silent
+         overwrite.
+      8. As a **dispatcher**, confirm there is no "Correct the status" form.
+         Sign in as an admin: it appears, refuses a one-word reason, and its
+         correction leaves the original timeline entry in place with a new
+         correction entry beside it.
+      9. Edit the URL to a shipment outside your dispatcher scope: it must
+         **404**. Then flip `brokerage_active` back to `false` and confirm the
+         in-flight shipment is still fully operable.
 - [ ] Stripe + Dropbox Sign webhook test deliveries show in
       `webhook_events`.
 

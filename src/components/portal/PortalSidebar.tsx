@@ -133,6 +133,9 @@ export function PortalSidebar({
             {item("/portal/admin", "Dashboard", true)}
             {item("/portal/admin/leads", "Leads CRM")}
             {item("/portal/admin/loads", "Loads")}
+            {/* M-75 — §14's operational board. Not `exact`: the detail and
+                create routes must keep the parent entry marked current. */}
+            {item("/portal/admin/shipments", "Shipments")}
             {item("/portal/admin/quotes", "Freight quotes")}
             {item("/portal/admin/support", "Support inbox")}
             {item("/portal/admin/posts", "Blog posts")}

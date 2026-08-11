@@ -109,6 +109,15 @@ const PORTAL_INTERNAL = [
   "/portal/shipper/shipments/11111111-1111-1111-1111-111111111111",
   "/portal/admin",
   "/portal/admin/users",
+  // M-75 — §14's three dispatcher routes. Same limitation, same reason, and
+  // the same displacement: their responsive structure (the `.kanban`
+  // horizontal-scroll column strip, `.ptable--cards` with a `data-th` on every
+  // cell) is asserted in `tests/unit/dispatcher-shipments-a11y.test.tsx`,
+  // because a browser cannot reach them without a Supabase STAFF session and
+  // the M-61 MFA step-up. Listing them here is what proves that.
+  "/portal/admin/shipments",
+  "/portal/admin/shipments/new",
+  "/portal/admin/shipments/11111111-1111-1111-1111-111111111111",
 ];
 
 interface Rect {

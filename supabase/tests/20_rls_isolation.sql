@@ -1310,3 +1310,81 @@ select rls_test.ok(
 
 reset role;
 set request.jwt.claim.sub = '';
+
+-- ===========================================================================
+-- 11 · M-75 / 0022 — the dispatcher write path (§14, §19)
+-- ===========================================================================
+--
+-- 0022 adds FOUR functions and NOTHING else: no table, no policy, no enum, no
+-- trigger, no grant on any table. So there is no new row-access surface to
+-- prove — the whole security question is *who may EXECUTE them*, and the
+-- answer must be exactly what 0019 established: `service_role`, and nobody
+-- else. An admin session that could call `create_shipment` directly would
+-- bypass M-75's §2 service-layer gate, its Zod validation and its audit
+-- writer in one step, which is precisely the hole the grant model closes.
+--
+-- Proved from BOTH a browser-reachable roles: an authenticated ADMIN (the
+-- strongest session that exists) and anon. Then the schema facts, asserted as
+-- the table OWNER so nothing can pass because a policy allowed it.
+-- ===========================================================================
+
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000f1';
+
+select rls_test.rejects_with($$select create_shipment('{"tracking_number":"PL-2026-000001"}'::jsonb)$$,
+  '42501', 'even an ADMIN session cannot call create_shipment — EXECUTE is service_role only (M-75 §2 gate and audit writer live above it)');
+select rls_test.rejects_with($$select assign_shipment_carrier('ffffffff-ffff-ffff-ffff-ffffffff0a01','11111111-1111-1111-1111-11111111aaaa')$$,
+  '42501', 'nor assign_shipment_carrier');
+select rls_test.rejects_with($$select release_shipment_assignment('ffffffff-ffff-ffff-ffff-ffffffff0a01')$$,
+  '42501', 'nor release_shipment_assignment');
+select rls_test.rejects_with($$select set_shipment_eta('ffffffff-ffff-ffff-ffff-ffffffff0a01','delivery',now(),'manual')$$,
+  '42501', 'nor set_shipment_eta');
+
+set role anon;
+set request.jwt.claim.sub = '';
+select rls_test.rejects_with($$select create_shipment('{"tracking_number":"PL-2026-000002"}'::jsonb)$$,
+  '42501', 'anon cannot call create_shipment');
+select rls_test.rejects_with($$select set_shipment_eta('ffffffff-ffff-ffff-ffff-ffffffff0a01','delivery',now(),'manual')$$,
+  '42501', 'anon cannot call set_shipment_eta');
+
+reset role;
+set request.jwt.claim.sub = '';
+
+-- The grant model itself, read out of the catalog rather than inferred from
+-- the four refusals above: a function that is EXECUTE-able by PUBLIC would
+-- make every one of them pass for the wrong reason.
+select rls_test.ok(
+  (select count(*) from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname in ('create_shipment','assign_shipment_carrier',
+                        'release_shipment_assignment','set_shipment_eta')
+      and p.prosecdef) = 4,
+  'all four 0022 functions are SECURITY DEFINER (M-72''s model, unchanged)');
+select rls_test.ok(
+  (select bool_and(has_function_privilege('service_role', p.oid, 'EXECUTE'))
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname in ('create_shipment','assign_shipment_carrier',
+                        'release_shipment_assignment','set_shipment_eta')),
+  'service_role CAN execute all four — the non-vacuity control for the 42501s above');
+select rls_test.ok(
+  (select bool_or(has_function_privilege('authenticated', p.oid, 'EXECUTE')
+                  or has_function_privilege('anon', p.oid, 'EXECUTE'))
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname in ('create_shipment','assign_shipment_carrier',
+                        'release_shipment_assignment','set_shipment_eta')) = false,
+  'NEITHER authenticated NOR anon holds EXECUTE on any of the four (the REVOKE FROM PUBLIC held)');
+
+-- 0022 is additive in the strictest sense: it created no table and no policy.
+select rls_test.ok(
+  (select count(*) from information_schema.tables
+    where table_schema = 'public'
+      and table_name in ('shipment_exceptions','shipment_eta_history')) = 0,
+  'M-75 did NOT create shipment_exceptions or shipment_eta_history — both are M-78''s, and a half-created table is a specification that has started to rot');
+
+-- §5 immutability survives everything M-75 added. Asserted as the OWNER, so
+-- the refusal can only be the 0017 trigger.
+select rls_test.rejects_with($$update shipments set tracking_number = 'PL-2026-123456' where tracking_number = 'PL-2026-000101'$$,
+  'P0001', 'no M-75 path changes a tracking number — the 0017 immutability trigger still refuses the table owner (§5)');
