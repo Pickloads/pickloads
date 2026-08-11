@@ -955,12 +955,18 @@ describe("§19 — RLS shape", () => {
   });
 
   it("declares SELECT policies and NO write policy for any role", () => {
+    // `permissive = 'PERMISSIVE'` since M-83. Migration 0030 adds a
+    // RESTRICTIVE `for all` dispatcher-scope policy to the queue, and a
+    // restrictive policy can only ever SUBTRACT — counting it here would turn
+    // a "did anyone open a write surface?" detector into a "did anything
+    // change?" detector, which is a different and much weaker question.
     const writes = count(
       `select count(*) from pg_policies
         where schemaname = 'public'
           and tablename in ('shipment_notification_rules',
             'shipment_notification_queue', 'shipment_notification_attempts',
             'shipment_notification_watermark', 'notification_suppressions')
+          and permissive = 'PERMISSIVE'
           and cmd <> 'SELECT'`,
     );
     expect(writes).toBe(0);
@@ -970,9 +976,19 @@ describe("§19 — RLS shape", () => {
           where schemaname = 'public'
             and tablename in ('shipment_notification_rules',
               'shipment_notification_queue', 'shipment_notification_attempts',
-              'shipment_notification_watermark', 'notification_suppressions')`,
+              'shipment_notification_watermark', 'notification_suppressions')
+            and permissive = 'PERMISSIVE'`,
       ),
     ).toBe(5);
+    // …and the restrictive one is present and is exactly one.
+    expect(
+      count(
+        `select count(*) from pg_policies
+          where schemaname = 'public'
+            and tablename = 'shipment_notification_queue'
+            and permissive = 'RESTRICTIVE'`,
+      ),
+    ).toBe(1);
   });
 
   it("grants the four write functions to service_role ALONE", () => {

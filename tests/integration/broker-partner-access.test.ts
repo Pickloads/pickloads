@@ -558,20 +558,34 @@ describe("§12 a broker reaches no carrier packet and no financial field", () =>
   });
 
   it("cannot select a denied column even on a shipment it CAN read", async () => {
-    // The row is readable; the columns are simply not in the projection the
-    // module uses. Asking for them directly is the URL-manipulation-shaped
-    // attack, and RLS is row-level — so this is the honest limit, stated:
-    // the row DOES come back with its financial columns to a hand-written
-    // query. That is exactly why `BROKER_DETAIL_COLUMNS` never names them and
-    // why `toBrokerDto` is an allow-list. M-71 recorded the same residual
-    // risk as R-1.
+    // ── INVERTED BY M-83, DELIBERATELY ────────────────────────────────────
+    //
+    // This assertion used to say the opposite, and said so openly: *"the row
+    // DOES come back with its financial columns to a hand-written query …
+    // M-71 recorded the same residual risk as R-1."* Migration 0030 §4
+    // revokes `margin` (with `gross_shipper_amount`, `carrier_pay` and
+    // `public_access_hash`) from `authenticated` and `anon`, so naming the
+    // column is now a privilege error — 42501 — before RLS is consulted at
+    // all. R-1 is closed, and the test that documented it is the test that
+    // now proves it.
     const raw = await clientA
       .from("shipments")
       .select("id, margin")
       .eq("id", SHIPMENT_LINKED)
       .maybeSingle();
-    expect(raw.error).toBeNull();
-    expect((raw.data as { margin: number } | null)?.margin).toBe(100081);
+    expect(raw.error, "margin is still selectable by a broker session").not.toBeNull();
+    expect(raw.error?.code).toBe("42501");
+    expect(raw.data).toBeNull();
+
+    // Non-vacuity: the ROW is still readable — the refusal is about the
+    // column, not about the broker's access to the shipment.
+    const readable = await clientA
+      .from("shipments")
+      .select("id, status")
+      .eq("id", SHIPMENT_LINKED)
+      .maybeSingle();
+    expect(readable.error).toBeNull();
+    expect((readable.data as { id: string } | null)?.id).toBe(SHIPMENT_LINKED);
 
     // …and the module's own read carries none of it.
     const summary = await getBrokerShipmentSummary(

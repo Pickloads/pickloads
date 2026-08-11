@@ -6,7 +6,47 @@ degrades gracefully when a secret is missing (dev warnings, honest pending
 states) — so a partial deploy never crashes, it just quietly disables the
 affected integration. **Production must have every var set.**
 
-*Last revised for M-82 (responsive + accessibility QA for the tracking
+*Last revised for M-83 (RLS, security and public-enumeration audit):
+migration **0030** added to the order-and-rollback table, the `0001 → 0030`
+chain, refreshed gate counts (1488 unit / **806** RLS / **354** integration /
+360 e2e / 388 pages) — and **no new environment variable, no new
+`company_settings` key and no new cron entry**. Five operational notes worth
+reading before go-live:
+
+1. **0030 is the first migration in this programme that REMOVES privileges.**
+   `revoke all on public.shipments from authenticated, anon`, then
+   `grant select` on 49 operational columns. The three §18 financial columns
+   and §4's `public_access_hash` are gone from every browser role, and
+   `authenticated` can no longer INSERT, UPDATE or DELETE the table at all.
+   Both removals fail **closed** — a caller that loses a privilege gets an
+   error, never silently-wrong data.
+2. **DEPLOY THE MIGRATION AND THE CODE TOGETHER.** The staff shipment-detail
+   read no longer selects those columns; it calls
+   `shipment_restricted_fields()`. Old code against 0030 errors on every staff
+   detail page; new code against a pre-0030 database renders "—" for every
+   rate. There is no safe intermediate state, in either direction.
+3. **A FUTURE COLUMN ON `shipments` MUST BE GRANTED EXPLICITLY.** Because the
+   grant is now a column list, a migration that adds a column and forgets
+   `grant select (new_column) on public.shipments to authenticated` will make
+   every customer read of that column fail. That is the intended direction of
+   failure; it is loud, immediate and easy to fix — but it will not be
+   noticed by a schema diff.
+4. **Dispatchers now see less, at the database.** 14 RESTRICTIVE policies
+   scope every shipment-linked table to a dispatcher's own shipments plus the
+   shipments of the carriers an admin assigned them
+   (`carriers.assigned_dispatcher_id`, set on `/portal/admin/users`). **A
+   dispatcher with no assigned carriers sees only shipments they created.**
+   If a dispatcher reports "my board went empty", check that column first —
+   it is the operational lever, and it always was; it is simply enforced now.
+   Admins are unaffected.
+5. **Driver links behave differently for garbage input.** A malformed token
+   now reaches the ledger and spends rate budget, and renders the same
+   "Tracking link expired" card as an unknown one — it previously rendered
+   "temporarily unavailable" and was invisible to the enumeration counter.
+   Expect `shipment_driver_token_access` to show `not_found` rows it never
+   showed before; that is the fix working, not a new attack.*
+
+*Previously revised for M-82 (responsive + accessibility QA for the tracking
 surfaces): **no migration, no environment variable, no `company_settings` key
 and no cron entry** — M-82 is a QA and remediation module. Refreshed gate
 counts (1468 unit / 742 RLS / 329 integration / **360** e2e / 388 pages). Three
@@ -193,12 +233,56 @@ region `us-east-1` (closest to NJ ops). For **each** project, in order:
    | 0027 | `0027_shipment_locations_providers.sql` | **M-80.** §9's map and provider architecture, and the **RETENTION EXECUTOR** the plan's §4 records as missing. `company_settings` row `location_retention_days` (`90`) + `location_retention_days()` (fails safe to 90 — never to "keep forever"). `shipment_locations` — the PURGEABLE position series (M-70's row type in full, incl. §9's vehicle **speed** and **raw provider metadata**), 5 CHECKs, a **partial UNIQUE** `(shipment_id, provider, external_event_id)` that makes §9's dedupe a database fact, a retention index, and `trg_shipment_locations_no_update` (a reading is a fact about a moment — PL409 for every role incl. the owner; DELETE deliberately NOT blocked, because this is the one shipment table §9 requires to be deletable). `tracking_provider_connections` — §9 Mode B's five fields incl. the **`tracking_url`**, one **active** connection per shipment, identity immutable and revocation one-way (PL409), plus a §15 CHECK refusing eight credential shapes in the URL and an https-only CHECK. **TWO TRIGGERS ON `shipment_events`, both additive**: `trg_shipment_events_no_coordinates` refuses a lat/long (PL422 — the ledger is append-only and therefore un-purgeable, so a coordinate there would outlive any retention window; no path in `src/` has ever written one) and `trg_shipment_events_location_mirror` copies any event carrying a city into the purgeable series, so §9 Mode A produces real history with no call-site change. RLS on both tables, `revoke all … from authenticated, anon` then **SELECT only**, then **one staff policy each — no customer policy, no anon policy, no write policy for any role**. SIX `security definer` functions: `my_shipment_locations(uuid,int)` (**`authenticated`** — the customer projection, seven OUT columns with no `raw_metadata`/`provider`/`external_event_id`, audience from the caller's own memberships, §9's four levels applied IN SQL, speed gated on `exact` **and** driver consent) and `record_shipment_location` / `set_shipment_location_visibility` (narrow = dispatcher, **widen = admin**, PL403) / `attach_tracking_provider_connection` / `revoke_tracking_provider_connection` / **`purge_expired_shipment_locations`** (**`service_role` only**). | Full script in [`docs/modules/M-80-map-providers.md`](modules/M-80-map-providers.md) §ROLLBACK. **REMOVE THE RETENTION TASK FROM `/api/cron/daily` FIRST** (or unset `CRON_SECRET`) so nothing calls the purger mid-teardown. Then drop the 2 `shipment_events` triggers and their functions, the 6 functions, the 2 policies, the 2 table triggers and their functions, the 2 tables `cascade`, and the settings key. **Destructive** for the position series and every provider link — `pg_dump -t shipment_locations -t tracking_provider_connections` first — but **NOT for the timeline**: every city/state ever reported survives as the `shipment_events` row it was mirrored from, which is why the mirror is a copy and not a move. Roll back `src/lib/supabase/database.types.ts`, delete `src/lib/shipments/{locations,retention,location-visibility,map-state}.ts` and `src/lib/shipments/providers/`, delete `src/components/tracking/{ShipmentMap,LocationPanel}.tsx`, and revert the three actions, three forms, four surfaces, the `dto.ts` `locations` additions and the cron task in the same deploy. It fails **CLOSED**: with the tables gone the accessors are gone, the DTOs receive an empty location list, the map never mounts and every panel renders §30's "Location temporarily unavailable". 0017–0026 are untouched. |
    | 0028 | `0028_broker_role_value.sql` | **M-81.** ONE STATEMENT: `alter type user_role add value if not exists 'broker'`. It is a file of its own because PostgreSQL refuses to *use* an enum value added in the same transaction — `supabase db push`, the SQL editor and `psql -1` all wrap a file, so 0029's first `'broker'` literal would fail. **The value grants NOTHING**: no policy in the chain reads `profiles.role = 'broker'` (asserted as a catalog fact), broker authorization stays organization-scoped exactly as M-71 built it, and a broker profile with no verified membership reads what an outsider reads. What it buys is M-58's invite idiom (which assigns a role server-side) and a `portalHomeFor()` branch, without which an invited partner ping-pongs between `requireCarrier` and its own home. | **NONE — PostgreSQL cannot drop an enum value.** Reverse M-81 by rolling back 0029 first, then `update profiles set role = 'carrier' where role = 'broker';`. The value then sits inert in the type, referenced by nothing. Recreating the type would mean rewriting `profiles.role` and `staff_invites.role` on shipped tables — a far larger risk than the line it removes. |
    | 0029 | `0029_broker_partner_access.sql` | **M-81.** §12's broker-partner access. Enum `broker_verification_status`; **8 columns on `broker_partners`** — `verification_status` (NOT NULL, default `'pending'`), `verified_by`, `verified_at`, plus plan §9.3's vetting checklist (`dot_number`, `bond_provider`, `bond_amount_usd`, `authority_since`, `days_to_pay`, recorded for a human, **scored by nothing**) — with a **backfill marking every already-`active` organization verified**, so deploying is access-neutral. **`my_broker_partner_ids()` is REPLACED** to require `active` **AND** `'verified'`: every 0018/0019/0024 policy inherits §12's *"verified"* in one write, and an admin suspending an organization revokes its access everywhere at once. Three tables: `broker_partner_invites` (M-58's idiom — SHA-256 hash only, single-use, 7-day expiry — plus §12's two additions: it names the ORGANIZATION, and it is revocable, with a CHECK refusing a row that is both accepted and cancelled), `broker_shipment_grants` (§12 *"shipment by shipment"*; a **partial UNIQUE** enforces one live grant per (shipment, partner) and revocation is a COLUMN so §15 can answer *"who could see this last March?"*), `broker_account_agreements` (§12 *"or account agreement"*; `shipper_id` **NOT NULL**, so §19's forbidden wildcard is unrepresentable). 7 indexes, 1 `updated_at` trigger. Two `security definer` functions: **`broker_can_read_shipment(uuid)`** (`authenticated`) — the ONE definition of the question, OR'ing M-71's party link with the two sharing shapes and evaluating the agreement window against `now()` — and **`verify_broker_partner(...)`** (**`service_role` only**), which moves the status and the `verified_by`/`verified_at` stamp together. RLS on all three tables with **no customer INSERT/UPDATE/DELETE policy of any kind**; `revoke all … from authenticated, anon`, then SELECT on the two grant tables and a **COLUMN-LEVEL** grant on `broker_partner_invites` that never names `token_hash` (naming it is a permission error for every session, staff included — M-76's 0023 idiom, and the ORDER matters: a table-level grant would override a column revoke). Four NEW SELECT-only policies on `shipments` / `shipment_events` / `shipment_parties` / `shipment_documents`, **added beside** 0018/0019/0024's four rather than replacing them — 0018's own instruction — so the effect is M-71's floor plus §12's two sharing shapes and nothing else. | Full script in [`docs/modules/M-81-broker-partner-access.md`](modules/M-81-broker-partner-access.md) §DB changes. **RESTORE 0018's `my_broker_partner_ids()` FIRST** (the verbatim body is in 0029's header) or every broker policy in the chain fails on a missing function. Then drop the 4 `broker shared read %` policies, the 5 policies on the new tables, the 2 functions, the 3 tables `cascade`, the 8 columns and the enum; finally `update profiles set role = 'carrier' where role = 'broker';`. **Destructive at the table drop** — it removes the record of which shipments were shared with which partner and under what agreement, so `pg_dump -t broker_shipment_grants -t broker_account_agreements -t broker_partner_invites` first. It fails **CLOSED**: with the tables gone a partner falls back to M-71's floor (`shipments.broker_partner_id` only), which is less access, never more. Roll back `src/lib/supabase/database.types.ts`, delete `src/lib/shipments/broker-{permissions,access}.ts`, `src/lib/validation/broker.ts`, `src/app/actions/broker-partners.ts`, the four broker components, the email template and the five routes, and revert `src/lib/{auth,memberships}.ts`, `PortalSidebar.tsx`, `ShipmentDocumentReview.tsx`, `ShipmentStaffDetailView.tsx` and the dispatcher detail page in the same deploy. 0017–0027 are untouched. |
+   | 0030 | `0030_dispatcher_scope_and_column_privileges.sql` | **M-83.** §19's two structural gaps. **§1** four `security definer`/`stable`/`search_path`-pinned helpers — `is_dispatcher()`, `dispatcher_may_see(dispatcher_id, carrier_id)` (**two arms**: own shipment OR admin-assigned carrier), `staff_scope_ok(...)` and `shipment_in_staff_scope(shipment_id)` — with EXECUTE to **`anon` as well as `authenticated`**, because a restrictive policy is evaluated for every role that reaches the table and an anon caller refused with *"permission denied for function"* instead of "no rows" would be a NEW oracle (0013's precedent). **§2** fourteen **RESTRICTIVE `for all`** policies (`shipments`, `shipment_parties`, `shipment_assignments`, `shipment_events`, `shipment_documents`, `shipment_eta_history`, `shipment_exceptions`, `shipment_locations`, `shipment_driver_tokens`, `shipment_notification_queue`, `tracking_provider_connections`, `broker_shipment_grants`, and the two enumeration ledgers with a `shipment_id is null or …` arm so a dispatcher still sees unattributed attempts). PostgreSQL ANDs restrictive policies on top of the OR of permissive ones, so **no shipped policy is edited and nothing is widened**; every non-dispatcher short-circuits. **§3** REPLACES `my_shipment_exceptions()` from 0025 — the one `security definer` function a restrictive policy cannot reach — adding `staff_scope_ok(...)` to its staff arm; customer arms byte-identical. **§4** `revoke all on public.shipments from authenticated, anon` then `grant select` on **49 named columns**, so `gross_shipper_amount`, `carrier_pay`, `margin` and `public_access_hash` cannot be named by any browser role and `authenticated` holds **no** INSERT/UPDATE/DELETE. **§5** `shipment_restricted_fields(uuid)` (`authenticated` + `service_role`, **not** `anon`) returns the four columns behind the audience rule — staff in scope → all four, hauling carrier → its own rate and three nulls, anyone else → **no row**. It also **RAISES if `carriers(assigned_dispatcher_id)` has no index** (0005's), because the predicate now runs once per row rather than once per request. | Drop the 14 policies, drop the 5 functions, **restore `my_shipment_exceptions()` verbatim from 0025** (the body is in 0030's header) and `grant select, insert, update, delete on public.shipments to authenticated, anon`. **Non-destructive** — it deletes no row and drops no column, so no `pg_dump` is required. **BUT the app half must go back in the same deploy**: revert `src/lib/shipments/staff-detail.ts` (which no longer selects the four columns) and `src/lib/shipments/carrier-shipments.ts` (which no longer selects `carrier_pay`), and delete `src/lib/shipments/restricted-fields.ts`. Rolling back the database alone leaves both readers calling a function that no longer exists; rolling back the code alone leaves both projections naming revoked columns. It fails **CLOSED** either way — a staff page errors rather than rendering a wrong number. 0017–0029 are untouched. |
 
    After applying, sanity-check the chain the same way CI does:
 
    ```bash
-   npm run test:rls     # rebuilds a throwaway DB from 0001→0029 + seed + fixtures
+   npm run test:rls     # rebuilds a throwaway DB from 0001→0030 + seed + fixtures
    ```
+
+   **Then VERIFY 0030's column privileges applied (M-83).** This is the one
+   check a schema diff will not do for you, and getting it wrong is silent in
+   staging and loud in production:
+
+   ```sql
+   -- must all be FALSE
+   select c,
+          has_column_privilege('authenticated', 'public.shipments', c, 'SELECT') as readable
+     from unnest(array['gross_shipper_amount','carrier_pay','margin',
+                       'public_access_hash']) c;
+
+   -- must all be FALSE
+   select p, has_table_privilege('authenticated', 'public.shipments', p) as allowed
+     from unnest(array['INSERT','UPDATE','DELETE']) p;
+
+   -- must be TRUE (non-vacuity: the table is still readable)
+   select has_column_privilege('authenticated', 'public.shipments', 'status', 'SELECT');
+
+   -- must return 14
+   select count(*) from pg_policies
+    where schemaname = 'public' and policyname like 'dispatcher scope %'
+      and permissive = 'RESTRICTIVE';
+   ```
+
+   **And confirm every dispatcher has the carriers they are meant to have.**
+   0030 makes `carriers.assigned_dispatcher_id` load-bearing at the database,
+   not only on the board:
+
+   ```sql
+   select p.full_name,
+          count(c.id) filter (where c.assigned_dispatcher_id = p.id) as carriers,
+          count(s.id) filter (where s.dispatcher_id = p.id)          as own_shipments
+     from profiles p
+     left join carriers c on true
+     left join shipments s on true
+    where p.role = 'dispatcher'
+    group by p.id, p.full_name;
+   ```
+
+   A dispatcher with `0 / 0` will see an **empty board** — correctly, but
+   surprisingly. Assign their carriers on `/portal/admin/users` before they
+   log in.
 
    **Then VERIFY the two private buckets exist and are private (M-77):**
 
@@ -407,9 +491,9 @@ sets them expecting an effect:
 
 ```bash
 npm run typecheck && npm run lint && npm run build   # module gate (CLAUDE.md)
-npm test                 # 1468 unit assertions
-npm run test:rls         # 742 RLS isolation assertions — see below
-npm run test:integration # 329 integration tests against local PG16 — see below
+npm test                 # 1488 unit assertions
+npm run test:rls         # 806 RLS isolation assertions — see below
+npm run test:integration # 354 integration tests against local PG16 — see below
 npm run test:e2e         # 360 chromium tests against the production build
 ```
 
@@ -425,7 +509,7 @@ minutes for the full e2e gate; the tracking responsive/a11y suite alone is
 ~1.9 minutes.
 
 **`npm run test:rls` is a release gate, not an optional extra.** It rebuilds
-a throwaway database from `0001 → 0029` + seed + two/three-tenant fixtures and
+a throwaway database from `0001 → 0030` + seed + two/three-tenant fixtures and
 asserts that carrier A cannot reach carrier B, shipper A cannot reach shipper
 B (including *unclaimed* public quotes), anon reaches nothing but
 `company_settings` and published posts, and no session — staff or admin — can
@@ -487,7 +571,7 @@ the tracking directive's §27 integration tier, which
 [`docs/FINAL-IMPLEMENTATION-PLAN.md`](FINAL-IMPLEMENTATION-PLAN.md) §4 records
 as *"diagnosed absent, then dropped entirely"* by the extension audit and
 restores as M-83b; M-72 ships the lane plus the four tests it can prove today.
-It builds its own throwaway database (`0001 → 0029` + seed, **not** the RLS
+It builds its own throwaway database (`0001 → 0030` + seed, **not** the RLS
 fixtures — it creates shipments through the engine) and then runs vitest
 against it, so the real TypeScript transition engine drives the real SQL write
 path: create → assign carrier → create event → update status, idempotent

@@ -44,3 +44,13 @@ create function itest.close_brokerage_gate() returns void
 language sql as $$
   update company_settings set value = 'false'::jsonb where key = 'brokerage_active';
 $$;
+
+-- M-83 — the browser roles need `itest.sqlstate_of` too.
+--
+-- §19's write proofs have to run as `authenticated`/`anon`, not as the owner:
+-- a refusal observed as the owner proves nothing about a policy or a grant.
+-- `sqlstate_of` is SECURITY INVOKER, so wrapping it in `set local role` runs
+-- the statement with the caller's own privileges and RLS fully in force —
+-- but only if the caller may reach the function at all.
+grant usage on schema itest to authenticated, anon;
+grant execute on function itest.sqlstate_of(text) to authenticated, anon;

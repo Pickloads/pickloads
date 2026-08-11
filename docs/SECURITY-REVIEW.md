@@ -362,3 +362,193 @@ npx playwright test                                  # 37 e2e
 npm run test:rls                                     # 165 RLS assertions
 # then the §6.1 greps against the fresh .next/
 ```
+
+---
+---
+
+# PickLoads — Tracking Security Review (M-83)
+
+**Date:** 2026-08-09 · **Scope:** `docs/DIRECTIVE-tracking.md` §§4, 19, 20, 25
+· **Commit baseline:** M-82 (`a275611`) · **Module doc:**
+[`docs/modules/M-83-tracking-security.md`](modules/M-83-tracking-security.md)
+
+Same standard as §1–9 above: everything below was executed, not asserted, and
+where a control cannot be proved without a live Supabase project that is said
+rather than glossed. This section reviews the **tracking system** (M-70…M-82);
+§1–9 remain the review of the pre-tracking product and are not restated.
+
+---
+
+## 10. Summary
+
+| # | Risk carried into M-83 | Status after M-83 |
+|---|---|---|
+| T.1 | §19's seventh proof (*dispatcher permissions are limited*) was untestable — the control was query-level (`src/lib/staff-scope.ts`), so a test would have passed for the wrong reason | **Closed at the database.** Migration 0030 adds 14 RESTRICTIVE policies keyed on a two-arm scope predicate, plus a fix to the one SECURITY DEFINER function they cannot reach. 64 new RLS assertions, proved against a **second** dispatcher |
+| T.2 | M-71's **R-1** — the three §18 financial columns were in the payload of any row a customer could read | **Closed.** 0030 revokes `gross_shipper_amount`, `carrier_pay`, `margin` and `public_access_hash` from `authenticated` and `anon`; an audience-aware SECURITY DEFINER accessor returns three of them to the callers entitled to them |
+| T.3 | §19 proof 5 (*carriers cannot edit financial fields*) rested on the **absence** of a write policy | **Upgraded to a catalog fact.** `authenticated` and `anon` hold no INSERT/UPDATE/DELETE on `shipments` at all; every write is a SECURITY DEFINER RPC or the service role |
+| T.4 | Public-DTO safety was proved on the serializers only — M-70's doc: *"they cannot show that M-73 calls `toPublicTrackingDto` rather than returning the row"* | **Closed at the route.** 20 unit assertions over every customer route module + a real action/real database key-set and value sweep on a row carrying seven sentinels |
+| T.5 | Enumeration audit of the surfaces added since M-73 | **Done. Two defects found and fixed** — see §12 |
+| T.6 | Token expiry / revocation / rate limiting / non-enumerability | Re-probed adversarially through the TypeScript path. Expiry, revocation and the two rate limits hold; **non-enumerability did not** (§12.1) and now does |
+| T.7 | Residual risks scattered across M-71…M-82 module docs | **Consolidated** into one ledger — M-83 §9. Four closed, thirteen restated once with severity and closing condition |
+
+---
+
+## 11. Migration 0030 — what it removes
+
+Every earlier tracking migration was purely additive. This one removes
+privileges, deliberately, and both removals fail **closed**.
+
+```sql
+revoke all on public.shipments from authenticated, anon;
+grant select (…49 operational columns…) on public.shipments to authenticated;
+```
+
+* `anon` now holds **no privilege of any kind** on `shipments`. It never had a
+  policy (§19 forbids anonymous SELECT and M-73 goes through the service
+  role), so the grant it held was dead weight that only RLS was standing on.
+  Now both stand on it.
+* `authenticated` can read 49 operational columns and write nothing.
+  Verified before the revoke that nothing in `src/` writes this table through
+  a browser session: the sole `.update()` on `shipments` — §14's dispatcher
+  reassignment — uses `tryCreateAdminClient()`, and every other write is an
+  0019/0022 RPC granted to `service_role` alone.
+* `service_role` is untouched (the revoke names `authenticated, anon`
+  explicitly), so production's platform grants survive. **Not asserted** —
+  the shim has no service-role grants at all (M-61 R-7 / M-83 RL-5). The
+  direction of failure is loud: if the assumption were wrong, every
+  service-role write would fail on deploy rather than silently degrade.
+
+The 14 RESTRICTIVE policies work because PostgreSQL ANDs restrictive policies
+on top of the OR of permissive ones. No shipped policy is edited, nothing is
+widened, and every non-dispatcher short-circuits on the first arm of
+`staff_scope_ok()` — which is asserted for shipper, carrier, broker and admin
+sessions so the new policy cannot have silently narrowed four modules' work.
+
+---
+
+## 12. Defects found and fixed
+
+### 12.1 A malformed driver token was distinguishable — and free
+
+`redeemDriverToken` documented a decoy-hash fallback for malformed input. The
+fallback was `hashDriverToken("")`, which returns `null` (the empty string is
+malformed too), so the guard collapsed and the request returned `unavailable`
+without ever reaching the database.
+
+**Impact.** Unknown, expired, revoked and carrier-released tokens answer
+`expired`; a malformed one answered `unavailable`, and
+`/driver/update/[token]` renders those as different cards — so the shape of
+the input was observable in the response, against §13's non-enumerability
+requirement and against M-76's own documented claim that all five refusals are
+identical. Worse, the malformed path skipped
+`shipment_driver_token_access` entirely: a scripted scan of garbage tokens was
+invisible to §26's `repeated_invalid_tracking_attempts` counter and spent no
+rate-limit budget.
+
+**Fix.** `decoyDriverTokenHash()` — a well-formed, keyed digest of a constant
+that no minted token can equal — restores the unconditional RPC call. M-73's
+`DECOY_ACCESS_HASH` pattern, applied to the second credential in the system.
+
+**Found by** the new identical-refusal assertion on its first run:
+`payloads differed: {"ok":false,"code":"expired"} | … | {"ok":false,"code":"unavailable"}`.
+
+### 12.2 The staff document-download action had no scope check
+
+`getStaffDocumentUrlAction` calls `resolveStaffActor()` rather than
+`resolveShipmentAccess()`, which every other §14 action calls first — so a
+dispatcher could mint a 300-second signed URL for **any** shipment's document,
+including one outside their scope. M-77's doc named dispatcher scoping as
+query-level without noticing that this path had no query-level control either.
+
+**Fix.** 0030's restrictive policy on `shipment_documents`. The action reads
+the row through the cookie-bound client, so the row is now invisible and the
+shared `"Document not found."` is the answer — identical to a nonexistent id.
+
+---
+
+## 13. Enumeration audit
+
+| Surface | 404-vs-403 | Error text | Timing | Redirect | Verdict |
+|---|---|---|---|---|---|
+| `/track` | POST action, no URL | ONE refusal for six internal outcomes, asserted byte-identical as serialized JSON | 350 ms floor + unconditional decoy comparison | none | Clean |
+| `/portal/{shipper,carrier,broker,admin}/shipments/[id]` | `notFound()` for malformed / unknown / another tenant's / out-of-scope | one shared message per surface | — | none | Clean |
+| `/driver/update/[token]` | one card for five reasons | — | — | none | **Defect 12.1 — fixed** |
+| M-75 tracking-number search | zero results, identical to "does not exist" | — | — | none | Clean; DB-backed since 0030 |
+| Document downloads ×4 | one `"Document not found."` | shared constant | — | none | **Defect 12.2 — fixed** |
+
+The `/track` assertion is `new Set(serialized payloads).size === 1` across six
+refusal classes — unknown number, wrong second factor, admin-suspended
+tracking, malformed number, impossible year, empty second factor. Three
+companions prove the ledger still records the **true** outcome for each, that
+the attempted second factor is stored in no form at all (value-level sweep
+over the whole table), and that an unconfigured environment answers a known
+and an unknown number identically.
+
+---
+
+## 14. Test counts
+
+```
+$ npm run typecheck && npm run lint && npm run build   # clean, 388 pages
+$ npm test                    → 1488 unit  (51 files)
+$ npm run test:rls            → 806 RLS assertions
+$ npm run test:integration    → 354 integration
+$ npx playwright test         → 360 e2e
+```
+
+RLS 742 → 806, integration 329 → 354, unit 1468 → 1488. E2E and page count
+unchanged: M-83 adds no surface a browser can reach.
+
+### Anti-vacuity
+
+**Ten injections**, each written after the assertion it was meant to break,
+each confirmed to fail loudly, each removed. The full table is M-83 §8.
+Summarised: neutralising the shipments scope policy, halving the scope
+predicate, granting the financial columns back, restoring UPDATE, un-scoping
+the SECURITY DEFINER accessor, removing the accessor's audience clause,
+leaking `margin` through the public DTO, spreading the row over the DTO,
+un-scoping the document policy, and adding a `hint` field to the public
+refusal — all caught, by name.
+
+One injection **failed to fail** and is recorded as such: returning a fresh
+refusal object instead of the frozen constant changed nothing, because the
+assertion compares serialized payloads rather than object identity. That is
+the assertion measuring the right thing.
+
+---
+
+## 15. Residual risks
+
+The tracking system's residual risks are **not** listed here. They are
+consolidated — with §7's R-1…R-8 folded in — into a single ledger in
+[`docs/modules/M-83-tracking-security.md`](modules/M-83-tracking-security.md)
+§9, as **RL-1 … RL-13**, each with a severity and the specific thing that
+would close it. Duplicating them here would recreate exactly the per-module
+drift M-83 exists to end.
+
+The three that most affect a production launch:
+
+* **RL-3** (High) — RLS is not AAL-aware. A stolen AAL1 staff token still
+  passes `is_staff()`. M-61's R-1, unchanged; it needs a live project.
+* **RL-4** (Medium) — both database lanes run on local PG16 with a shim. 806
+  policy and privilege assertions are proved; JWT claim shapes, storage
+  policies and PostgREST behaviour are not.
+* **RL-9** (Medium) — storage object policies are applied but never exercised;
+  no lane has object storage.
+
+---
+
+## 16. What still requires a live environment
+
+Items 1–7 of §8 stand. M-83 adds three:
+
+8. **That `service_role` retains its grants on `shipments`** after 0030's
+   revoke. Reasoned, not asserted (RL-5). Fails loudly if wrong.
+9. **That PostgREST surfaces a column-privilege refusal as a 401/403 body
+   rather than leaking the column name** in a way that is itself informative.
+   The refusal is identical for every id, so it is not an existence oracle
+   either way — but the exact wire shape is Supabase's.
+10. **That the restrictive policies do not regress staff query plans** at
+    production row counts. `dispatcher_may_see()` probes `carriers` once per
+    row; 0005's `assigned_dispatcher_id` index is the mitigation and 0030
+    raises if it is ever dropped.

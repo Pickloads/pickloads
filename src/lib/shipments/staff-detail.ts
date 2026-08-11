@@ -11,6 +11,7 @@ import {
   NO_TRANSITION_FACTS,
   type TransitionFacts,
 } from "@/lib/shipments/transitions";
+import { getShipmentRestrictedFields } from "@/lib/shipments/restricted-fields";
 import type {
   ShipmentAssignmentRow,
   ShipmentEventRow,
@@ -64,31 +65,64 @@ export const SHIPMENT_STAFF_COLUMNS =
   "destination_company, destination_address, destination_city, destination_state, destination_zip, " +
   "pickup_appointment_at, delivery_appointment_at, " +
   "equipment, commodity_category, weight_lbs, pallets, distance_miles, " +
-  "gross_shipper_amount, carrier_pay, margin, shipper_reference, po_number, " +
+  "shipper_reference, po_number, " +
   "public_tracking_enabled, tracking_mode, location_visibility, " +
   "current_latitude, current_longitude, current_city, current_state, last_location_at, " +
   "estimated_pickup_at, estimated_delivery_at, eta_source, eta_confidence, eta_updated_at, " +
-  "delay_minutes, delay_reason_public, delay_reason_internal, " +
+  "delay_minutes, delay_reason_public, " +
   "created_at, updated_at, completed_at, cancelled_at, cancellation_reason";
 
 /** The staff projection as a type. `public_access_hash` is absent BY TYPE, so
  *  rendering it is a compile error rather than a review miss. */
 export type StaffShipmentRow = Omit<ShipmentRow, "public_access_hash">;
 
+/**
+ * The columns a browser session — staff sessions included — may no longer
+ * name on `shipments` at all (M-83, migration 0030 §4). They are re-joined
+ * onto the staff row below from `shipment_restricted_fields()`, which applies
+ * the audience rule in SQL. Exported so the unit lane can assert the staff
+ * projection does not contain them.
+ */
+export const SHIPMENT_RESTRICTED_COLUMNS = [
+  "gross_shipper_amount",
+  "carrier_pay",
+  "margin",
+  "delay_reason_internal",
+] as const;
+
+/**
+ * ── WHY THIS IS NOW TWO QUERIES (M-83) ───────────────────────────────────
+ *
+ * Until M-83 the four columns above came back in this projection, and M-71's
+ * residual risk R-1 was the price: RLS is row-level, so a customer's own row
+ * carried them too. 0030 revokes them from every browser role and returns
+ * them through a SECURITY DEFINER accessor. A dispatcher out of scope now
+ * gets `null` financials from a shipment they can no longer open anyway; an
+ * admin gets the same values as before. The second round trip is on the
+ * DETAIL page only — no list projection names these columns.
+ */
 export async function getStaffShipment(
   supabase: ServerSupabase,
   shipmentId: string,
 ): Promise<StaffShipmentRow | null> {
-  const { data, error } = await supabase
-    .from("shipments")
-    .select(SHIPMENT_STAFF_COLUMNS)
-    .eq("id", shipmentId)
-    .maybeSingle();
+  const [{ data, error }, restricted] = await Promise.all([
+    supabase
+      .from("shipments")
+      .select(SHIPMENT_STAFF_COLUMNS)
+      .eq("id", shipmentId)
+      .maybeSingle(),
+    getShipmentRestrictedFields(supabase, shipmentId),
+  ]);
   if (error) {
     console.error("[shipment-staff] summary read failed", error.message);
     return null;
   }
-  return (data as StaffShipmentRow | null) ?? null;
+  const base = (data as StaffShipmentRow | null) ?? null;
+  if (base === null) return null;
+  // `restricted` is spread LAST: the four keys are absent from `base` at
+  // runtime (the projection no longer names them) and the accessor is the
+  // only thing entitled to fill them.
+  return { ...base, ...restricted };
 }
 
 /* ------------------------------------------------------------------ *

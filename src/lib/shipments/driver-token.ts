@@ -192,6 +192,38 @@ export function hashDriverToken(raw: unknown): string | null {
   return `${DRIVER_TOKEN_HASH_VERSION}:${digest(key, token)}`;
 }
 
+/**
+ * A WELL-FORMED hash that cannot belong to any issued token — M-73's
+ * `DECOY_ACCESS_HASH`, applied to the driver credential (M-83).
+ *
+ * ── THE DEFECT THIS EXISTS TO FIX ────────────────────────────────────────
+ *
+ * `redeemDriverToken` documented its own contract as: *"A malformed token
+ * still calls the RPC — with a well-formed hash of the empty string, which
+ * cannot match any row. Short-circuiting on shape would make 'not a token at
+ * all' the fast path."* It did not do that. `hashDriverToken("")` returns
+ * `null` — the empty string is malformed too — so the fallback collapsed and
+ * the caller returned `unavailable` without ever reaching the database.
+ *
+ * The consequence was measurable: an unknown, expired, revoked or released
+ * token answered `expired`, and a MALFORMED one answered `unavailable`, which
+ * `/driver/update/[token]` renders as a different card. §13 requires the link
+ * to be non-enumerable and M-76's own doc claims all five refusals are
+ * identical; they were not, and the malformed case also skipped the ledger
+ * and the rate-limit budget entirely — so a scripted scan of garbage tokens
+ * was invisible to §26's counter and cost the scanner nothing.
+ *
+ * The decoy is derived through the SAME keyed digest as a real token, so it
+ * is `v1:<64 hex>` and satisfies 0023's `token_hash` CHECK, and it is
+ * computed from a constant that is not a valid token — no `mintDriverToken`
+ * output can ever collide with it, because no minted token contains a `:`.
+ */
+export function decoyDriverTokenHash(): string | null {
+  const key = secret();
+  if (key === null) return null;
+  return `${DRIVER_TOKEN_HASH_VERSION}:${digest(key, "decoy:not-a-driver-token")}`;
+}
+
 /** `v1:<64 hex>` → the digest, or null for anything else (including null). */
 function parseStoredDigest(stored: string | null): string | null {
   if (stored === null) return null;

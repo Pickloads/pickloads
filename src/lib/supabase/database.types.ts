@@ -1731,6 +1731,23 @@ export type Database = {
         Args: Record<string, never>;
         Returns: number;
       };
+
+      /* ---------- M-83 (0030) — §19's two structural gaps ---------------- */
+
+      /** The §18 staff-only columns, which 0030 §4 revoked from every browser
+       *  role. Returns AT MOST ONE ROW, and no row at all to a caller who may
+       *  not see the shipment — a row of nulls would have been an existence
+       *  oracle. Staff (in scope) get all four; the hauling carrier gets
+       *  `carrier_pay` and three nulls; everybody else gets nothing. */
+      shipment_restricted_fields: {
+        Args: { p_shipment_id: string };
+        Returns: {
+          gross_shipper_amount: number | null;
+          carrier_pay: number | null;
+          margin: number | null;
+          delay_reason_internal: string | null;
+        }[];
+      };
     };
   };
 }

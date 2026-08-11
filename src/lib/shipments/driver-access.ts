@@ -5,6 +5,7 @@ import { tryCreateAdminClient } from "@/lib/supabase/admin";
 import { logShipmentSignal } from "@/lib/shipments/observability";
 import {
   driverTokenExpiry,
+  decoyDriverTokenHash,
   hashDriverToken,
   isDriverTokenConfigured,
   mintDriverToken,
@@ -236,11 +237,19 @@ export async function redeemDriverToken(
     return UNAVAILABLE;
   }
 
-  // `hashDriverToken` returns null for a malformed token. Hashing the empty
-  // string instead keeps the RPC call unconditional (see above); the CHECK on
-  // `token_hash` guarantees no stored row can equal it by accident, and the
-  // unique index guarantees it matches at most one row anyway.
-  const hash = hashDriverToken(request.token) ?? hashDriverToken("") ?? null;
+  // `hashDriverToken` returns null for a malformed token, so the fallback is
+  // the DECOY hash — well-formed, keyed, and impossible for any issued token
+  // to equal. That keeps the RPC call unconditional (see above), so a
+  // malformed token spends rate budget, reaches the ledger as `not_found` and
+  // gets the SAME refusal as an unknown one.
+  //
+  // M-83 FIXED THIS. The fallback used to be `hashDriverToken("")`, which is
+  // itself null — the empty string is malformed — so every malformed token
+  // returned `unavailable` without touching the database. `/driver/update/
+  // [token]` renders `unavailable` as a different card from `expired`, which
+  // made the shape of the input observable in the response and left a
+  // scripted scan of garbage tokens uncounted and unlimited.
+  const hash = hashDriverToken(request.token) ?? decoyDriverTokenHash();
   if (hash === null) return UNAVAILABLE;
 
   const { data, error } = await admin.rpc("redeem_shipment_driver_token", {

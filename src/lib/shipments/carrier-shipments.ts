@@ -2,6 +2,7 @@ import "server-only";
 
 import type { createClient } from "@/lib/supabase/server";
 import { AUDIENCE_EVENT_VISIBILITY } from "@/lib/shipments/dto";
+import { getShipmentRestrictedFields } from "@/lib/shipments/restricted-fields";
 import {
   applyShipmentFilters,
   pageRange,
@@ -177,15 +178,18 @@ export async function carrierHasAnyShipment(
 /**
  * Explicit projection for the DETAIL page.
  *
- * `carrier_pay` IS here and `gross_shipper_amount` / `margin` are not. M-70's
- * DTO doc settles it: *"the carrier gets their own rate because it is their
- * own contract"*, and what stays out is everything that would let them derive
- * the margin. Two of §18's three financial columns therefore never enter
- * memory on a carrier request at all, which is defence in depth behind
- * `toCarrierDto`'s allow-list rather than a substitute for it.
+ * ── CHANGED BY M-83 ──────────────────────────────────────────────────────
+ *
+ * `carrier_pay` USED TO BE HERE. Migration 0030 §4 revokes all three §18
+ * financial columns from every browser role, so no projection may name them
+ * any more — M-71's residual risk R-1, closed at the database rather than
+ * re-documented. M-70's rule is unchanged (*"the carrier gets their own rate
+ * because it is their own contract"*) and is now enforced where it can be
+ * argued with: inside `shipment_restricted_fields()`, which returns
+ * `carrier_pay` to the hauling carrier and nulls the other two.
  */
 export const CARRIER_DETAIL_COLUMNS =
-  "id, tracking_number, carrier_id, quote_id, status, origin_company, origin_address, origin_city, origin_state, origin_zip, destination_company, destination_address, destination_city, destination_state, destination_zip, pickup_appointment_at, delivery_appointment_at, equipment, commodity_category, weight_lbs, pallets, distance_miles, shipper_reference, po_number, carrier_pay, public_tracking_enabled, tracking_mode, location_visibility, current_latitude, current_longitude, current_city, current_state, last_location_at, estimated_pickup_at, estimated_delivery_at, eta_source, eta_confidence, eta_updated_at, delay_minutes, delay_reason_public, load_id, broker_partner_id, dispatcher_id, shipper_id, cancellation_reason, completed_at, cancelled_at, created_at, updated_at";
+  "id, tracking_number, carrier_id, quote_id, status, origin_company, origin_address, origin_city, origin_state, origin_zip, destination_company, destination_address, destination_city, destination_state, destination_zip, pickup_appointment_at, delivery_appointment_at, equipment, commodity_category, weight_lbs, pallets, distance_miles, shipper_reference, po_number, public_tracking_enabled, tracking_mode, location_visibility, current_latitude, current_longitude, current_city, current_state, last_location_at, estimated_pickup_at, estimated_delivery_at, eta_source, eta_confidence, eta_updated_at, delay_minutes, delay_reason_public, load_id, broker_partner_id, dispatcher_id, shipper_id, cancellation_reason, completed_at, cancelled_at, created_at, updated_at";
 
 /**
  * The shipment row as the carrier detail page sees it.
@@ -223,7 +227,13 @@ export async function getCarrierShipmentSummary(
     console.error("[carrier-shipments] summary read failed", error.message);
     return null;
   }
-  return data ?? null;
+  if (!data) return null;
+  // M-83: `carrier_pay` no longer arrives with the row. The accessor decides
+  // whether this caller is the hauling carrier, in SQL — the query above
+  // already proved it with `.eq("carrier_id", …)` plus 0018's policy, and the
+  // two agreeing is the point.
+  const restricted = await getShipmentRestrictedFields(supabase, shipmentId);
+  return { ...data, carrier_pay: restricted.carrier_pay };
 }
 
 /**

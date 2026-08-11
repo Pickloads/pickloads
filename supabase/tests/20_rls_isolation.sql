@@ -580,17 +580,38 @@ select rls_test.eq((select count(*) from shipment_assignments where shipment_id 
 select rls_test.eq((select count(*) from broker_partners), 0, 'shipperA cannot select any broker organization');
 select rls_test.eq((select count(*) from broker_partner_memberships), 0, 'shipperA cannot select broker memberships');
 select rls_test.eq((select count(*) from my_broker_partner_ids()), 0, 'my_broker_partner_ids is empty for a shipper owner');
--- §19: no customer may write a shipment at all — there is no INSERT/UPDATE/
--- DELETE policy, so "carrier users cannot edit financial fields" is not a
--- column list to maintain, it is the absence of a grant.
-select rls_test.affects($$update shipments set margin = 0 where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$, 0,
-  'shipperA cannot edit financial fields on its OWN shipment');
-select rls_test.affects($$update shipments set status = 'delivered' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$, 0,
-  'shipperA cannot change its own shipment status (§20 transitions are server-side)');
-select rls_test.affects($$update shipments set public_tracking_enabled = true where id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'$$, 0,
-  'shipperA cannot publish shipperB shipment to the public tracking page');
-select rls_test.affects($$delete from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$, 0,
-  'shipperA cannot delete its own shipment');
+-- §19: no customer may write a shipment at all.
+--
+-- CHANGED BY M-83 (0030 §4), deliberately. Until M-83 these four passed
+-- because no INSERT/UPDATE/DELETE **policy** applied — RLS filtered the write
+-- to zero rows and the statement succeeded. They now FAIL EARLIER: 0030
+-- revokes INSERT/UPDATE/DELETE on `shipments` from `authenticated` and `anon`
+-- outright, so the refusal is a table privilege that no future policy can
+-- undo. `rejects_with('42501')` rather than `affects(…, 0)` is what records
+-- that the guarantee got stronger instead of merely staying true.
+select rls_test.rejects_with($$update shipments set margin = 0 where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
+  '42501', 'shipperA cannot edit financial fields on its OWN shipment (0030: no UPDATE privilege at all)');
+select rls_test.rejects_with($$update shipments set status = 'delivered' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
+  '42501', 'shipperA cannot change its own shipment status (§20 transitions are server-side)');
+select rls_test.rejects_with($$update shipments set public_tracking_enabled = true where id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'$$,
+  '42501', 'shipperA cannot publish shipperB shipment to the public tracking page');
+select rls_test.rejects_with($$delete from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
+  '42501', 'shipperA cannot delete its own shipment');
+-- §18/§19 READ side, new in M-83: the column cannot even be NAMED.
+select rls_test.rejects_with($$select margin from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
+  '42501', '§19 PROOF: shipperA cannot SELECT margin on its own shipment (0030 §4 column privilege)');
+select rls_test.rejects_with($$select gross_shipper_amount from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
+  '42501', '§19 PROOF: shipperA cannot SELECT gross_shipper_amount on its own shipment');
+select rls_test.rejects_with($$select carrier_pay from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
+  '42501', '§19 PROOF: shipperA cannot SELECT carrier_pay on its own shipment');
+select rls_test.rejects_with($$select public_access_hash from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
+  '42501', '§4 PROOF: shipperA cannot SELECT the public_access_hash credential');
+select rls_test.eq((select count(*) from shipment_restricted_fields('ffffffff-ffff-ffff-ffff-ffffffff0a01')), 0,
+  'the accessor returns NO ROW to a shipper — not a row of nulls, which would be an existence oracle');
+-- Non-vacuity: an ordinary column on the SAME row is still readable, so the
+-- four refusals above are about those four columns and not about the row.
+select rls_test.eq((select count(*) from (select status, origin_city from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01') q), 1,
+  'shipperA still reads the operational columns of its own shipment (non-vacuity for the four refusals)');
 select rls_test.affects($$update shipment_parties set public_contact = true where id = 'fafafafa-fafa-fafa-fafa-fafafafa0a02'$$, 0,
   'shipperA cannot flip a private contact to public');
 
@@ -609,12 +630,28 @@ select rls_test.eq((select count(*) from shipment_assignments), 1, 'carrierA see
 select rls_test.eq((select count(*) from shipment_assignments where carrier_id = '11111111-1111-1111-1111-11111111bbbb'), 0, 'carrierA cannot select carrierB assignments');
 select rls_test.eq((select count(*) from shipment_parties where shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'), 0, 'carrierA cannot select carrierB shipment parties');
 select rls_test.eq((select count(*) from broker_partners), 0, 'carrierA cannot select broker organizations');
-select rls_test.affects($$update shipments set carrier_pay = 99999 where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$, 0,
-  'carrierA cannot edit carrier_pay on the shipment it hauls (§19 financial-write rejection)');
-select rls_test.affects($$update shipments set margin = 0, gross_shipper_amount = 0 where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$, 0,
-  'carrierA cannot edit shipper financial data (§20 impossible-transition list)');
-select rls_test.affects($$update shipments set status = 'delivered' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'$$, 0,
-  'carrierA cannot mark another carrier shipment delivered (§20)');
+-- §19 PROOF 5 — "carrier users cannot edit financial fields". A privilege,
+-- not a policy gap, since M-83/0030 §4.
+select rls_test.rejects_with($$update shipments set carrier_pay = 99999 where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
+  '42501', '§19 PROOF: carrierA cannot edit carrier_pay on the shipment it hauls');
+select rls_test.rejects_with($$update shipments set margin = 0, gross_shipper_amount = 0 where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
+  '42501', '§19 PROOF: carrierA cannot edit shipper financial data (§20 impossible-transition list)');
+select rls_test.rejects_with($$update shipments set status = 'delivered' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'$$,
+  '42501', 'carrierA cannot mark another carrier shipment delivered (§20)');
+-- Read side: the hauling carrier keeps `carrier_pay` — M-70's one deliberate
+-- crossing — but it now arrives through the accessor, and the other two
+-- financial columns are unreachable by any means.
+select rls_test.rejects_with($$select carrier_pay from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
+  '42501', 'carrierA cannot name carrier_pay on the TABLE either (the column is revoked for every browser role)');
+select rls_test.ok(
+  (select carrier_pay = 2000 from shipment_restricted_fields('ffffffff-ffff-ffff-ffff-ffffffff0a01')),
+  'carrierA DOES receive carrier_pay through the accessor (§18''s one deliberate crossing, non-vacuity)');
+select rls_test.ok(
+  (select gross_shipper_amount is null and margin is null and delay_reason_internal is null
+     from shipment_restricted_fields('ffffffff-ffff-ffff-ffff-ffffffff0a01')),
+  '§19 PROOF: the accessor gives carrierA NOTHING but its own rate — no gross, no margin, no internal delay reason');
+select rls_test.eq((select count(*) from shipment_restricted_fields('ffffffff-ffff-ffff-ffff-ffffffff0b01')), 0,
+  'carrierA gets no row at all from the accessor for carrierB''s shipment');
 select rls_test.affects($$update shipment_assignments set released_at = now() where id = 'fbfbfbfb-fbfb-fbfb-fbfb-fbfbfbfb0b01'$$, 0,
   'carrierA cannot release carrierB assignment');
 
@@ -645,10 +682,14 @@ select rls_test.eq((select count(*) from carriers), 0, 'brokerA cannot select ca
 select rls_test.eq((select count(*) from documents), 0, 'brokerA cannot select carrier documents (§12)');
 select rls_test.eq((select count(*) from invoices), 0, 'brokerA cannot select shipper billing (§12)');
 select rls_test.eq((select count(*) from freight_quotes), 0, 'brokerA cannot select freight quotes (§12)');
-select rls_test.affects($$update shipments set status = 'delivered' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$, 0,
-  'brokerA cannot write the shipment it is linked to');
-select rls_test.affects($$update shipments set broker_partner_id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeee0a01' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'$$, 0,
-  'brokerA cannot link itself to another shipment (the link is an admin write)');
+select rls_test.rejects_with($$update shipments set status = 'delivered' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
+  '42501', 'brokerA cannot write the shipment it is linked to');
+select rls_test.rejects_with($$update shipments set broker_partner_id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeee0a01' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'$$,
+  '42501', 'brokerA cannot link itself to another shipment (the link is an admin write)');
+select rls_test.rejects_with($$select gross_shipper_amount, carrier_pay from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
+  '42501', '§12 PROOF: brokerA cannot name the two columns that TOGETHER compute the PickLoads commission');
+select rls_test.eq((select count(*) from shipment_restricted_fields('ffffffff-ffff-ffff-ffff-ffffffff0a01')), 0,
+  'the accessor gives a broker partner NO ROW (§12: not even carrier_pay)');
 select rls_test.affects($$update broker_partners set active = true where id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeee0c01'$$, 0,
   'brokerA cannot activate an unapproved broker organization');
 
@@ -707,10 +748,25 @@ select rls_test.eq((select count(*) from shipments), 3, 'dispatcher reads all sh
 select rls_test.eq((select count(*) from shipment_parties), 5, 'dispatcher reads all shipment parties');
 select rls_test.eq((select count(*) from shipment_assignments), 2, 'dispatcher reads all shipment assignments');
 select rls_test.eq((select count(*) from broker_partners), 6, 'dispatcher reads all broker organizations, active or not');
-select rls_test.affects($$update shipments set status = 'arrived_at_delivery' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$, 1,
-  'dispatcher CAN advance a shipment status (proves every 0 above is a policy result, not an empty table)');
+-- CHANGED BY M-83. This used to be `affects(…, 1)` — "dispatcher CAN advance
+-- a shipment status" — and it was the non-vacuity control for every zero
+-- above. It is now FALSE BY DESIGN: 0030 §4 revokes UPDATE on `shipments`
+-- from `authenticated` entirely, because nothing in `src/` writes this table
+-- through a browser session (every write is a SECURITY DEFINER RPC or the
+-- service-role client). A staff surface that regains a direct UPDATE would
+-- fail here, which is the intent.
+select rls_test.rejects_with($$update shipments set status = 'arrived_at_delivery' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
+  '42501', 'a DISPATCHER browser session cannot UPDATE shipments either (0030 §4 — the revoke is role-wide, not customer-only)');
+-- The replacement non-vacuity control: the same session writes a table it is
+-- supposed to write, so every refusal above is about `shipments` and not
+-- about a broken session or a missing JWT subject.
+select rls_test.affects($$update carriers set active = true where id = '11111111-1111-1111-1111-11111111aaaa'$$, 1,
+  'the SAME dispatcher session CAN write carriers (proves the refusals above are specific, not a dead session)');
+-- §5 immutability is now unreachable from a browser session at all, so it is
+-- asserted as the OWNER in §7h rather than here. Kept as an anon/authenticated
+-- statement it would pass for the wrong reason (privilege, not the trigger).
 select rls_test.rejects_with($$update shipments set tracking_number = 'PL-2026-123456' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
-  'P0001', 'dispatcher cannot rewrite a tracking number either (§5 immutability)');
+  '42501', 'dispatcher cannot rewrite a tracking number either — now refused one layer earlier than §5''s trigger');
 
 set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000f1';
 select rls_test.eq((select count(*) from shipments), 3, 'admin reads all shipments');
@@ -1426,13 +1482,24 @@ select rls_test.ok(
       and policyname = 'carrier member read shipments') = 'SELECT',
   'M-76 did NOT widen "carrier member read shipments" — it is still FOR SELECT (M-71''s explicit instruction)');
 
+-- `permissive = 'PERMISSIVE'` since M-83: a RESTRICTIVE policy can only ever
+-- SUBTRACT, so 0030's four `dispatcher scope …` policies cannot widen a write
+-- surface however their `cmd` reads. The invariant this assertion protects is
+-- about what GRANTS access, and restrictive policies grant nothing.
 select rls_test.ok(
   (select count(*) from pg_policies
     where schemaname = 'public'
       and tablename in ('shipments','shipment_events','shipment_parties','shipment_assignments')
+      and permissive = 'PERMISSIVE'
       and cmd <> 'SELECT'
       and policyname not like 'staff %') = 0,
-  'no NON-staff policy on any shipment table is anything but SELECT — carriers still have no write surface');
+  'no NON-staff PERMISSIVE policy on any shipment table is anything but SELECT — carriers still have no write surface');
+select rls_test.ok(
+  (select count(*) from pg_policies
+    where schemaname = 'public'
+      and tablename in ('shipments','shipment_events','shipment_parties','shipment_assignments')
+      and permissive = 'RESTRICTIVE') = 4,
+  'M-83 added exactly one RESTRICTIVE policy to each of the four core shipment tables');
 
 -- M-81 makes this FIVE: 0029 added `"broker shared read shipments"` beside
 -- M-71's floor rather than replacing it (0018 §3's own instruction, *"it
@@ -1440,8 +1507,9 @@ select rls_test.ok(
 -- rather than loosened to `>=` so a SIXTH policy is still a deliberate act.
 select rls_test.ok(
   (select count(*) from pg_policies
-    where schemaname = 'public' and tablename = 'shipments') = 5,
-  'shipments carries exactly 5 policies (staff/shipper/carrier/broker + M-81 sharing)');
+    where schemaname = 'public' and tablename = 'shipments'
+      and permissive = 'PERMISSIVE') = 5,
+  'shipments carries exactly 5 PERMISSIVE policies (staff/shipper/carrier/broker + M-81 sharing)');
 
 -- ---- 2 · the credential column -------------------------------------------
 select rls_test.ok(
@@ -1992,14 +2060,21 @@ select rls_test.ok(
   (select relrowsecurity from pg_class where relname = 'shipment_eta_history'),
   'RLS is ENABLED on shipment_eta_history');
 
--- EXACTLY ONE policy on each, and it is the staff one. A second permissive
--- policy is how a customer band would arrive by accident.
+-- EXACTLY ONE PERMISSIVE policy on each, and it is the staff one. A second
+-- permissive policy is how a customer band would arrive by accident.
+-- `permissive = 'PERMISSIVE'` since M-83: 0030's restrictive dispatcher-scope
+-- policies can only subtract, so counting them here would turn a widening
+-- detector into a change detector.
 select rls_test.eq((select count(*) from pg_policies
-   where tablename = 'shipment_exceptions'), 1,
-  'shipment_exceptions carries exactly ONE policy — no customer band exists at the table level');
+   where tablename = 'shipment_exceptions' and permissive = 'PERMISSIVE'), 1,
+  'shipment_exceptions carries exactly ONE permissive policy — no customer band exists at the table level');
 select rls_test.eq((select count(*) from pg_policies
-   where tablename = 'shipment_eta_history'), 1,
-  'shipment_eta_history carries exactly ONE policy');
+   where tablename = 'shipment_eta_history' and permissive = 'PERMISSIVE'), 1,
+  'shipment_eta_history carries exactly ONE permissive policy');
+select rls_test.eq((select count(*) from pg_policies
+   where tablename in ('shipment_exceptions','shipment_eta_history')
+     and permissive = 'RESTRICTIVE'), 2,
+  'M-83 added a restrictive dispatcher-scope policy to each');
 
 -- The WRITE grants were revoked, which is checked IN ADDITION to RLS. Without
 -- this, a future permissive policy would inherit a write privilege nobody
@@ -2298,14 +2373,15 @@ select rls_test.ok(
 select rls_test.eq((select count(*) from pg_policies
    where tablename in ('shipment_notification_rules','shipment_notification_queue',
      'shipment_notification_attempts','shipment_notification_watermark',
-     'notification_suppressions')), 5,
-  'exactly FIVE policies across the five M-79 tables — one staff read each');
+     'notification_suppressions') and permissive = 'PERMISSIVE'), 5,
+  'exactly FIVE permissive policies across the five M-79 tables — one staff read each');
 
 select rls_test.eq((select count(*) from pg_policies
    where tablename in ('shipment_notification_rules','shipment_notification_queue',
      'shipment_notification_attempts','shipment_notification_watermark',
-     'notification_suppressions') and cmd <> 'SELECT'), 0,
-  '§19: NO write policy exists on any M-79 table, for any role — the four service-role functions are the only write path');
+     'notification_suppressions')
+     and permissive = 'PERMISSIVE' and cmd <> 'SELECT'), 0,
+  '§19: NO permissive write policy exists on any M-79 table, for any role — the four service-role functions are the only write path');
 
 select rls_test.ok(
   (select bool_or(has_table_privilege('authenticated', t, p))
@@ -2521,11 +2597,11 @@ select rls_test.ok(
   'RLS is ENABLED on tracking_provider_connections');
 
 select rls_test.eq((select count(*) from pg_policies
-   where tablename = 'shipment_locations'), 1,
-  '§9: shipment_locations carries exactly ONE policy — no customer band exists at the table level');
+   where tablename = 'shipment_locations' and permissive = 'PERMISSIVE'), 1,
+  '§9: shipment_locations carries exactly ONE permissive policy — no customer band exists at the table level');
 select rls_test.eq((select count(*) from pg_policies
-   where tablename = 'tracking_provider_connections'), 1,
-  '§9: tracking_provider_connections carries exactly ONE policy');
+   where tablename = 'tracking_provider_connections' and permissive = 'PERMISSIVE'), 1,
+  '§9: tracking_provider_connections carries exactly ONE permissive policy');
 
 select rls_test.ok(
   (select bool_or(has_table_privilege('authenticated', 'shipment_locations', p))
@@ -3189,7 +3265,8 @@ select rls_test.eq(
   'M-81 added exactly 4 broker policies and all 4 are SELECT-only');
 select rls_test.eq(
   (select count(*) from pg_policies
-    where policyname like 'broker %' and cmd <> 'SELECT'), 0,
+    where policyname like 'broker %' and permissive = 'PERMISSIVE'
+      and cmd <> 'SELECT'), 0,
   '§19: NO broker policy of any kind permits a write');
 
 -- No customer write policy on the three new tables.
@@ -3197,8 +3274,9 @@ select rls_test.eq(
   (select count(*) from pg_policies
     where tablename in ('broker_partner_invites', 'broker_shipment_grants',
                         'broker_account_agreements')
+      and permissive = 'PERMISSIVE'
       and cmd <> 'SELECT' and policyname not like 'staff %'), 0,
-  '§3: the only non-SELECT policies on M-81''s tables are the staff ones');
+  '§3: the only non-SELECT permissive policies on M-81''s tables are the staff ones');
 
 -- The `broker` enum value exists and is used by NO policy expression, which
 -- is the whole claim 0028's header makes.
@@ -3210,3 +3288,310 @@ select rls_test.eq(
   (select count(*) from pg_policies
     where coalesce(qual, '') || coalesce(with_check, '') like '%''broker''::user_role%'), 0,
   '0028: NO policy authorizes on profiles.role = broker — access stays org-scoped');
+
+-- ===========================================================================
+-- 17 · M-83 — §19 IN FULL (migration 0030)
+--
+-- Six of §19's seven proofs have existed since M-71…M-81 and are asserted
+-- above, in the sections that own the tables. This section adds the SEVENTH —
+-- *"dispatcher permissions are limited"* — as a database guarantee rather
+-- than a query-level filter, closes M-71's residual risk R-1 as a catalog
+-- fact, and then restates all seven in one roll-call so the module doc's
+-- evidence table has one place to point at.
+--
+-- WHY THE SEVENTH NEEDED NEW SCHEMA. M-71 recorded it plainly: `"staff manage
+-- shipments"` says `is_staff()`, which cannot tell a dispatcher from an
+-- admin, so dispatcher least-privilege lived in `src/lib/staff-scope.ts`. A
+-- test written against that would have passed for the wrong reason — it would
+-- have been testing a TypeScript expression, not a policy — and M-81's third
+-- injection is the precedent for how that fails. 0030 adds RESTRICTIVE
+-- policies, which AND with every existing policy without editing any of them.
+--
+-- Identity extension
+--   dispatcher 2   00000000-0000-0000-0000-0000000000e2
+--   shipment D     ffffffff-ffff-ffff-ffff-ffffffff8301  (dispatcher 2, no carrier)
+--   carrier B is reassigned to dispatcher 2, so the SECOND scope arm
+--   (carriers.assigned_dispatcher_id) is exercised and not merely declared.
+-- ===========================================================================
+
+reset role;
+set request.jwt.claim.sub = '';
+
+\echo '--- M-83 · §19 in full (0030) ---'
+
+insert into auth.users (id, email) values
+  ('00000000-0000-0000-0000-0000000000e2', 'dispatcher2@pickloads.test');
+update profiles set role = 'dispatcher', full_name = 'Dispatcher Two'
+  where id = '00000000-0000-0000-0000-0000000000e2';
+
+-- Arm 2 of the scope: an admin assigns carrier B to dispatcher 2.
+update carriers set assigned_dispatcher_id = '00000000-0000-0000-0000-0000000000e2'
+  where id = '11111111-1111-1111-1111-11111111bbbb';
+
+update company_settings set value = 'true'::jsonb where key = 'brokerage_active';
+insert into shipments (
+  id, tracking_number, shipper_id, carrier_id, dispatcher_id, status,
+  origin_city, origin_state, destination_city, destination_state, equipment,
+  gross_shipper_amount, carrier_pay, margin, public_access_hash
+) values (
+  'ffffffff-ffff-ffff-ffff-ffffffff8301', 'PL-2026-000831',
+  '22222222-2222-2222-2222-2222222aaaaa', null,
+  '00000000-0000-0000-0000-0000000000e2', 'carrier_search',
+  'Denver', 'CO', 'Phoenix', 'AZ', 'flatbed',
+  7700, 6400, 1300, 'sha256-secondary-d');
+update company_settings set value = 'false'::jsonb where key = 'brokerage_active';
+
+insert into shipment_events (
+  id, shipment_id, event_type, status, event_time, source, created_by,
+  public_message, internal_message, visibility
+) values (
+  'ebebebeb-ebeb-ebeb-ebeb-ebebebeb8301', 'ffffffff-ffff-ffff-ffff-ffffffff8301',
+  'status_change', 'carrier_search', now() - interval '1 hour', 'dispatcher',
+  '00000000-0000-0000-0000-0000000000e2', 'Sourcing a truck', 'D2 internal', 'staff_only');
+
+insert into shipment_parties (id, shipment_id, party_role, company_name,
+                              contact_name, public_contact) values
+  ('fafafafa-fafa-fafa-fafa-fafafafa8301', 'ffffffff-ffff-ffff-ffff-ffffffff8301',
+   'consignee', 'Phoenix Yard', 'D2 Receiving', false);
+
+insert into shipment_exceptions (
+  id, shipment_id, exception_type, severity, public_description,
+  internal_description, opened_by
+) values (
+  'fbfbfbfb-fbfb-fbfb-fbfb-fbfbfbfb8301', 'ffffffff-ffff-ffff-ffff-ffffffff8301',
+  'weather', 'medium', 'phrase:exception.weather', 'D2 only', 
+  '00000000-0000-0000-0000-0000000000e2');
+
+-- ---------------------------------------------------------------------------
+-- 17a · §19 PROOF 6 — dispatcher permissions are limited (READ)
+--
+-- Dispatcher 1 owns shipments A, B and C by `dispatcher_id`. Shipment D is
+-- dispatcher 2's and has no carrier at all, so NEITHER arm reaches it.
+-- ---------------------------------------------------------------------------
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000e1';
+
+select rls_test.eq((select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'), 1,
+  'dispatcher1 still reads the shipments it owns (non-vacuity for every zero below)');
+select rls_test.eq((select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff8301'), 0,
+  '§19 PROOF 6: DISPATCHER 1 CANNOT READ ANOTHER DISPATCHER''S SHIPMENT (0030 restrictive policy, not staff-scope.ts)');
+select rls_test.eq((select count(*) from shipments where tracking_number = 'PL-2026-000831'), 0,
+  '§5/§19: nor by TRACKING NUMBER — the M-75 search box cannot walk around the scope');
+select rls_test.eq((select count(*) from shipment_events where shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff8301'), 0,
+  '§19 PROOF 6: dispatcher1 reads NO event of an out-of-scope shipment');
+select rls_test.eq((select count(*) from shipment_exceptions where shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff8301'), 0,
+  '§19 PROOF 6: dispatcher1 reads NO exception of an out-of-scope shipment');
+select rls_test.eq((select count(*) from my_shipment_exceptions('ffffffff-ffff-ffff-ffff-ffffffff8301')), 0,
+  '§19 PROOF 6: the SECURITY DEFINER accessor is scoped too — 0030 §3 closed the one path a restrictive policy cannot reach');
+select rls_test.eq((select count(*) from shipment_restricted_fields('ffffffff-ffff-ffff-ffff-ffffffff8301')), 0,
+  '§19 PROOF 6: an out-of-scope dispatcher gets NO financial row — and no row means no existence oracle either');
+select rls_test.eq((select count(*) from shipment_tracking_access where shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff8301'), 0,
+  '§19 PROOF 6: nor the access ledger for a shipment outside the scope');
+
+-- The ledger's UNATTRIBUTED rows stay visible — the deliberate exception, and
+-- the reason `shipment_tracking_access` has its own policy text in 0030 §2.
+select rls_test.ok((select count(*) from shipment_tracking_access where shipment_id is null) > 0,
+  'dispatcher1 STILL sees unattributed enumeration attempts (a scoped ledger that hid misses would blind the operator watching for them)');
+select rls_test.ok((select count(*) from shipment_driver_token_access where shipment_id is null) > 0,
+  'the same exception holds for the driver-token ledger (0023 nullable shipment_id, same reason)');
+
+-- ---------------------------------------------------------------------------
+-- 17b · §19 PROOF 6 — dispatcher permissions are limited (WRITE)
+--
+-- `shipments` itself is unwritable by any browser session since 0030 §4, so
+-- the write half is proved on a table where the staff policy DOES permit
+-- writes: `shipment_exceptions` (0025, `for all using (is_staff())`).
+-- ---------------------------------------------------------------------------
+select rls_test.affects(
+  $$update shipment_parties set contact_name = 'd1 was here' where id = 'fafafafa-fafa-fafa-fafa-fafafafa0a01'$$,
+  1, 'dispatcher1 CAN write a party on a shipment IN its scope (non-vacuity — the refusals below are the policy, not a missing grant)');
+select rls_test.affects(
+  $$update shipment_parties set contact_name = 'd1 was here' where id = 'fafafafa-fafa-fafa-fafa-fafafafa8301'$$,
+  0, '§19 PROOF 6: dispatcher1 CANNOT write a party on a shipment outside its scope — a scoped board with an unscoped write is not a control');
+select rls_test.denied(
+  $$insert into shipment_parties (shipment_id, party_role, company_name) values ('ffffffff-ffff-ffff-ffff-ffffffff8301','third_party','Forged')$$,
+  '§19 PROOF 6: nor INSERT one there — the restrictive policy carries WITH CHECK as well as USING');
+select rls_test.affects(
+  $$delete from shipment_parties where id = 'fafafafa-fafa-fafa-fafa-fafafafa8301'$$,
+  0, '§19 PROOF 6: nor DELETE another dispatcher''s party row');
+
+-- ---------------------------------------------------------------------------
+-- 17c · The SECOND arm, and the mirror case
+--
+-- Dispatcher 2 owns D and is assigned carrier B, so it reaches shipment B
+-- WITHOUT owning it. Without this the policy would pass a test that a
+-- one-armed `dispatcher_id = auth.uid()` rule would also pass.
+-- ---------------------------------------------------------------------------
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000e2';
+select rls_test.eq((select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff8301'), 1,
+  'dispatcher2 reads its OWN shipment (arm 1: shipments.dispatcher_id)');
+select rls_test.eq((select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'), 1,
+  'dispatcher2 reads carrierB''s shipment through its ASSIGNMENT (arm 2: carriers.assigned_dispatcher_id — the arm §6''s carrier-less statuses would hide)');
+select rls_test.eq((select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'), 0,
+  '§19 PROOF 6 (mirror): dispatcher2 cannot read dispatcher1''s carrierA shipment');
+select rls_test.eq((select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffff810c01'), 0,
+  '§19 PROOF 6 (mirror): nor the carrier-less shipment dispatcher1 is sourcing');
+select rls_test.eq((select count(*) from my_shipment_exceptions('ffffffff-ffff-ffff-ffff-ffffffff0a01')), 0,
+  '§19 PROOF 6 (mirror): the accessor refuses dispatcher2 too');
+
+-- ---------------------------------------------------------------------------
+-- 17d · An ADMIN is not scoped — which is what makes 17a/17c policy results
+-- ---------------------------------------------------------------------------
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000f1';
+select rls_test.eq((select count(*) from shipments where id in (
+    'ffffffff-ffff-ffff-ffff-ffffffff0a01','ffffffff-ffff-ffff-ffff-ffffffff0b01',
+    'ffffffff-ffff-ffff-ffff-ffffff810c01','ffffffff-ffff-ffff-ffff-ffffffff8301')), 4,
+  'an ADMIN reads all four shipments — the restrictive policy constrains dispatchers only');
+select rls_test.eq((select count(*) from shipment_exceptions where shipment_id = 'ffffffff-ffff-ffff-ffff-ffffffff8301'), 1,
+  'an ADMIN reads dispatcher2''s exception');
+select rls_test.eq((select count(*) from my_shipment_exceptions('ffffffff-ffff-ffff-ffff-ffffffff8301')), 1,
+  'an ADMIN reads it through the accessor too (0030 §3 narrowed the dispatcher arm, not the staff one)');
+select rls_test.ok(
+  (select gross_shipper_amount = 7700 and carrier_pay = 6400 and margin = 1300
+     from shipment_restricted_fields('ffffffff-ffff-ffff-ffff-ffffffff8301')),
+  'an ADMIN receives all three financial values through the accessor (non-vacuity for every null above)');
+
+-- A CUSTOMER is not scoped either: the restrictive predicate must be a no-op
+-- for every non-dispatcher, or it would silently narrow shipper/carrier/broker
+-- access that four modules already proved.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1';
+select rls_test.eq((select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'), 1,
+  'a SHIPPER is untouched by the restrictive policy (it short-circuits on is_dispatcher())');
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';
+select rls_test.eq((select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'), 1,
+  'a CARRIER is untouched by the restrictive policy');
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab01';
+select rls_test.eq((select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'), 1,
+  'a BROKER PARTNER is untouched by the restrictive policy');
+
+-- ---------------------------------------------------------------------------
+-- 17e · Catalog facts — the SHAPE of the guarantee
+-- ---------------------------------------------------------------------------
+reset role;
+set request.jwt.claim.sub = '';
+
+select rls_test.eq(
+  (select count(*) from pg_policies
+    where schemaname = 'public' and policyname like 'dispatcher scope %'), 14,
+  '0030 created exactly 14 dispatcher-scope policies');
+select rls_test.eq(
+  (select count(*) from pg_policies
+    where policyname like 'dispatcher scope %' and permissive <> 'RESTRICTIVE'), 0,
+  'every one of them is RESTRICTIVE — a PERMISSIVE one would GRANT access instead of removing it');
+select rls_test.eq(
+  (select count(*) from pg_policies
+    where policyname like 'dispatcher scope %' and cmd <> 'ALL'), 0,
+  'every one is FOR ALL — §19 is about permissions, and a scoped read with an unscoped write is not a limit');
+select rls_test.eq(
+  (select count(*) from pg_policies
+    where policyname like 'dispatcher scope %' and with_check is null), 0,
+  'every one carries WITH CHECK as well as USING — a dispatcher cannot move a row INTO or OUT OF its scope either');
+
+-- The predicate itself: both arms, read out of pg_proc, so an edit that drops
+-- one fails here rather than silently halving the scope.
+select rls_test.ok(
+  (select prosrc like '%p_dispatcher_id = auth.uid()%'
+      and prosrc like '%assigned_dispatcher_id = auth.uid()%'
+     from pg_proc where proname = 'dispatcher_may_see'),
+  'dispatcher_may_see() keeps BOTH arms (own shipment OR assigned carrier)');
+select rls_test.ok(
+  (select prosrc like '%''dispatcher''%' from pg_proc where proname = 'is_dispatcher'),
+  'is_dispatcher() keys off the dispatcher role specifically, not is_staff()');
+select rls_test.ok(
+  (select prosrc like '%not public.is_dispatcher()%' from pg_proc where proname = 'staff_scope_ok'),
+  'staff_scope_ok() short-circuits for every non-dispatcher (this is why no customer policy narrowed)');
+select rls_test.ok(
+  (select bool_and(prosecdef) from pg_proc
+    where proname in ('is_dispatcher','dispatcher_may_see','staff_scope_ok',
+                      'shipment_in_staff_scope','shipment_restricted_fields')),
+  'all five 0030 helpers are SECURITY DEFINER (a policy predicate that needed the caller''s own privileges could not read profiles)');
+select rls_test.ok(
+  (select bool_and(proconfig::text like '%search_path=public%') from pg_proc
+    where proname in ('is_dispatcher','dispatcher_may_see','staff_scope_ok',
+                      'shipment_in_staff_scope','shipment_restricted_fields')),
+  'and all five pin search_path — a SECURITY DEFINER function without one is a privilege-escalation primitive');
+select rls_test.ok(
+  (select not has_function_privilege('anon', oid, 'EXECUTE') from pg_proc
+    where proname = 'shipment_restricted_fields'),
+  'the financial accessor is NOT executable by anon (unlike the policy predicates, no policy evaluation reaches it)');
+select rls_test.ok(
+  (select bool_and(has_function_privilege('anon', oid, 'EXECUTE')) from pg_proc
+    where proname in ('is_dispatcher','staff_scope_ok','shipment_in_staff_scope')),
+  'the policy predicates ARE executable by anon — an anon caller refused with "permission denied for function" would be a NEW oracle, not a control (0013''s precedent)');
+
+-- ---------------------------------------------------------------------------
+-- 17f · §19 PROOF 5, as a CATALOG fact — M-71's R-1, closed
+--
+-- Until M-83 this proof rested on the absence of a write policy plus four
+-- explicit projections. Absence is fragile: one `for all` policy written in
+-- 2027 erases it everywhere at once. A column privilege does not care what
+-- policies exist.
+-- ---------------------------------------------------------------------------
+select rls_test.ok(
+  (select bool_and(has_column_privilege('authenticated', 'public.shipments', c, 'SELECT') = false)
+     from unnest(array['gross_shipper_amount','carrier_pay','margin','public_access_hash']) c),
+  '§19 PROOF 5: `authenticated` holds NO SELECT privilege on any of the three financial columns or the §4 credential');
+select rls_test.ok(
+  (select bool_and(has_column_privilege('authenticated', 'public.shipments', c, 'UPDATE') = false)
+     from unnest(array['gross_shipper_amount','carrier_pay','margin','status','tracking_number']) c),
+  '§19 PROOF 5: nor any UPDATE privilege — on those columns or on any other');
+select rls_test.ok(
+  (select bool_and(has_table_privilege('authenticated', 'public.shipments', p) = false)
+     from unnest(array['INSERT','UPDATE','DELETE']) p),
+  '§19 PROOF 5: `authenticated` cannot INSERT, UPDATE or DELETE `shipments` at all — every write is a SECURITY DEFINER RPC or the service role');
+select rls_test.ok(
+  (select bool_and(has_table_privilege('anon', 'public.shipments', p) = false)
+     from unnest(array['SELECT','INSERT','UPDATE','DELETE']) p),
+  '§19: `anon` holds NO privilege of any kind on `shipments` — RLS is no longer the only thing standing between the anon key and the table');
+-- Non-vacuity: `authenticated` still reads the operational columns, or the
+-- four assertions above would pass on a table nobody can read at all.
+select rls_test.ok(
+  (select bool_and(has_column_privilege('authenticated', 'public.shipments', c, 'SELECT'))
+     from unnest(array['id','status','tracking_number','origin_city','estimated_delivery_at']) c),
+  'and `authenticated` still reads every operational column (non-vacuity)');
+
+-- ---------------------------------------------------------------------------
+-- 17g · §19's SEVEN PROOFS — the roll-call
+--
+-- Each line below re-asserts one of §19's seven named proofs in one place, so
+-- the module doc's evidence table has a single anchor and a reader can see all
+-- seven pass or fail together. The detailed proofs live in §7, §8, §12, §16
+-- and 17a–17f above; these are not a substitute for them.
+-- ---------------------------------------------------------------------------
+set role authenticated;
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1';
+select rls_test.eq((select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'), 0,
+  '§19 ROLL-CALL 1/7 — Shipper A cannot view Shipper B''s shipment');
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';
+select rls_test.eq((select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'), 0,
+  '§19 ROLL-CALL 2/7 — Carrier A cannot view Carrier B''s shipment');
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab01';
+select rls_test.eq((select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff0b01'), 0,
+  '§19 ROLL-CALL 3/7 — Broker A cannot view Broker B''s shipment');
+
+reset role;
+set request.jwt.claim.sub = '';
+set role anon;
+select rls_test.reads_nothing('shipments',
+  '§19 ROLL-CALL 4/7 — public tracking cannot expose private fields: there is no anonymous read of `shipments` AT ALL, so the public DTO is the only shape that exists (route-level key sets: tests/unit/shipment-public-dto-routes.test.ts)');
+
+reset role;
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';
+select rls_test.rejects_with(
+  $$update shipments set carrier_pay = 1, gross_shipper_amount = 1, margin = 1 where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
+  '42501', '§19 ROLL-CALL 5/7 — carrier users cannot edit financial fields (a COLUMN PRIVILEGE since 0030, not the absence of a policy)');
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000e1';
+select rls_test.eq((select count(*) from shipments where id = 'ffffffff-ffff-ffff-ffff-ffffffff8301'), 0,
+  '§19 ROLL-CALL 6/7 — dispatcher permissions are limited (RESTRICTIVE policy, proved against a SECOND dispatcher)');
+
+select rls_test.rejects_with(
+  $$update shipments set status = 'delivered' where id = 'ffffffff-ffff-ffff-ffff-ffffffff0a01'$$,
+  '42501', '§19 ROLL-CALL 7/7 — unauthorized status transitions fail (no browser session may write `status`; the engine''s own refusals are tests/unit/shipment-transitions.test.ts + the integration lane)');
+
+reset role;
+set request.jwt.claim.sub = '';

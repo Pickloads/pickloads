@@ -51,6 +51,22 @@ const PSQL_ENV = {
 
 export interface PgError {
   message: string;
+  /**
+   * The PostgreSQL SQLSTATE, when psql reported one (M-83).
+   *
+   * The wrapper runs psql with `-v VERBOSITY=verbose`, which makes it print
+   * `ERROR:  42501: permission denied for table shipments` instead of
+   * dropping the code. Without it a test can only match on English prose,
+   * and "the row was filtered by RLS" (no error) and "the COLUMN privilege
+   * was revoked" (42501) are exactly the distinction M-83 exists to assert.
+   * `undefined` when the failure was not a Postgres error at all.
+   */
+  code?: string;
+}
+
+/** Pull the SQLSTATE out of a verbose psql failure. */
+function sqlstateOf(text: string): string | undefined {
+  return /\bERROR:\s+([0-9A-Z]{5}):/.exec(text)?.[1];
 }
 
 /** Who the statement runs as. `null` sub = anon. */
@@ -85,7 +101,20 @@ function runAsSession(
   try {
     const out = execFileSync(
       "psql",
-      ["-d", DB, "-q", "-v", "ON_ERROR_STOP=1", "-At", "-c", wrapped],
+      // `-v VERBOSITY=verbose` (M-83) makes psql print the SQLSTATE in the
+      // error line, so `PgError.code` is a real code rather than prose.
+      [
+        "-d",
+        DB,
+        "-q",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-v",
+        "VERBOSITY=verbose",
+        "-At",
+        "-c",
+        wrapped,
+      ],
       { env: PSQL_ENV, encoding: "utf8" },
     ).trim();
     const lines = out.split("\n").filter((l) => l !== "");
@@ -95,7 +124,9 @@ function runAsSession(
       error: null,
     };
   } catch (err) {
-    return { rows: [], error: { message: String(err) } };
+    const message = String(err);
+    const code = sqlstateOf(message);
+    return { rows: [], error: code ? { message, code } : { message } };
   }
 }
 

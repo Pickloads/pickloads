@@ -211,8 +211,61 @@ export function createPsqlSupabaseClient() {
         },
       };
     },
-    rpc() {
-      throw new Error("psql-supabase: rpc() is not supported by this adapter");
+    /**
+     * M-83 — `rpc()` as the OWNER.
+     *
+     * `redeemDriverToken` and every other service-role path in `src/` reaches
+     * the database through `admin.rpc(...)`. Until M-83 this adapter threw,
+     * so the integration lane could only call 0023's functions from SQL — it
+     * could exercise the DATABASE half of a bearer-credential redemption and
+     * never the TypeScript half that shapes the driver page's props. §19's
+     * route-level key-set proof needs both halves in one call.
+     *
+     * The encoder is `psql-rls-supabase`'s, deliberately: same accepted
+     * argument shapes (string/number/boolean/null), same catalog-driven
+     * detection of set-returning functions (`proretset`), same refusal to
+     * guess at anything else. Two encoders that drifted would make one lane's
+     * passing test meaningless in the other.
+     */
+    rpc(fn: string, args?: Record<string, unknown>) {
+      const entries = Object.entries(args ?? {});
+      for (const [name, value] of entries) {
+        const kind = value === null ? "null" : typeof value;
+        if (!["string", "number", "boolean", "null"].includes(kind)) {
+          throw new Error(
+            `psql-supabase: rpc("${fn}") argument "${name}" is a ${kind} — ` +
+              "add an encoder when a caller needs one.",
+          );
+        }
+      }
+      const call =
+        entries.length === 0
+          ? `${fn}()`
+          : `${fn}(${entries
+              .map(([name, value]) => `${name} => ${literal(value)}`)
+              .join(", ")})`;
+
+      const setReturning = query(
+        `select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) from (
+           select p.proretset as v from pg_proc p
+             join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = ${lit(fn)}
+           limit 1) t`,
+      ).rows[0] as { v: boolean } | undefined;
+
+      const sql = setReturning?.v
+        ? `select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) from ${call} t`
+        : `select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) from (select ${call} as v) t`;
+
+      const result = query(sql);
+      if (result.error) {
+        return Promise.resolve({ data: null, error: result.error });
+      }
+      if (setReturning?.v) {
+        return Promise.resolve({ data: result.rows, error: null });
+      }
+      const row = result.rows[0] as { v: unknown } | undefined;
+      return Promise.resolve({ data: row?.v ?? null, error: null });
     },
   };
 }
