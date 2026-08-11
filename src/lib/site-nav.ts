@@ -85,7 +85,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     entries: [
       { label: "Become a Carrier", href: "/become-a-carrier", ships: true },
       // Scheduled. Not rendered until the page exists.
-      { label: "Carrier Resources", href: "/carrier-resources", ships: false },
+      { label: "Carrier Resources", href: "/carrier-resources", ships: true },
       { label: "Carrier Login", href: "/portal", ships: true },
     ],
   },
@@ -195,7 +195,7 @@ export const FOOTER_COLUMNS: readonly NavGroup[] = [
       { label: "Become a Carrier", href: "/become-a-carrier", ships: true },
       { label: "Start Dispatching", href: "/become-a-carrier", ships: true },
       { label: "Carrier Login", href: "/portal", ships: true },
-      { label: "Carrier Resources", href: "/carrier-resources", ships: false },
+      { label: "Carrier Resources", href: "/carrier-resources", ships: true },
     ],
   },
   {

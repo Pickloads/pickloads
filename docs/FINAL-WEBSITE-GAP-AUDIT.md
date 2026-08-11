@@ -157,3 +157,6 @@ The plan in `docs/FINAL-WEBSITE-IMPLEMENTATION-PLAN.md` sequences them so that
 each phase ships something verifiable, the certified lanes stay green
 throughout, and nothing is built ahead of the legal or business fact it depends
 on.
+
+
+> **Carrier Resources — DELIVERED** (`/carrier-resources`): hub over existing routes, no form, links to /downloads, nav activated.

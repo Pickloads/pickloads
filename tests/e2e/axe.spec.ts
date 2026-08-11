@@ -38,6 +38,7 @@ const PAGES = [
   "/dispatch-services",
   "/knowledge-base",
   "/downloads",
+  "/carrier-resources",
   "/shippers",
   "/become-a-carrier",
   "/start-your-trucking-company",

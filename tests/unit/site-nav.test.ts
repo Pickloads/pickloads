@@ -128,7 +128,6 @@ describe("unbuilt destinations are declared but never rendered", () => {
     // visible, and one cannot quietly stay hidden after its page exists.
     expect(hrefs).toEqual([
       "/careers",
-      "/carrier-resources",
       "/partners",
     ]);
   });
