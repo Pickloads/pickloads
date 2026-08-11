@@ -68,7 +68,7 @@ sensitive data. One specification contradiction, minor, recorded in §5.
 |---|---|---|
 | **FAQ** | 🟡 | `/faq` exists as a static accordion. `FINAL-IMPLEMENTATION-PLAN` notes it is a TS array, unreachable by search → **M-98** would move it to a table |
 | **Knowledge Base** | ✅ **DELIVERED** | `/knowledge-base` — eight categories over the existing 12 FAQ entries, no answer text duplicated. Server-rendered `?category=` filter (linkable, crawlable, works without JS), breadcrumbs, filtered views `noindex` + canonical to the unfiltered page. **FAQ structured data matches what is actually visible** on every view. Nav entry activated. 10 unit + 10 e2e tests |
-| **Downloads Center** | ❌ | Never built. Scheduled **M-92**. The gate already exists: `company_settings.packet_downloads_live` |
+| **Downloads Center** | ✅ **DELIVERED** | `/downloads` — three tiers (public / authenticated / private) with **zero download buttons**, because no approved public asset exists and `packet_downloads_live` stays false. Mints no URL: authenticated entries are portal routes, private entries carry no href at all. 21 unit + 10 e2e boundary proofs. Nav activated |
 | **Blog / Company News** | 🟠 | `/blog` + `/blog/[slug]` with a full staff editor, publish workflow, Article JSON-LD, ISR. **`posts.category` is a bare text column** — rendered but not indexed, filterable or routable → **M-91** |
 | **Support Center (public)** | ❌ | Authenticated support threads exist (`/portal/*/support`, staff inbox). **No public/guest surface** → **M-89** |
 

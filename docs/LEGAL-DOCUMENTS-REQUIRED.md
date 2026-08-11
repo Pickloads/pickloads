@@ -184,6 +184,31 @@ documents is built, tested and waiting for content.
 
 ---
 
+## 2b · A packet-gate finding (2026-08-11, Downloads Center)
+
+`PACKET_DOC_PATH` (M-69, `src/components/sections/Packet.tsx`) maps four public
+paths under `/packet/`, and **one of them is the Dispatch Agreement**:
+
+```
+"Dispatch Agreement":      "/packet/dispatch-agreement.pdf"
+"W-9 Form":                "/packet/w-9.pdf"
+"Insurance Requirements":  "/packet/insurance-requirements.pdf"
+```
+
+Flipping `company_settings.packet_downloads_live` publishes all four as public
+downloads. **The Dispatch Agreement is §2.4 of this register — COUNSEL REVIEW
+REQUIRED, no approved content.** Flipping the flag before counsel delivers
+would put a placeholder agreement on a public URL as a finished document.
+
+The risk is contained today and the containment is deliberate: the flag is
+seeded `false`, `public/packet/` is empty, the runbook records that the four
+approved PDFs must be uploaded *first*, and the Downloads Center offers no
+packet download in either flag state. A unit test asserts the seeded default is
+still false; an e2e test asserts `/packet/` never appears in the public HTML.
+
+**Action for whoever flips that flag:** confirm against this register that all
+four documents have approved content — not merely that four files exist.
+
 ## 3 · What the code already prevents
 
 Stated because the register would otherwise read as if nothing is guarded:

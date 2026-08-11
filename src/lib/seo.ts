@@ -23,6 +23,7 @@ export const PUBLIC_ROUTES = [
   "/faq",
   "/blog",
   "/knowledge-base",
+  "/downloads",
   "/contact",
   /* M-73: the /track LOOKUP FORM is a legitimate public landing page and is
    * indexable. Individual tracking RESULTS are not, and cannot be: they have

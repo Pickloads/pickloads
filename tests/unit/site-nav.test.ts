@@ -129,7 +129,6 @@ describe("unbuilt destinations are declared but never rendered", () => {
     expect(hrefs).toEqual([
       "/careers",
       "/carrier-resources",
-      "/downloads",
       "/partners",
     ]);
   });

@@ -37,6 +37,7 @@ const PAGES = [
   "/request-a-quote",
   "/dispatch-services",
   "/knowledge-base",
+  "/downloads",
   "/shippers",
   "/become-a-carrier",
   "/start-your-trucking-company",
