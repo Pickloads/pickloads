@@ -9,8 +9,10 @@ import {
   verifySecondaryValue,
 } from "@/lib/shipments/access-code";
 import { normalizeTrackingNumber } from "@/lib/shipments/tracking-number";
+import { PUBLIC_EXCEPTION_COLUMNS } from "@/lib/shipments/exceptions";
 import type {
   ShipmentEventRow,
+  ShipmentExceptionRow,
   ShipmentRow,
   TrackingAccessOutcome,
 } from "@/lib/shipments/types";
@@ -97,6 +99,27 @@ export const MIN_RESPONSE_MS = 350;
  * to answer "is there more?" without a second round trip.
  */
 export const PUBLIC_EVENT_LIMIT = 25;
+
+/**
+ * M-78 — the same §25 bound for the §21 exception banner.
+ *
+ * Ten, not twenty-five: an exception is a BANNER, and a page that stacks
+ * twenty-five warnings above the status has stopped communicating. Ten is
+ * already more than any shipment with an operator paying attention produces,
+ * and it hard-bounds a payload anybody on the internet can request.
+ */
+export const PUBLIC_EXCEPTION_LIMIT = 10;
+
+/** The seven columns `PUBLIC_EXCEPTION_COLUMNS` selects. */
+interface PublicExceptionRead {
+  id: string;
+  shipment_id: string;
+  exception_type: ShipmentExceptionRow["exception_type"];
+  severity: ShipmentExceptionRow["severity"];
+  public_description: string | null;
+  opened_at: string;
+  resolved_at: string | null;
+}
 
 /* ------------------------------------------------------------------ *
  * Rate-limit policy
@@ -413,14 +436,33 @@ export async function lookupPublicTracking(
   // `visibility = 'public'` is applied in SQL as well as in the DTO — the
   // index `idx_shipment_events_audience` exists precisely so a public request
   // never touches a staff_only row, rather than fetching and then filtering.
-  const { data: eventRows, error: eventError } = await client
-    .from("shipment_events")
-    .select(EVENT_COLUMNS)
-    .eq("shipment_id", shipment.id)
-    .eq("visibility", "public")
-    .order("event_time", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(PUBLIC_EVENT_LIMIT + 1);
+  //
+  // M-78 joins the fan-out rather than adding a third round trip (§25's "no
+  // N+1" is about round trips, and two concurrent reads is one). The exception
+  // read is BOUNDED and its projection names neither `internal_description`
+  // nor `resolution` — see `PUBLIC_EXCEPTION_COLUMNS`. `public_description
+  // is not null` is applied in SQL as well as in M-70's DTO: an exception with
+  // nothing honest to say never enters this process.
+  const [
+    { data: eventRows, error: eventError },
+    { data: exceptionRows, error: exceptionError },
+  ] = await Promise.all([
+    client
+      .from("shipment_events")
+      .select(EVENT_COLUMNS)
+      .eq("shipment_id", shipment.id)
+      .eq("visibility", "public")
+      .order("event_time", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(PUBLIC_EVENT_LIMIT + 1),
+    client
+      .from("shipment_exceptions")
+      .select(PUBLIC_EXCEPTION_COLUMNS)
+      .eq("shipment_id", shipment.id)
+      .not("public_description", "is", null)
+      .order("opened_at", { ascending: false })
+      .limit(PUBLIC_EXCEPTION_LIMIT),
+  ]);
 
   if (eventError) {
     logShipmentSignal({
@@ -438,13 +480,56 @@ export async function lookupPublicTracking(
   const timelineTruncated = rows.length > PUBLIC_EVENT_LIMIT;
   const events = rows.slice(0, PUBLIC_EVENT_LIMIT);
 
+  /*
+   * M-78 — the wiring M-73 said was "one argument".
+   *
+   * The exception read FAILS SOFT while the timeline read fails hard, and the
+   * asymmetry is deliberate. A timeline that silently lost its events would
+   * make a moving shipment look stalled — a wrong answer. A missing exception
+   * banner is a MISSING answer on a page whose status, ETA and timeline are
+   * all still correct, and refusing the whole lookup over it would take a
+   * customer's tracking page away to avoid a degraded one. The failure is
+   * logged as a §26 signal so it is visible rather than silent.
+   *
+   * The rows are widened to `ShipmentExceptionRow` with the withheld columns
+   * written out as the nulls they are — the same discipline the shipper detail
+   * page applies to `ShipmentRow`, and the reason a new column on the row type
+   * is a compile error here rather than an accidental disclosure.
+   */
+  if (exceptionError) {
+    logShipmentSignal({
+      signal: "public_tracking_failure",
+      code: "exception_query_failed",
+      shipmentId: shipment.id,
+      trackingNumber: attempted,
+      detail: exceptionError.message,
+    });
+  }
+  const exceptions: ShipmentExceptionRow[] = (
+    // On error the list is EMPTY, explicitly rather than by trusting the
+    // driver to null `data` — a half-read banner is worse than no banner.
+    exceptionError ? [] : ((exceptionRows ?? []) as unknown as PublicExceptionRead[])
+  ).map((row) => ({
+    id: row.id,
+    shipment_id: row.shipment_id,
+    exception_type: row.exception_type,
+    severity: row.severity,
+    public_description: row.public_description,
+    internal_description: null,
+    opened_at: row.opened_at,
+    resolved_at: row.resolved_at,
+    opened_by: null,
+    assigned_to: null,
+    customer_notified_at: null,
+    resolution: null,
+    source_event_id: null,
+    resolution_event_id: null,
+  }));
+
   const tracking = toPublicTrackingDto({
     shipment,
     events,
-    // §21's `shipment_exceptions` table lands with M-78. Passing an empty list
-    // is the honest state today: the DTO renders no exception banner, rather
-    // than a banner with nothing behind it. The wiring is one argument.
-    exceptions: [],
+    exceptions,
   });
 
   await settle(startedAt);

@@ -6,7 +6,19 @@ degrades gracefully when a secret is missing (dev warnings, honest pending
 states) — so a partial deploy never crashes, it just quietly disables the
 affected integration. **Production must have every var set.**
 
-*Last revised for M-77 (shipment documents + POD workflow): migration
+*Last revised for M-78 (ETA architecture + exceptions/delays): migration
+**0025** added to the order-and-rollback table, the `0001 → 0025` chain,
+refreshed gate counts (1148 unit / 552 RLS / 222 integration / 253 e2e /
+368 pages), a **one-command backfill an operator can safely re-run**, and an
+**exception + ETA smoke test**. **No new environment variable and no new
+`company_settings` key.** 0025 REPLACES `set_shipment_eta()` from 0022 — with
+a byte-identical signature, so nothing else changes — and its rollback
+therefore has an ORDER, spelled out in the table below. Two operational notes
+worth reading before go-live: the `calculated` ETA source is **real
+arithmetic over the recorded mileage and nothing more** (no traffic, no
+weather, no prediction, no AI — say so if a customer asks), and the
+`provider` source is **deliberately unreachable** until M-80 lands an adapter.
+Previously revised for M-77 (shipment documents + POD workflow): migration
 **0024** added to the order-and-rollback table, the `0001 → 0024` chain,
 refreshed gate counts (1061 unit / 502 RLS / 194 integration / 240 e2e /
 368 pages), a **new private storage bucket (`shipment-docs`) with a manual
@@ -99,11 +111,12 @@ region `us-east-1` (closest to NJ ops). For **each** project, in order:
    | 0022 | `0022_shipment_operations.sql` | **M-75.** FOUR `security definer` functions and nothing else — no table, no policy, no enum, no trigger, no index: `create_shipment` (row + `shipment_created` event, key-allow-listed, 0017's §2 gate and §5 CHECK/unique index still apply above it), `assign_shipment_carrier` (assignment row + `shipments.carrier_id` + event, atomically — a split write would leave the just-assigned carrier unable to SEE the shipment under 0018's policy; refuses another carrier's driver/truck with `PL422`), `release_shipment_assignment` (stamps `released_at`, never deletes; optionally clears `carrier_id`), `set_shipment_eta` (M-71's ETA columns + an `eta_update` event carrying the PREVIOUS value). **EXECUTE granted to `service_role` only**, after an explicit `revoke all … from public` | Full script in [`docs/modules/M-75-dispatcher-operations.md`](modules/M-75-dispatcher-operations.md) §DB changes. `drop function` the four, in reverse order (signatures in the doc). **NOT destructive** — no row is deleted and no column changes; shipments already created stay readable and their statuses stay writable through 0019's engine. What stops working is *creating* a shipment, assigning a carrier and updating an ETA, so roll back the M-75 surface in the same deploy: delete `src/lib/shipments/{create,assignments,eta}.ts` and the three `/portal/admin/shipments` routes, or the build calls functions that no longer exist. 0017–0021 are untouched. |
    | 0023 | `0023_driver_update_tokens.sql` | **M-76.** Enum `driver_token_outcome`; `shipment_driver_tokens` (the platform's first bearer credential — stores an **HMAC** of the token under `DRIVER_TOKEN_SECRET` and never the token; `expires_at` NOT NULL so a permanent link cannot exist) and `shipment_driver_token_access` (append-only ledger that doubles as the rate limiter's memory, so "rate limited" and "audit logged" are ONE write); 6 indexes; `trg_driver_tokens_immutable` (shipment/carrier/hash frozen, revocation one-way) and `trg_driver_token_access_append_only`; RLS + 3 policies, **no anon policy** even though the driver page is anonymous; **the repo's first COLUMN-level privilege revoke** — `token_hash` is unreadable by `authenticated` and `anon`; 4 `security definer` functions (`issue_shipment_driver_token`, `revoke_shipment_driver_token`, `redeem_shipment_driver_token`, `set_driver_token_consent`) with **EXECUTE granted to `service_role` only** | Full script in [`docs/modules/M-76-carrier-driver-updates.md`](modules/M-76-carrier-driver-updates.md) §DB changes. Drop the 3 policies, disable RLS, drop the 4 functions (signatures in the doc), drop each trigger **before** its table, then the 2 trigger functions, the 2 tables `cascade`, then the enum. **Destructive** — it drops every issued driver link and the entire record of who presented one; `pg_dump -t shipment_driver_tokens -t shipment_driver_token_access` first. Roll back `src/lib/supabase/database.types.ts`, delete `src/lib/shipments/driver-*.ts` and the `/driver/update/[token]` route in the same deploy; the failure mode if you don't is **closed** (an unreachable redeem is an "unavailable" refusal, never an unlogged grant). **The carrier surface survives this rollback** — `/portal/carrier/shipments` reads only `shipments` and `shipment_events`; remove the driver-link block from `CarrierShipmentDetailView` and the two link actions and §13's status/ETA/exception updates keep working. 0017–0022 are untouched. |
    | 0024 | `0024_shipment_documents.sql` | **M-77.** The private **`shipment-docs` bucket** (created by the migration itself — `public = false`, 10 MB, pdf/jpeg/png/heic); `shipment_document_audiences` (the §16 document-type → audience MATRIX as 22 rows, with CHECKs forbidding a `public` or `staff_only` cell); `shipment_documents` (4 CHECKs incl. `(status='approved') = (approved_at is not null)` and a path-prefix constraint; `storage_path` unique); 3 indexes (one partial, serving §20's POD lookup); `trg_shipment_documents_immutable` (what a document IS cannot change → PL409) and `trg_shipment_documents_visibility` (a row's band may NARROW, never widen → PL422); RLS + 4 policies (staff/shipper/carrier/**broker**), **no customer write policy** and a `revoke all … from authenticated, anon` before the SELECT grant, because Supabase's default privileges hand new tables full DML; 4 `security definer` functions — `shipment_document_reaches_audience` (`authenticated`), `add_shipment_document` + `review_shipment_document` (**`service_role` only**), `count_shipment_documents_awaiting_review` (`authenticated`, returns a COUNT and nothing else). **AND it REPLACES `shipment_transition_facts()` from 0019** — the one function in the chain a later migration was *instructed* to rewrite: 0019 shipped `approved_pod_document_id` as a literal `null` with the replacement SQL in the comment above it, addressed to M-77 by name. `pod_uploaded` becomes reachable, and only with an approved POD. | Full script in [`docs/modules/M-77-shipment-documents.md`](modules/M-77-shipment-documents.md) §Deployment. **THE ORDER MATTERS: re-run 0019's `create or replace function public.shipment_transition_facts(uuid)` block FIRST**, before dropping anything — it has the literal `null`, and doing it after the table is gone leaves every transition failing on a missing relation. Then drop the 5 policies (4 on `shipment_documents`, 1 on the matrix), the storage policy, the 4 functions, each trigger **before** its table, the 2 trigger functions, the 2 tables `cascade`, and finally `delete from storage.buckets where id = 'shipment-docs'` — **only if empty**. **Destructive** — it drops every BOL and POD filed against a shipment, and with them the evidence a delivery happened; `pg_dump -t shipment_documents` first. The **objects survive in the bucket**; the rows naming them do not, so they become unreachable rather than deleted, and emptying the bucket is a separate deliberate act. Roll back `src/lib/supabase/database.types.ts`, delete `src/lib/shipments/document*.ts`, `src/app/actions/shipment-documents.ts` and the two document components, and revert the four surface edits in the same deploy. It fails **CLOSED** either way: with the table gone and 0019's function restored, `pod_uploaded` is refused again — M-72's documented behaviour, not a new failure mode. 0017–0023 are otherwise untouched, and `carrier-docs` is untouched entirely. |
+   | 0025 | `0025_shipment_eta_exceptions.sql` | **M-78.** The TWO tables M-71 deliberately left: `shipment_eta_history` (§10's previous-ETA record; `trg_shipment_eta_history_append_only` refuses UPDATE/DELETE for **every** role, owner included) and `shipment_exceptions` (§21's 13 types over the enum 0017 already created, its 10 fields, plus `source_event_id` **unique** and `resolution_event_id`; 3 CHECKs; 3 indexes, two partial). `trg_shipment_exceptions_lifecycle` enforces the rules §21 implies but does not spell: what an exception IS is frozen, resolution is one-way, notification is one-way, a closed exception is read-only for triage — all `PL409`. RLS + **one policy each** (staff), a `revoke all … from authenticated, anon` followed by **SELECT only** — the grant is required because `is_staff()` evaluates inside an `authenticated` session, and the customer holds the same grant and reads **zero rows**. FIVE `security definer` functions: `my_shipment_exceptions(uuid)` (**`authenticated`** — the customer projection, seven OUT columns with no `internal_description` and no `resolution`, audience resolved from the caller's own memberships and never from an argument), and `open_shipment_exception` / `resolve_shipment_exception` / `update_shipment_exception` / `backfill_shipment_exceptions` (**`service_role` only**). **AND it REPLACES `set_shipment_eta()` from 0022** — same 13-parameter signature (so grants and callers are untouched), body grows one INSERT so the column, the `eta_update` event and the history row land in ONE transaction. **It also RUNS THE BACKFILL once**, migrating M-75/M-76's event-only exceptions into rows and `RAISE NOTICE`-ing the count; it deletes nothing. | Full script in [`docs/modules/M-78-eta-exceptions.md`](modules/M-78-eta-exceptions.md) §Deployment. **THE ORDER MATTERS: re-run 0022's `create or replace function public.set_shipment_eta(...)` block FIRST**, before dropping anything — it is the same body minus the history INSERT, and doing it after the table is gone leaves every ETA update failing on a missing relation. Then drop the 2 policies, the 5 functions (signatures in the doc), each trigger **before** its table, the 2 trigger functions, and the 2 tables `cascade`. **Destructive for the LIFECYCLE, not for the HISTORY** — every exception ever opened survives as an `exception_opened` event and every resolution as an `exception_resolved` event, which is exactly why both functions write an event as well as a row; what is lost is `assigned_to`, `customer_notified_at`, the resolution text and the open/closed state. `pg_dump -t shipment_exceptions -t shipment_eta_history` first. ETA history reverts to the event metadata M-75 already wrote. Roll back `src/lib/supabase/database.types.ts`, delete `src/lib/shipments/{exceptions,eta-estimate}.ts`, revert `src/lib/shipments/eta.ts` to M-75's version, and revert the four surface edits and three action files in the same deploy. It fails **CLOSED** either way: with the table gone the accessor is gone too, the customer DTOs receive an empty exception list, and the banner disappears rather than erroring. 0017–0024 are otherwise untouched. |
 
    After applying, sanity-check the chain the same way CI does:
 
    ```bash
-   npm run test:rls     # rebuilds a throwaway DB from 0001→0024 + seed + fixtures
+   npm run test:rls     # rebuilds a throwaway DB from 0001→0025 + seed + fixtures
    ```
 
    **Then VERIFY the two private buckets exist and are private (M-77):**
@@ -312,14 +325,14 @@ sets them expecting an effect:
 
 ```bash
 npm run typecheck && npm run lint && npm run build   # module gate (CLAUDE.md)
-npm test                 # 1061 unit assertions
-npm run test:rls         # 502 RLS isolation assertions — see below
-npm run test:integration # 194 integration tests against local PG16 — see below
-npm run test:e2e         # 240 chromium tests against the production build
+npm test                 # 1148 unit assertions
+npm run test:rls         # 552 RLS isolation assertions — see below
+npm run test:integration # 222 integration tests against local PG16 — see below
+npm run test:e2e         # 253 chromium tests against the production build
 ```
 
 **`npm run test:rls` is a release gate, not an optional extra.** It rebuilds
-a throwaway database from `0001 → 0024` + seed + two/three-tenant fixtures and
+a throwaway database from `0001 → 0025` + seed + two/three-tenant fixtures and
 asserts that carrier A cannot reach carrier B, shipper A cannot reach shipper
 B (including *unclaimed* public quotes), anon reaches nothing but
 `company_settings` and published posts, and no session — staff or admin — can
@@ -370,7 +383,7 @@ the tracking directive's §27 integration tier, which
 [`docs/FINAL-IMPLEMENTATION-PLAN.md`](FINAL-IMPLEMENTATION-PLAN.md) §4 records
 as *"diagnosed absent, then dropped entirely"* by the extension audit and
 restores as M-83b; M-72 ships the lane plus the four tests it can prove today.
-It builds its own throwaway database (`0001 → 0024` + seed, **not** the RLS
+It builds its own throwaway database (`0001 → 0025` + seed, **not** the RLS
 fixtures — it creates shipments through the engine) and then runs vitest
 against it, so the real TypeScript transition engine drives the real SQL write
 path: create → assign carrier → create event → update status, idempotent
@@ -533,8 +546,17 @@ effect site-wide immediately — **no deploy**.
       forbids machine-translating customer-facing tracking text, so a Russian
       visitor sees English words rather than plausible-sounding machine
       Russian about where their freight is). The statuses, the nine milestone
-      labels and decision D-6's 29 curated operator phrases are the priority:
-      they are what a customer actually reads on `/track`.
+      labels and decision D-6's curated operator phrases are the priority:
+      they are what a customer actually reads on `/track`. **M-78 adds 16
+      keys on the same terms** — 11 new D-6 phrases (the `resolution.*` group
+      that closes an exception, plus customs / detention / reroute delays),
+      §30's seventh honest label (*"Estimated from distance and standard
+      transit times"*) and the exception banner's resolved/open wording;
+      `en`/`es`/`fr` authored, `ru`/`ht` mirroring English pending review.
+      The resolution phrases are the highest priority of the batch: a
+      customer who was told about a problem in their own language and then
+      told it was fixed in English is the exact failure D-6 exists to
+      prevent.
 - [ ] Founder photo (About page shows a monogram until the shoot).
 
 **Technical smoke (after DNS cutover)**
@@ -742,6 +764,63 @@ effect site-wide immediately — **no deploy**.
           approved_at from shipment_documents where id = …` shows
           `rejected` / `NULL` — the approval timestamp is cleared, so the §20
           precondition tracks the current decision and not the history.
+- [ ] **Exceptions + ETA smoke test (M-78).** Needs `brokerage_active`
+      **true** and a shipment in transit with a shipper portal account:
+      1. As **dispatcher**, open `/portal/admin/shipments/<id>` → **Log an
+         exception**. Pick a type and severity, choose a **standard phrase**
+         for "What the customer is told", and write the internal note. Save.
+      2. Check the **register** below the forms: the exception is listed
+         **Open**, with its severity, who it is assigned to and both
+         descriptions. This is the only surface in the product where §21's ten
+         fields appear together.
+      3. **Now check the shipper's view and `/track`.** Both must show the
+         calm banner with **only** the phrase you picked — translated, if the
+         customer's language is not English. **If the internal note appears
+         anywhere on either page, stop and do not go live**: that is §21's one
+         named prohibition.
+      4. Log a second exception with the customer line **left blank**. It must
+         appear in the register and **on no customer surface at all** — a
+         blank alarm is worse than silence, and the absence is deliberate.
+      5. **Triage** the first one: reassign it, raise the severity, tick
+         "Record that the customer has been told". Note the time. Tick it
+         again and confirm the timestamp **does not move** — "when did the
+         customer find out?" is not something a second click rewrites.
+      6. **Resolve** it with a resolution and a standard resolution phrase.
+         The banner on both customer surfaces now reads as closed rather than
+         disappearing. Try to resolve it again: refused. Re-opening means
+         logging a NEW exception, which is what leaves the reopen visible.
+      7. **Update ETA** with source **Manual**. The customer page labels it
+         *"ETA provided by dispatcher"*.
+      8. Change it again with source **Calculated**. The server ignores
+         whatever time you typed and computes from the recorded mileage; the
+         label becomes *"Estimated from distance and standard transit
+         times"*. On a shipment with **no mileage** it refuses outright and
+         says so — that refusal is correct and is the honest behaviour.
+         **`Provider` is not in the list and must not be**: no telematics
+         adapter exists until M-80.
+      9. Check the history: `select eta_kind, previous_eta_at, new_eta_at,
+         eta_source from shipment_eta_history where shipment_id = '<id>'
+         order by changed_at`. Every change has its PREVIOUS value beside the
+         new one. Try `update shipment_eta_history set new_eta_at = now()` —
+         it must fail with `PL409`. That table is append-only for everyone.
+      10. Confirm the shipper's **portal feed** has an "Updated delivery
+          estimate" notification. There is **no email** — that is M-79, and
+          the dispatcher card says so in words. Do not promise a customer an
+          email until it ships.
+- [ ] **Backfill re-run (M-78, safe and idempotent).** Migration 0025 runs it
+      once and prints the count. If exceptions were logged against a lagging
+      replica, or a surface was rolled back and re-applied, re-run it as the
+      service role:
+
+      ```sql
+      select public.backfill_shipment_exceptions();   -- returns rows inserted
+      ```
+
+      It **never deletes or edits a `shipment_events` row** (0019's append-only
+      trigger refuses that from every role, service role included) and it
+      **cannot duplicate** — `source_event_id` is unique. A second run on a
+      clean database returns `0`. Anything other than `0` on a re-run means
+      new event-only exceptions arrived, which is exactly what it is for.
 - [ ] Stripe + Dropbox Sign webhook test deliveries show in
       `webhook_events`.
 

@@ -24,7 +24,9 @@ import {
   releaseCarrierSchema,
   requestPodSchema,
   resendNotificationSchema,
+  resolveExceptionSchema,
   statusUpdateSchema,
+  triageExceptionSchema,
 } from "@/lib/validation/dispatcher-shipments";
 /* M-76 — §13's driver-link lifecycle reuses the carrier module's schemas
  * rather than declaring a second pair: the dispatcher and carrier issuance
@@ -60,6 +62,11 @@ import {
   type ConvertibleQuote,
 } from "@/lib/shipments/create";
 import { setShipmentEta } from "@/lib/shipments/eta";
+import {
+  openShipmentException,
+  resolveShipmentException,
+  triageShipmentException,
+} from "@/lib/shipments/exceptions";
 import {
   resolveShipmentAccess,
   resolveStaffActor,
@@ -776,32 +783,30 @@ export async function recordEmailAction(
 }
 
 /* ================================================================== *
- * 9 · §14 log exception — and the M-78 hand-off, stated in the code
+ * 9 · §21 exceptions — open, triage, resolve (M-78)
  * ================================================================== */
 
 /**
- * §21's `shipment_exceptions` TABLE **does not exist**. M-71 listed it among
- * the seven tables it deliberately did not create, and the plan assigns it to
- * **M-78** together with §21's 13 types, 10 fields and open/resolve lifecycle.
+ * §14 "log exception" — now writing a REAL ROW.
  *
- * M-75 does NOT create half of it. M-71's argument against a half-created
- * table applies exactly: *"a half-created table is a specification that has
- * already started to rot"*, and an `exception_opened` with no `resolved_at`,
- * no `assigned_to` and no `customer_notified_at` would be a schema M-78 has to
- * migrate rather than write.
+ * M-75 shipped this as an `exception_opened` EVENT carrying the §21 type and
+ * severity in `metadata`, marked `exception_source = "m75_event_only"`, and
+ * said in its own doc that M-78 would *"backfill from"* those events. Both
+ * halves of that contract are honoured:
  *
- * What ships instead is REAL and uses the vocabulary M-70 already defined: the
- * exception is an `exception_opened` event carrying `exception_type` and
- * `severity` (both §21 enums, both validated) in `metadata`, its customer-safe
- * wording in `public_message` under the `public` band and its operational
- * truth in `internal_message` under `staff_only`. A dispatcher can log one
- * today and a shipper sees the calm version on their timeline today.
+ *   * this action now calls `open_shipment_exception()`, which writes the
+ *     `shipment_exceptions` row AND the same `exception_opened` event in one
+ *     transaction — so the timeline a customer reads is unchanged and the
+ *     lifecycle §21 asks for now exists behind it;
+ *   * every event M-75 and M-76 already wrote has been migrated into a row by
+ *     0025's backfill, and NOT ONE of them was deleted or edited (§7 is
+ *     append-only, and 0019's trigger refuses an UPDATE even from the service
+ *     role).
  *
- * **What M-78 inherits, explicitly:** `resolve exception` (§14's other half —
- * NOT implemented here, because resolving needs a row to resolve and a
- * lifecycle to close), `assigned_to`, `customer_notified_at`, `resolution`,
- * and a backfill from these events, which is possible precisely because the
- * type and severity are structured rather than typed into prose.
+ * VISIBILITY IS NOT PASSED FROM HERE. M-75 computed it in this file
+ * (`d.public_description ? "public" : "staff_only"`); 0025 computes it in the
+ * function, from the same rule, so a second writer cannot file a public
+ * description as a staff-only event. §21 decides it, not the caller.
  */
 export async function logExceptionAction(
   _prev: FormState,
@@ -820,42 +825,140 @@ export async function logExceptionAction(
   if (!parsed.success) return error(firstIssueMessage(parsed.error));
   const d = parsed.data;
 
-  const result = await appendShipmentEvent({
+  const result = await openShipmentException({
     shipmentId: access.shipmentId,
-    eventType: "exception_opened",
-    actor: access.actorRole,
-    actorId: access.session.userId,
+    exceptionType: d.exception_type,
+    severity: d.severity,
+    publicDescription: d.public_description,
+    internalDescription: d.internal_description,
+    openedBy: access.session.userId,
     source: access.actorRole,
-    // §21: "the customer should see a clear and calm explanation." No public
-    // description means there is nothing honest to publish yet, and the
-    // exception stays internal rather than becoming a blank alarm.
-    visibility: d.public_description ? "public" : "staff_only",
-    publicMessage: d.public_description,
-    internalMessage: d.internal_description,
-    metadata: {
-      exception_type: d.exception_type,
-      severity: d.severity,
-      // The marker M-78's backfill selects on. Named, not inferred.
-      exception_source: "m75_event_only",
-    },
+    reportedBy: access.actorRole,
   });
 
-  if (result.ok) {
-    await recordAuditEvent({
-      actorId: access.session.userId,
-      action: "shipment.exception_opened",
-      targetTable: "shipment_events",
-      targetId: result.eventId,
-      detail: {
-        shipment_id: access.shipmentId,
-        exception_type: d.exception_type,
-        severity: d.severity,
-      },
-    });
+  if (!result.ok) return error(result.message);
+  refresh(access.shipmentId);
+  return ok(
+    d.public_description
+      ? "Exception logged. The customer now sees the explanation you published."
+      : "Exception logged. Nothing has been published to the customer — add wording when there is something honest to say.",
+  );
+}
+
+/**
+ * §14's OTHER half, which M-75 named as M-78's and deliberately did not build:
+ * *"`resolve exception` … NOT implemented here, because resolving needs a row
+ * to resolve and a lifecycle to close."* The row exists now.
+ *
+ * TWO server-side checks, not one. `gate()` establishes that this staff member
+ * may act on this SHIPMENT (§19's dispatcher scope, re-read from the session
+ * and not from the form). The second check is that the chosen EXCEPTION
+ * belongs to that shipment — without it, a dispatcher scoped to shipment A
+ * could resolve an exception on shipment B by editing one hidden field.
+ */
+export async function resolveExceptionAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const access = await gate(formData);
+  if (!access.ok) return error(access.message);
+
+  const parsed = resolveExceptionSchema.safeParse({
+    exception_id: field(formData, "exception_id"),
+    resolution: field(formData, "resolution"),
+    public_message: field(formData, "public_message"),
+  });
+  if (!parsed.success) return error(firstIssueMessage(parsed.error));
+  const d = parsed.data;
+
+  const owned = await exceptionBelongsToShipment(
+    d.exception_id,
+    access.shipmentId,
+  );
+  if (!owned) {
+    return error(
+      "That exception is not on this shipment. Reload the page and try again.",
+    );
   }
 
+  const result = await resolveShipmentException({
+    exceptionId: d.exception_id,
+    resolution: d.resolution,
+    actorId: access.session.userId,
+    source: access.actorRole,
+    publicMessage: d.public_message,
+  });
+
+  if (!result.ok) return error(result.message);
   refresh(access.shipmentId);
-  return fromWrite(result, "Exception logged.");
+  return ok(
+    "Exception resolved. It is closed for good — re-opening means logging a new one.",
+  );
+}
+
+/** §21's triage fields: assign, re-severity, publish wording, mark notified. */
+export async function triageExceptionAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const access = await gate(formData);
+  if (!access.ok) return error(access.message);
+
+  const parsed = triageExceptionSchema.safeParse({
+    exception_id: field(formData, "exception_id"),
+    assigned_to: field(formData, "assigned_to"),
+    severity: field(formData, "severity"),
+    public_description: field(formData, "public_description"),
+    mark_customer_notified: field(formData, "mark_customer_notified"),
+  });
+  if (!parsed.success) return error(firstIssueMessage(parsed.error));
+  const d = parsed.data;
+
+  const owned = await exceptionBelongsToShipment(
+    d.exception_id,
+    access.shipmentId,
+  );
+  if (!owned) {
+    return error(
+      "That exception is not on this shipment. Reload the page and try again.",
+    );
+  }
+
+  const result = await triageShipmentException({
+    exceptionId: d.exception_id,
+    assignedTo: d.assigned_to,
+    severity: d.severity,
+    publicDescription: d.public_description,
+    markCustomerNotified: d.mark_customer_notified,
+    actorId: access.session.userId,
+  });
+
+  if (!result.ok) return error(result.message);
+  refresh(access.shipmentId);
+  return ok("Exception updated.");
+}
+
+/**
+ * Does this exception belong to this shipment?
+ *
+ * Read through the COOKIE-BOUND client, so 0025's `"staff manage shipment
+ * exceptions"` policy answers as well — a non-staff session reaching this
+ * point (it cannot, `gate()` refuses first) would read no row and be refused
+ * a second time. Two independent conditions for one authorization, which is
+ * the pattern every shipment surface in this codebase uses.
+ */
+async function exceptionBelongsToShipment(
+  exceptionId: string,
+  shipmentId: string,
+): Promise<boolean> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("shipment_exceptions")
+    .select("id")
+    .eq("id", exceptionId)
+    .eq("shipment_id", shipmentId)
+    .maybeSingle();
+  return data !== null;
 }
 
 /* ================================================================== *

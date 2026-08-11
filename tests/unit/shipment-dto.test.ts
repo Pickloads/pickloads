@@ -61,6 +61,29 @@ const FINANCIAL_SENTINELS: Record<string, number> = {
   margin: S.margin,
 };
 
+/**
+ * M-78 — the NON-financial `@staffOnly` fields, and the sentinel each carries.
+ *
+ * M-70 tagged only the three §18 money columns, so the static scan below
+ * asserted that the tag set and the money set were equal — which meant that
+ * `delay_reason_internal`, `internal_description` and `resolution` were swept
+ * (they always were, further down this file) but were NOT covered by the
+ * anti-vacuity scan that guarantees a NEW forbidden column gets a sentinel.
+ *
+ * M-78 tags all three in `types.ts` and registers them here, so the scan now
+ * covers every field §4, §10, §18 or §21 forbids a customer seeing. Adding a
+ * fourth without a sentinel is a test failure, which is the whole point.
+ *
+ * `delay_reason_internal` and the two exception fields live on DIFFERENT row
+ * types, so the map records which fixture carries each — the assertion below
+ * checks the value is actually present rather than assuming it.
+ */
+const STAFF_ONLY_TEXT_SENTINELS: Record<string, string> = {
+  delay_reason_internal: S.delayInternal,
+  internal_description: S.exceptionInternal,
+  resolution: S.exceptionResolution,
+};
+
 function shipmentFixture(overrides: Partial<ShipmentRow> = {}): ShipmentRow {
   const base: ShipmentRow = {
     id: "11111111-1111-4111-8111-111111111111",
@@ -172,6 +195,8 @@ function exceptionFixture(
     assigned_to: "44444444-4444-4444-8444-444444444444",
     customer_notified_at: "2026-08-07T08:05:00.000Z",
     resolution: S.exceptionResolution,
+    source_event_id: "99999999-9999-4999-8999-999999999999",
+    resolution_event_id: null,
   };
   return { ...base, ...overrides };
 }
@@ -459,11 +484,22 @@ describe("staff-only financial fields (§4, §18)", () => {
     const tagged = [...source.matchAll(/@staffOnly[\s\S]*?\*\/\s*(\w+):/g)].map(
       (match) => match[1] ?? "",
     );
-    expect(tagged.sort()).toEqual(Object.keys(FINANCIAL_SENTINELS).sort());
+    expect(tagged.sort()).toEqual(
+      [
+        ...Object.keys(FINANCIAL_SENTINELS),
+        ...Object.keys(STAFF_ONLY_TEXT_SENTINELS),
+      ].sort(),
+    );
     const row = shipmentFixture();
     for (const [field, sentinel] of Object.entries(FINANCIAL_SENTINELS)) {
       expect(row[field as keyof ShipmentRow]).toBe(sentinel);
     }
+    // Every tagged TEXT field carries its sentinel on whichever fixture owns
+    // it, so "no sentinel found" can never be the result of an empty fixture.
+    expect(row.delay_reason_internal).toBe(S.delayInternal);
+    const exception = exceptionFixture();
+    expect(exception.internal_description).toBe(S.exceptionInternal);
+    expect(exception.resolution).toBe(S.exceptionResolution);
   });
 
   it("no sentinel survives into the public payload", () => {

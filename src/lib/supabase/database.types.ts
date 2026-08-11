@@ -507,6 +507,11 @@ import type {
   /** M-75 (0022) — `set_shipment_eta`'s two §10 enums. */
   EtaSource,
   EtaConfidence,
+  /** M-78 (0025) — §10's ETA history and §21's exception lifecycle. */
+  ShipmentEtaHistoryRow,
+  ShipmentExceptionRow,
+  ShipmentExceptionSeverity,
+  ShipmentExceptionType,
 } from "@/lib/shipments/types";
 
 /**
@@ -855,6 +860,45 @@ export type Database = {
         }>;
         Relationships: [];
       };
+      /* M-78 (0025) — §10's ETA history.
+       *
+       * `Insert` and `Update` are declared for shape completeness and are
+       * UNREACHABLE from `src/`: 0025 grants `authenticated`/`anon` nothing,
+       * an append-only trigger refuses every UPDATE and DELETE for every role
+       * including the service role, and the only writer is
+       * `set_shipment_eta()` — which writes the history row in the SAME
+       * transaction as the column change, so an ETA whose previous value was
+       * not preserved is not a state the system can reach. */
+      shipment_eta_history: {
+        Row: AsRow<ShipmentEtaHistoryRow>;
+        Insert: Insertable<
+          AsRow<ShipmentEtaHistoryRow>,
+          "shipment_id" | "eta_kind" | "eta_source"
+        >;
+        Update: Partial<AsRow<ShipmentEtaHistoryRow>>;
+        Relationships: [];
+      };
+      /* M-78 (0025) — §21's exception lifecycle.
+       *
+       * STAFF-ONLY at the table level, and that is the security design rather
+       * than an omission: §21 forbids exposing `internal_description` and
+       * `resolution`, a ROW policy cannot restrict a COLUMN, and staff share
+       * the `authenticated` role with customers so a column REVOKE would blind
+       * dispatch. Customers read `my_shipment_exceptions()` instead, whose
+       * RETURN TYPE is the allow-list.
+       *
+       * `Insert`/`Update` are unreachable from `src/`: every write goes
+       * through `open_shipment_exception()` / `resolve_shipment_exception()` /
+       * `update_shipment_exception()`, granted to `service_role` only. */
+      shipment_exceptions: {
+        Row: AsRow<ShipmentExceptionRow>;
+        Insert: Insertable<
+          AsRow<ShipmentExceptionRow>,
+          "shipment_id" | "exception_type"
+        >;
+        Update: Partial<AsRow<ShipmentExceptionRow>>;
+        Relationships: [];
+      };
       broker_partners: {
         Row: BrokerPartnerRow;
         Insert: Insertable<BrokerPartnerRow, "company_name">;
@@ -1144,6 +1188,81 @@ export type Database = {
           p_audience: ShipmentDocumentVisibility;
         };
         Returns: boolean;
+      };
+
+      /* ---------- M-78 (0025) — the §21 exception write path ----------
+       *
+       * Same contract as every shipment function before them: SECURITY
+       * DEFINER, EXECUTE to `service_role` only, `jsonb` in and out, narrowed
+       * once by the caller (`src/lib/shipments/exceptions.ts`). Each exists
+       * because its operation is a row write AND a §7 event that must be one
+       * transaction — an exception with no `exception_opened` event is
+       * invisible on the timeline it is supposed to explain, and an event
+       * with no row has no lifecycle to close. */
+      open_shipment_exception: {
+        Args: {
+          p_shipment_id: string;
+          p_exception_type: ShipmentExceptionType;
+          p_severity?: ShipmentExceptionSeverity;
+          p_public_description?: string | null;
+          p_internal_description?: string | null;
+          p_opened_by?: string | null;
+          p_assigned_to?: string | null;
+          p_source?: ShipmentEventSource;
+          p_idempotency_key?: string | null;
+          p_metadata?: unknown;
+        };
+        Returns: unknown;
+      };
+      resolve_shipment_exception: {
+        Args: {
+          p_exception_id: string;
+          p_resolution: string;
+          p_actor?: string | null;
+          p_source?: ShipmentEventSource;
+          p_public_message?: string | null;
+          p_internal_message?: string | null;
+          p_idempotency_key?: string | null;
+        };
+        Returns: unknown;
+      };
+      /** Triage only, and only while OPEN. No timeline event: re-assigning an
+       * exception is internal routing, not customer history. */
+      update_shipment_exception: {
+        Args: {
+          p_exception_id: string;
+          p_assigned_to?: string | null;
+          p_mark_customer_notified?: boolean;
+          p_severity?: ShipmentExceptionSeverity | null;
+          p_public_description?: string | null;
+          p_actor?: string | null;
+        };
+        Returns: unknown;
+      };
+      /** M-78 (0025) — the CALM projection, for shipper/carrier/broker
+       * surfaces. `authenticated` may execute it; the audience is resolved
+       * from the caller's own memberships INSIDE the function, never from an
+       * argument, and the return type carries no `internal_description` and
+       * no `resolution` — which is what makes §21's non-exposure rule a
+       * property of the database rather than of a projection string. */
+      my_shipment_exceptions: {
+        Args: { p_shipment_id: string };
+        Returns: {
+          id: string;
+          shipment_id: string;
+          exception_type: ShipmentExceptionType;
+          severity: ShipmentExceptionSeverity;
+          public_description: string | null;
+          opened_at: string;
+          resolved_at: string | null;
+        }[];
+      };
+      /** M-78 (0025) — migrate M-75/M-76 event-only exceptions into rows.
+       * Idempotent, non-destructive, returns the number inserted. Called once
+       * by the migration; re-runnable by an operator (see the runbook). */
+      backfill_shipment_exceptions: {
+        Args: Record<string, never>;
+        Returns: number;
       };
     };
   };

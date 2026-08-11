@@ -982,12 +982,38 @@ describe("§14 timeline actions — call, email, note, exception, notification",
     );
     expect(meta.metadata.exception_type).toBe("facility_delay");
     expect(meta.metadata.severity).toBe("medium");
-    // `shipment_exceptions` deliberately does not exist yet (M-78).
+    /*
+     * M-78 INVERTED the assertion that stood here. It read:
+     *
+     *   // `shipment_exceptions` deliberately does not exist yet (M-78).
+     *   expect(count("… information_schema.tables … 'shipment_exceptions'")).toBe(0)
+     *
+     * That was TRUE and is now FALSE, which is the point — the table exists
+     * and this event is exactly the shape 0025's backfill migrates. The
+     * structured metadata is what makes that possible, and asserting it here
+     * keeps M-75's half of the contract under test after M-78 honoured it.
+     * The migration walk itself is
+     * `tests/integration/shipment-eta-exceptions.test.ts`.
+     */
     expect(
       count(
         "select count(*) from information_schema.tables where table_name = 'shipment_exceptions'",
       ),
+    ).toBe(1);
+    expect(
+      count(
+        `select count(*) from shipment_exceptions where source_event_id = ${lit(row.event_id)}`,
+      ),
     ).toBe(0);
+    expect(count("select backfill_shipment_exceptions()")).toBeGreaterThanOrEqual(1);
+    const migrated = json<{ exception_type: string; severity: string }>(
+      `select to_jsonb(t) from (select exception_type, severity from shipment_exceptions
+         where source_event_id = ${lit(row.event_id)}) t`,
+    );
+    expect(migrated.exception_type).toBe("facility_delay");
+    expect(migrated.severity).toBe("medium");
+    // §7: the ORIGINAL event survives the migration, untouched.
+    expect(count(`select count(*) from shipment_events where id = ${lit(row.event_id)}`)).toBe(1);
   });
 
   it("deduplicates a notification resend by its idempotency key", () => {

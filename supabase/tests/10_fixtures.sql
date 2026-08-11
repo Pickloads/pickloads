@@ -489,3 +489,83 @@ insert into shipment_documents (
    '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-0000000000e1',
    now() - interval '5 hours', '00000000-0000-0000-0000-0000000000e1',
    now() - interval '5 hours');
+
+-- ===========================================================================
+-- M-78 — shipment_exceptions + shipment_eta_history fixtures (migration 0025)
+--
+-- ONE ROW PER §21 OUTCOME, which is what makes the assertions in
+-- 20_rls_isolation.sql statements about the POLICY and the ACCESSOR rather
+-- than about an empty table. On shipment A:
+--
+--   facility_delay  OPEN,     public description  → reaches the customer bands
+--   damaged_freight OPEN,     NO public description → reaches NOBODY but staff
+--   traffic         RESOLVED, public description  → still reaches them, closed
+--
+-- Shipment B carries one so "carrier A reads nothing of shipment B" is
+-- non-vacuous on the exception path too.
+--
+-- EVERY ROW CARRIES A SENTINEL in `internal_description` and `resolution`.
+-- That is the point: the §21 assertions search for those strings, and a
+-- fixture with empty internal fields would make "no blame leaked" true for the
+-- wrong reason.
+--
+-- Loaded as the OWNER, so RLS does not apply here — but both CHECKs do.
+-- ===========================================================================
+
+insert into shipment_exceptions (
+  id, shipment_id, exception_type, severity,
+  public_description, internal_description,
+  opened_at, resolved_at, opened_by, assigned_to,
+  customer_notified_at, resolution
+) values
+  -- OPEN, published. The row every customer band should reach.
+  ('fbfbfbfb-fbfb-fbfb-fbfb-fbfbfbfb0a01', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'facility_delay', 'high',
+   'phrase:exception.facility_delay',
+   'SENTINEL-INTERNAL-receiver-dock-blame-do-not-leak',
+   now() - interval '4 hours', null,
+   '00000000-0000-0000-0000-0000000000e1',
+   '00000000-0000-0000-0000-0000000000e1',
+   now() - interval '3 hours', null),
+  -- OPEN, NOT published. §21: nothing honest to say yet → nobody but staff.
+  ('fbfbfbfb-fbfb-fbfb-fbfb-fbfbfbfb0a02', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'damaged_freight', 'critical',
+   null,
+   'SENTINEL-INTERNAL-claim-exposure-do-not-leak',
+   now() - interval '2 hours', null,
+   '00000000-0000-0000-0000-0000000000e1', null, null, null),
+  -- RESOLVED, published. The closed half of the lifecycle.
+  ('fbfbfbfb-fbfb-fbfb-fbfb-fbfbfbfb0a03', 'ffffffff-ffff-ffff-ffff-ffffffff0a01',
+   'traffic', 'low',
+   'phrase:exception.traffic',
+   'SENTINEL-INTERNAL-driver-took-the-wrong-route-do-not-leak',
+   now() - interval '2 days', now() - interval '1 day',
+   '00000000-0000-0000-0000-0000000000e1', null, null,
+   'SENTINEL-RESOLUTION-settled-with-carrier-do-not-leak'),
+  -- Shipment B, so every cross-tenant zero is a POLICY result.
+  ('fbfbfbfb-fbfb-fbfb-fbfb-fbfbfbfb0b01', 'ffffffff-ffff-ffff-ffff-ffffffff0b01',
+   'weather', 'medium',
+   'phrase:exception.weather',
+   'SENTINEL-INTERNAL-shipment-b-do-not-leak',
+   now() - interval '5 hours', null,
+   '00000000-0000-0000-0000-0000000000e1', null, null, null);
+
+-- §10's ETA history. Two rows on shipment A so "the previous value was
+-- preserved" is a fact with a row behind it, and one on shipment B for the
+-- cross-tenant zero.
+insert into shipment_eta_history (
+  shipment_id, eta_kind, previous_eta_at, new_eta_at,
+  eta_source, eta_confidence, delay_minutes,
+  reason_public, reason_internal, changed_by, changed_at
+) values
+  ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 'delivery',
+   null, now() + interval '2 days', 'manual', 'medium', null,
+   null, null, '00000000-0000-0000-0000-0000000000e1', now() - interval '6 hours'),
+  ('ffffffff-ffff-ffff-ffff-ffffffff0a01', 'delivery',
+   now() + interval '2 days', now() + interval '3 days',
+   'dispatcher_adjusted', 'low', 120,
+   'phrase:delay.facility', 'SENTINEL-ETA-INTERNAL-receiver-blame-do-not-leak',
+   '00000000-0000-0000-0000-0000000000e1', now() - interval '3 hours'),
+  ('ffffffff-ffff-ffff-ffff-ffffffff0b01', 'pickup',
+   null, now() + interval '1 day', 'manual', 'high', null,
+   null, null, '00000000-0000-0000-0000-0000000000e1', now() - interval '5 hours');

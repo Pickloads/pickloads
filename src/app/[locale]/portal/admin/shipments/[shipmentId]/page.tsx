@@ -15,6 +15,7 @@ import {
 } from "@/lib/shipments/staff-detail";
 import { availableTransitions } from "@/lib/shipments/transitions";
 import { listShipmentDocumentsForStaff } from "@/lib/shipments/document-store";
+import { listStaffExceptions } from "@/lib/shipments/exceptions";
 import { ShipmentStaffDetailView } from "@/components/portal/ShipmentStaffDetailView";
 import { getDriverTokens } from "@/lib/shipments/carrier-shipments";
 import { isDriverTokenConfigured } from "@/lib/shipments/driver-token";
@@ -84,6 +85,10 @@ export default async function StaffShipmentPage({
   // their review trail, through the COOKIE-BOUND client so 0024's `"staff
   // manage shipment documents"` policy applies. Still one round trip, still
   // §25's "no N+1", and still bounded (`DOCUMENT_PAGE_SIZE` + 1).
+  // M-78 adds a NINTH concurrent read: §21's exceptions with their full field
+  // set, through the COOKIE-BOUND client so 0025's `"staff manage shipment
+  // exceptions"` policy applies. Still one round trip, still §25's "no N+1",
+  // still bounded (`EXCEPTION_PAGE_SIZE`).
   const [
     history,
     assignments,
@@ -93,6 +98,7 @@ export default async function StaffShipmentPage({
     fleet,
     driverTokens,
     documents,
+    exceptions,
   ] = await Promise.all([
     getStaffTimelinePage(supabase, shipmentId, sp.before),
     getShipmentAssignments(supabase, shipmentId),
@@ -102,6 +108,7 @@ export default async function StaffShipmentPage({
     getCarrierFleet(supabase, shipment.carrier_id),
     getDriverTokens(supabase, shipmentId),
     listShipmentDocumentsForStaff(supabase, shipmentId),
+    listStaffExceptions(supabase, shipmentId),
   ]);
 
   const actorRole = session.role === "admin" ? "admin" : "dispatcher";
@@ -153,6 +160,8 @@ export default async function StaffShipmentPage({
         documentsFailed={documents.failed}
         documentsHasMore={documents.hasMore}
         driverLinksEnabled={isDriverTokenConfigured()}
+        exceptions={exceptions.exceptions}
+        exceptionsFailed={exceptions.failed}
       />
     </main>
   );

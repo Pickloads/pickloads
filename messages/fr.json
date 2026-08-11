@@ -839,7 +839,8 @@
       "location_unavailable": "Position temporairement indisponible",
       "eta_by_dispatcher": "Heure estimée fournie par le régulateur",
       "tracking_link_expired": "Lien de suivi expiré",
-      "dispatch_written": "Rédigé par la régulation, en anglais"
+      "dispatch_written": "Rédigé par la régulation, en anglais",
+      "eta_estimated": "Estimée à partir de la distance et des temps de transit standard"
     },
     "phrase": {
       "update": {
@@ -861,7 +862,10 @@
         "appointment": "Le camion attend l'heure de son rendez-vous.",
         "previous_stop": "Le camion a pris du retard à un arrêt précédent.",
         "paperwork": "Les documents sont en cours de finalisation sur le site.",
-        "driver_hours": "Le chauffeur prend une pause obligatoire."
+        "driver_hours": "Le chauffeur prend une pause obligatoire.",
+        "customs": "L'expédition attend un contrôle frontalier ou douanier.",
+        "detention": "Le camion attend toujours d'être chargé ou déchargé.",
+        "reroute": "L'itinéraire a changé et le camion emprunte un chemin plus long."
       },
       "exception": {
         "pickup_delay": "Le chargement a du retard. La régulation confirme un nouvel horaire.",
@@ -876,6 +880,16 @@
         "driver_unavailable": "Le chauffeur assigné est indisponible. La régulation organise un remplacement.",
         "carrier_cancellation": "Le transporteur assigné ne peut plus assurer ce chargement. La régulation cherche un autre camion.",
         "documentation_issue": "Un document de cette expédition doit être corrigé. La régulation s'en charge."
+      },
+      "resolution": {
+        "moving_again": "L'expédition est repartie.",
+        "rescheduled": "Un nouveau rendez-vous a été confirmé et s'affiche ci-dessus.",
+        "new_carrier": "Un autre camion a été affecté et il est en route.",
+        "repaired": "La réparation est terminée et le camion a repris la route.",
+        "conditions_cleared": "Les conditions sur l'itinéraire se sont améliorées et le camion avance.",
+        "delivered_complete": "L'expédition a été livrée et ce problème est clos.",
+        "documents_corrected": "Les documents ont été corrigés et ce problème est clos.",
+        "resolved_with_customer": "La régulation vous a contacté et ce problème est maintenant clos."
       }
     },
     "page": {
@@ -931,7 +945,10 @@
       "cancelled_title": "Cette expédition a été annulée",
       "cancelled_body": "Appelez le (908) 404-5373 si vous attendiez cette marchandise.",
       "search_again": "Suivre une autre expédition",
-      "updates_are_manual": "Les mises à jour sont saisies par notre équipe de régulation à mesure que les étapes sont confirmées. Cette page n'affiche pas de position GPS en direct."
+      "updates_are_manual": "Les mises à jour sont saisies par notre équipe de régulation à mesure que les étapes sont confirmées. Cette page n'affiche pas de position GPS en direct.",
+      "exception_resolved_title": "Résolu",
+      "exception_resolved_note": "La régulation a clos ce problème.",
+      "exception_open_note": "La régulation s'en occupe et mettra cette page à jour."
     },
     "support": {
       "button": "Écrire au support à propos de cette expédition",
@@ -957,7 +974,8 @@
       "step_exception": "Étape actuelle, nécessite une attention",
       "step_upcoming": "Non commencé",
       "status_region": "Résultat du suivi d'expédition",
-      "event_list": "Historique des mises à jour"
+      "event_list": "Historique des mises à jour",
+      "exception_list": "Problèmes signalés sur cette expédition"
     },
     "error": {
       "refused": "Nous n'avons pas pu faire correspondre ce numéro de suivi et cette valeur de vérification. Vérifiez les deux et réessayez, ou appelez le (908) 404-5373.",

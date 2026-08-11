@@ -282,6 +282,14 @@ class RlsSelectBuilder implements PromiseLike<RlsResult> {
  * Writes are refused outright: M-74 is a read-only module, so a write through
  * this adapter is a bug in the module rather than a gap in the harness.
  */
+/** SQL literal for one `rpc()` argument. Strings are quoted; nothing else is. */
+function rpcLiteral(value: unknown): string {
+  if (value === null) return "null";
+  if (typeof value === "number") return String(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  return lit(String(value));
+}
+
 export function createRlsSupabaseClient(session: Session) {
   return {
     from(table: string) {
@@ -317,22 +325,54 @@ export function createRlsSupabaseClient(session: Session) {
      * set, which is exactly what this adapter sets. A helper that ran it as
      * the owner would prove nothing.
      *
-     * Arguments are refused: nothing M-77 calls through this door takes any,
-     * and accepting them would mean writing a PostgREST argument encoder that
-     * no test exercises.
+     * M-78 EXTENDED IT, narrowly. `my_shipment_exceptions(p_shipment_id)`
+     * takes one uuid and returns a SET of rows rather than a scalar, so this
+     * encoder handles exactly that shape: named arguments whose values are
+     * strings, numbers, booleans or null. Anything else still THROWS, so a
+     * future caller with an array or a composite argument has to add its own
+     * encoding deliberately rather than getting a silently wrong query.
+     *
+     * The SET-returning case is detected from the catalog (`proretset`), not
+     * guessed: a set-returning function selected as a scalar would collapse to
+     * its first row and the test would prove the opposite of what it claims.
      */
     rpc(fn: string, args?: Record<string, unknown>) {
-      if (args !== undefined && Object.keys(args).length > 0) {
-        throw new Error(
-          `psql-rls: rpc("${fn}") with arguments is not supported — ` +
-            "add an encoder when a caller needs one.",
-        );
+      const entries = Object.entries(args ?? {});
+      for (const [name, value] of entries) {
+        const kind = value === null ? "null" : typeof value;
+        if (!["string", "number", "boolean", "null"].includes(kind)) {
+          throw new Error(
+            `psql-rls: rpc("${fn}") argument "${name}" is a ${kind} — ` +
+              "add an encoder when a caller needs one.",
+          );
+        }
       }
-      const result = runAsSession(
-        session,
-        `select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) from (select ${fn}() as v) t`,
-      );
+      const call =
+        entries.length === 0
+          ? `${fn}()`
+          : `${fn}(${entries
+              .map(([name, value]) => `${name} => ${rpcLiteral(value)}`)
+              .join(", ")})`;
+
+      const setReturning =
+        runAsSession(
+          session,
+          `select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) from (
+             select p.proretset as v from pg_proc p
+               join pg_namespace n on n.oid = p.pronamespace
+             where n.nspname = 'public' and p.proname = ${lit(fn)}
+             limit 1) t`,
+        ).rows[0] as { v: boolean } | undefined;
+
+      const sql = setReturning?.v
+        ? `select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) from ${call} t`
+        : `select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) from (select ${call} as v) t`;
+
+      const result = runAsSession(session, sql);
       if (result.error) return Promise.resolve({ data: null, error: result.error });
+      if (setReturning?.v) {
+        return Promise.resolve({ data: result.rows, error: null });
+      }
       const row = (result.rows[0] ?? null) as { v: unknown } | null;
       return Promise.resolve({ data: row?.v ?? null, error: null });
     },

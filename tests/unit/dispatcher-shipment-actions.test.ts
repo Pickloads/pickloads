@@ -46,6 +46,8 @@ interface Scenario {
   carrierIds: string[];
   /** §20's `carrier_assigned` precondition, as the facts RPC would report it. */
   activeAssignmentId: string | null;
+  /** M-78 — does the chosen exception belong to the gated shipment? */
+  exceptionOnShipment: boolean;
 }
 
 let scenario: Scenario;
@@ -92,6 +94,17 @@ function serverClient() {
           }
           if (table === "shipments") {
             return Promise.resolve({ data: scenario.shipment });
+          }
+          /* M-78 — the ownership check the two §21 lifecycle actions run
+           * BEFORE writing: does the chosen exception belong to the shipment
+           * the §19 scope gate just approved? Read under the caller's own
+           * session, so 0025's staff policy answers as well.
+           * `scenario.exceptionOnShipment = false` makes it say no, which is
+           * the non-vacuity case asserted below. */
+          if (table === "shipment_exceptions") {
+            return Promise.resolve({
+              data: scenario.exceptionOnShipment ? { id: "ex-1" } : null,
+            });
           }
           return Promise.resolve({ data: null });
         },
@@ -144,12 +157,34 @@ vi.mock("@/lib/supabase/admin", () => ({
     },
     from(table: string) {
       writes.push(`admin:${table}`);
+      /* M-78 widened this builder: `setShipmentEta` now reads the shipment
+       * row (distance / shipper / tracking number) before writing, for the
+       * `calculated` source and the §10 customer notification. `eq()` is a
+       * CHAINABLE that is also awaitable, so the pre-existing `.update().eq()`
+       * write path and the new `.select().eq().maybeSingle()` read path both
+       * work against one stub. */
       const b = {
         update: () => b,
         insert: () => Promise.resolve({ error: null }),
-        eq: () => Promise.resolve({ error: null }),
+        eq: () => b,
         select: () => b,
-        maybeSingle: () => Promise.resolve({ data: null }),
+        not: () => b,
+        order: () => b,
+        limit: () => b,
+        maybeSingle: () =>
+          Promise.resolve({
+            data:
+              table === "shipments"
+                ? {
+                    distance_miles: 480,
+                    shipper_id: "22222222-2222-4222-8222-222222222222",
+                    tracking_number: "PL-2026-000458",
+                  }
+                : null,
+            error: null,
+          }),
+        then: (resolve: (value: { error: null; data: null }) => unknown) =>
+          resolve({ error: null, data: null }),
       };
       return b;
     },
@@ -235,11 +270,12 @@ beforeEach(() => {
     },
     carrierIds: [],
     activeAssignmentId: "as-1",
+    exceptionOnShipment: true,
   };
 });
 
 describe("§14 actions — the gate, proved per action", () => {
-  it("exports the fifteen §14 actions the plan and directive name, plus M-76's two §13 driver-link actions", () => {
+  it("exports the §14 actions the plan and directive name, plus M-76's two §13 driver-link actions and M-78's two §21 lifecycle actions", () => {
     expect(ACTION_NAMES.sort()).toEqual(
       [
         "addNoteAction",
@@ -263,6 +299,11 @@ describe("§14 actions — the gate, proved per action", () => {
         // the scenarios below prove per action rather than by assertion.
         "issueDriverTokenAction",
         "revokeDriverTokenAction",
+        // M-78 — §14's "resolve exception", which M-75 named as M-78's and
+        // did not build ("resolving needs a row to resolve"), plus §21's
+        // triage fields. Both go through the same gate.
+        "resolveExceptionAction",
+        "triageExceptionAction",
       ].sort(),
     );
   });
@@ -469,7 +510,7 @@ describe("the §14 actions call the engine, never a raw write", () => {
     expect(rpcCalls).toEqual(["set_shipment_appointment"]);
   });
 
-  it("record call / record email / note / exception / POD all append events", async () => {
+  it("record call / record email / note / POD all append events", async () => {
     const cases: [keyof typeof actions, Record<string, string>][] = [
       ["recordCallAction", { direction: "inbound", party: "carrier", summary: "Driver is loaded" }],
       [
@@ -477,14 +518,6 @@ describe("the §14 actions call the engine, never a raw write", () => {
         { direction: "outbound", party: "shipper", subject: "Pickup confirmed" },
       ],
       ["addNoteAction", { band: "internal", body: "Watch the receiver hours" }],
-      [
-        "logExceptionAction",
-        {
-          exception_type: "pickup_delay",
-          severity: "medium",
-          internal_description: "Shipper not ready at the dock",
-        },
-      ],
       ["requestPodAction", {}],
     ];
     for (const [name, fields] of cases) {
@@ -499,6 +532,55 @@ describe("the §14 actions call the engine, never a raw write", () => {
       expect(result.status, `${name}: ${result.message}`).toBe("success");
       expect(rpcCalls, String(name)).toEqual(["append_shipment_event"]);
     }
+  });
+
+  /* M-78 — logging an exception LEFT the generic append path. It is now
+   * `open_shipment_exception()`, which writes the §21 row AND the identical
+   * `exception_opened` event in one transaction, so the customer timeline is
+   * unchanged and the lifecycle exists behind it. Asserted as its own case,
+   * because "one RPC, and it is the atomic one" is the property that matters. */
+  it("logging an exception goes through the atomic 0025 function, not a bare append", async () => {
+    const fd = formData();
+    fd.set("exception_type", "pickup_delay");
+    fd.set("severity", "medium");
+    fd.set("internal_description", "Shipper not ready at the dock");
+    const result = await actions.logExceptionAction({ status: "idle" }, fd);
+    expect(result.status, result.message).toBe("success");
+    expect(rpcCalls).toEqual(["open_shipment_exception"]);
+  });
+
+  it("resolving an exception goes through the atomic 0025 function", async () => {
+    const fd = formData();
+    fd.set("exception_id", "88888888-8888-4888-8888-888888888888");
+    fd.set("resolution", "Dock cleared; driver loaded at 14:10.");
+    const result = await actions.resolveExceptionAction({ status: "idle" }, fd);
+    expect(result.status, result.message).toBe("success");
+    expect(rpcCalls).toEqual(["resolve_shipment_exception"]);
+  });
+
+  /* NON-VACUITY, and a real §19 hole if it ever regressed: the §19 scope gate
+   * keys on the SHIPMENT, so a dispatcher legitimately scoped to shipment A
+   * could otherwise resolve an exception on shipment B by editing one hidden
+   * field. The second check refuses BEFORE any RPC is issued. */
+  it("REFUSES to resolve an exception that is not on the gated shipment, and writes nothing", async () => {
+    scenario.exceptionOnShipment = false;
+    const fd = formData();
+    fd.set("exception_id", "88888888-8888-4888-8888-888888888888");
+    fd.set("resolution", "Dock cleared.");
+    const result = await actions.resolveExceptionAction({ status: "idle" }, fd);
+    expect(result.status).toBe("error");
+    expect(result.message).toContain("not on this shipment");
+    expect(rpcCalls).toEqual([]);
+  });
+
+  it("REFUSES to triage an exception that is not on the gated shipment", async () => {
+    scenario.exceptionOnShipment = false;
+    const fd = formData();
+    fd.set("exception_id", "88888888-8888-4888-8888-888888888888");
+    fd.set("severity", "high");
+    const result = await actions.triageExceptionAction({ status: "idle" }, fd);
+    expect(result.status).toBe("error");
+    expect(rpcCalls).toEqual([]);
   });
 
   it("an ETA update goes through set_shipment_eta", async () => {

@@ -6,6 +6,8 @@ import {
   CorrectionForm,
   EtaUpdateForm,
   LogExceptionForm,
+  ResolveExceptionForm,
+  TriageExceptionForm,
   NoteForm,
   RecordCallForm,
   RecordEmailForm,
@@ -32,7 +34,11 @@ import type {
   StaffTimelineEvent,
 } from "@/lib/shipments/staff-detail";
 import { SHIPMENT_STATUSES, type ShipmentStatus } from "@/lib/shipments/types";
-import type { DriverTokenView, ShipmentPartyRow } from "@/lib/shipments/types";
+import type {
+  DriverTokenView,
+  ShipmentExceptionRow,
+  ShipmentPartyRow,
+} from "@/lib/shipments/types";
 import { driverTokenState } from "@/lib/shipments/driver-token-state";
 
 /**
@@ -363,6 +369,9 @@ export interface ShipmentStaffDetailProps {
   documents: StaffDocumentView[];
   documentsFailed: boolean;
   documentsHasMore: boolean;
+  /** M-78 — §21's exceptions, full field set, under 0025's staff policy. */
+  exceptions: readonly ShipmentExceptionRow[];
+  exceptionsFailed: boolean;
 }
 
 export function ShipmentStaffDetailView(props: ShipmentStaffDetailProps) {
@@ -438,6 +447,7 @@ export function ShipmentStaffDetailView(props: ShipmentStaffDetailProps) {
         shipmentId={shipment.id}
         pickupEta={when(shipment.estimated_pickup_at)}
         deliveryEta={when(shipment.estimated_delivery_at)}
+        distanceMiles={shipment.distance_miles}
       />
       <NoteForm shipmentId={shipment.id} />
       <RecordCallForm shipmentId={shipment.id} />
@@ -483,16 +493,155 @@ export function ShipmentStaffDetailView(props: ShipmentStaffDetailProps) {
         downloadAction={getStaffDocumentUrlAction}
       />
 
+      {/* M-78 — §21's register, with the open/resolve lifecycle §14 asked for
+          and M-75 deferred by name. */}
+      <ExceptionRegister
+        shipmentId={shipment.id}
+        exceptions={props.exceptions}
+        failed={props.exceptionsFailed}
+        staff={props.staff}
+      />
+
       <span className="psec">Not here yet</span>
       <p className="pempty" style={{ padding: "0 0 20px" }}>
         {/* §30 applies to staff surfaces too: name what is missing rather than
             leaving a dispatcher to discover it mid-shift. */}
-        Exception resolution, the full ETA history and localized customer emails
-        are not built yet. Logging an exception, requesting a POD, filing and
-        approving documents and sending an in-portal notification all work today
-        — the pieces above name exactly what they do.
+        Localized customer <strong>emails</strong> are not built yet — the ETA
+        change and the exception both write the shipper&apos;s in-portal
+        notification today and nothing else, so call them if it is urgent.
+        Provider-supplied ETAs are not built either: the source list offers
+        manual, dispatcher-adjusted and calculated, and calculated is arithmetic
+        over the recorded mileage, never a prediction.
       </p>
     </>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * M-78 — §21's exception register
+ * ------------------------------------------------------------------ */
+
+const SEVERITY_LABEL: Record<string, string> = {
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  critical: "Critical",
+};
+
+function typeLabel(value: string): string {
+  return value.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
+
+/**
+ * The one surface where §21's ten fields are all visible at once — which is
+ * the whole reason the table exists rather than the exceptions being inferred
+ * from the timeline.
+ *
+ * `internal_description` and `resolution` ARE rendered here, and only here.
+ * That is not a relaxation of §21: the rule is about what a CUSTOMER sees, and
+ * this page is behind `requireStaff` on a row set 0025's staff policy chose.
+ * Every customer path reaches these rows through `my_shipment_exceptions()`,
+ * which cannot return either column.
+ *
+ * State is TEXT (§23), never a colour: "Open" / "Resolved", and the severity
+ * carries its word.
+ */
+function ExceptionRegister({
+  shipmentId,
+  exceptions,
+  failed,
+  staff,
+}: {
+  shipmentId: string;
+  exceptions: readonly ShipmentExceptionRow[];
+  failed: boolean;
+  staff: AssignOption[];
+}) {
+  const open = exceptions.filter((e) => e.resolved_at === null);
+  return (
+    <section aria-labelledby="exceptions-heading">
+      <span className="psec" id="exceptions-heading">
+        Exceptions ({open.length} open)
+      </span>
+      {failed ? (
+        <p className="pempty" style={{ padding: "0 0 14px" }}>
+          The exception list could not be loaded. Everything else on this page
+          is current; reload before assuming there are none.
+        </p>
+      ) : exceptions.length === 0 ? (
+        <p className="pempty" style={{ padding: "0 0 14px" }}>
+          No exceptions have been logged on this shipment.
+        </p>
+      ) : (
+        <div className="ptable-wrap">
+          <table className="ptable ptable--cards">
+            <caption className="sr-only">
+              Exceptions logged on this shipment, newest first
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Type</th>
+                <th scope="col">Severity</th>
+                <th scope="col">State</th>
+                <th scope="col">Opened</th>
+                <th scope="col">Customer told</th>
+                <th scope="col">Assigned</th>
+                <th scope="col">What the customer sees</th>
+                <th scope="col">Internal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {exceptions.map((e) => (
+                <tr key={e.id}>
+                  <td data-th="Type">{typeLabel(e.exception_type)}</td>
+                  <td data-th="Severity">
+                    {SEVERITY_LABEL[e.severity] ?? e.severity}
+                  </td>
+                  <td data-th="State">
+                    {e.resolved_at === null
+                      ? "Open"
+                      : `Resolved ${when(e.resolved_at)}`}
+                  </td>
+                  <td data-th="Opened">{when(e.opened_at)}</td>
+                  <td data-th="Customer told">
+                    {e.customer_notified_at === null
+                      ? "Not notified"
+                      : when(e.customer_notified_at)}
+                  </td>
+                  <td data-th="Assigned">
+                    {staff.find((s) => s.id === e.assigned_to)?.label ??
+                      (e.assigned_to === null ? "—" : "Staff")}
+                  </td>
+                  <td data-th="What the customer sees">
+                    {e.public_description ?? "Nothing published"}
+                  </td>
+                  <td data-th="Internal">
+                    {e.internal_description ?? "—"}
+                    {e.resolution === null ? null : (
+                      <>
+                        <br />
+                        <strong>Resolution:</strong> {e.resolution}
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {open.length === 0 ? null : (
+        <>
+          <TriageExceptionForm
+            shipmentId={shipmentId}
+            exceptions={open}
+            staff={staff}
+          />
+          <ResolveExceptionForm shipmentId={shipmentId} exceptions={open} />
+        </>
+      )}
+    </section>
   );
 }
 

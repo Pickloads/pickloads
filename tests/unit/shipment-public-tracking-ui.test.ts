@@ -381,6 +381,8 @@ describe("public timeline (§8)", () => {
       assigned_to: null,
       customer_notified_at: null,
       resolution: null,
+      source_event_id: null,
+      resolution_event_id: null,
     };
     expect(buildPublicTimeline(dto("in_transit", [], [open])).exception).toBe(
       true,

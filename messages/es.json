@@ -839,7 +839,8 @@
       "location_unavailable": "Ubicación no disponible temporalmente",
       "eta_by_dispatcher": "Hora estimada proporcionada por el dispatcher",
       "tracking_link_expired": "El enlace de seguimiento ha caducado",
-      "dispatch_written": "Escrito por dispatch, en inglés"
+      "dispatch_written": "Escrito por dispatch, en inglés",
+      "eta_estimated": "Estimada a partir de la distancia y los tiempos de tránsito estándar"
     },
     "phrase": {
       "update": {
@@ -861,7 +862,10 @@
         "appointment": "El camión está esperando su hora de cita.",
         "previous_stop": "El camión viene retrasado de una parada anterior.",
         "paperwork": "Se está completando el papeleo en las instalaciones.",
-        "driver_hours": "El conductor está tomando un descanso obligatorio."
+        "driver_hours": "El conductor está tomando un descanso obligatorio.",
+        "customs": "El envío está esperando un control fronterizo o aduanero.",
+        "detention": "El camión sigue esperando para cargar o descargar.",
+        "reroute": "La ruta ha cambiado y el camión está tomando un camino más largo."
       },
       "exception": {
         "pickup_delay": "La recogida va más tarde de lo previsto. Dispatch está confirmando una nueva hora.",
@@ -876,6 +880,16 @@
         "driver_unavailable": "El conductor asignado no está disponible. Dispatch está organizando la cobertura.",
         "carrier_cancellation": "El transportista asignado ya no puede llevar esta carga. Dispatch está buscando otro camión.",
         "documentation_issue": "Un documento de este envío necesita corrección. Dispatch se está encargando."
+      },
+      "resolution": {
+        "moving_again": "El envío está en movimiento de nuevo.",
+        "rescheduled": "Se ha confirmado una nueva hora de cita y aparece arriba.",
+        "new_carrier": "Se ha asignado otro camión y ya está en camino.",
+        "repaired": "La reparación está lista y el camión ha vuelto a la carretera.",
+        "conditions_cleared": "Las condiciones en la ruta han mejorado y el camión está avanzando.",
+        "delivered_complete": "El envío ha sido entregado y esta incidencia está cerrada.",
+        "documents_corrected": "El papeleo ha sido corregido y esta incidencia está cerrada.",
+        "resolved_with_customer": "Dispatch se ha puesto en contacto y esta incidencia ya está cerrada."
       }
     },
     "page": {
@@ -931,7 +945,10 @@
       "cancelled_title": "Este envío fue cancelado",
       "cancelled_body": "Llama al (908) 404-5373 si esperabas esta carga.",
       "search_again": "Rastrear otro envío",
-      "updates_are_manual": "Las actualizaciones las introduce nuestro equipo de dispatch a medida que se confirman los hitos. Esta página no muestra una posición GPS en vivo."
+      "updates_are_manual": "Las actualizaciones las introduce nuestro equipo de dispatch a medida que se confirman los hitos. Esta página no muestra una posición GPS en vivo.",
+      "exception_resolved_title": "Resuelto",
+      "exception_resolved_note": "Dispatch ha cerrado esta incidencia.",
+      "exception_open_note": "Dispatch está trabajando en ello y actualizará esta página."
     },
     "support": {
       "button": "Escribir a soporte sobre este envío",
@@ -957,7 +974,8 @@
       "step_exception": "Paso actual, requiere atención",
       "step_upcoming": "No iniciado",
       "status_region": "Resultado del seguimiento del envío",
-      "event_list": "Historial de actualizaciones"
+      "event_list": "Historial de actualizaciones",
+      "exception_list": "Incidencias registradas en este envío"
     },
     "error": {
       "refused": "No pudimos encontrar esa combinación de número de seguimiento y valor de verificación. Revisa ambos e inténtalo de nuevo, o llama al (908) 404-5373.",

@@ -281,23 +281,51 @@ export const ETA_SOURCES = [
 ] as const satisfies readonly EtaSource[];
 
 /**
- * M-75 — the strict subset a DISPATCHER FORM may set.
+ * The strict subset a DISPATCHER FORM may set.
  *
- * §30's honest-label rule, expressed as a type. `calculated` and `provider`
- * describe machinery that does not exist yet (M-78's ETA calculator, M-80's
- * telematics adapters), and a dropdown offering them would let an operator
- * label a typed guess as a computed prediction — exactly the claim §30
- * forbids. It lives HERE, beside the full list, rather than in the server
- * module that writes ETAs, because the dispatcher form is a client component
- * and vocabulary is not a secret (the same reason this whole module carries
- * no `server-only`).
+ * §30's honest-label rule, expressed as a type. M-75 shipped this with TWO
+ * members and wrote down why: *"`calculated` and `provider` describe machinery
+ * that does not exist yet … a dropdown offering them would let an operator
+ * label a typed guess as a computed prediction."*
+ *
+ * **M-78 widened it by exactly ONE**, and only because the machinery now
+ * exists. `calculated` is `src/lib/shipments/eta-estimate.ts` — a stated
+ * arithmetic method over `shipments.distance_miles` (FMCSA §395.3 hours,
+ * a 50 mph planning speed, fixed dock dwell), which the SERVER computes and
+ * the operator cannot type. Picking `calculated` on the form does not label a
+ * typed value; it discards whatever was typed and asks the server for its own
+ * number, and the write is REFUSED when the shipment has no distance to
+ * compute from. That is the difference between a capability and a claim.
+ *
+ * `provider` is still absent and still unreachable. Nothing in this codebase
+ * receives an ETA from Motive, Samsara, Geotab or Verizon Connect; M-80 owns
+ * those adapters. Offering it today would be the fake capability §30 forbids.
+ *
+ * It lives HERE, beside the full list, rather than in the server module that
+ * writes ETAs, because the dispatcher form is a client component and
+ * vocabulary is not a secret (the same reason this whole module carries no
+ * `server-only`).
  */
 export const DISPATCHER_ETA_SOURCES = [
   "manual",
   "dispatcher_adjusted",
+  "calculated",
 ] as const satisfies readonly EtaSource[];
 
 export type DispatcherEtaSource = (typeof DISPATCHER_ETA_SOURCES)[number];
+
+/**
+ * ETA sources NO code path can produce, stated as data rather than as prose.
+ *
+ * `tests/unit/shipment-eta-estimate.test.ts` asserts that this list and
+ * `DISPATCHER_ETA_SOURCES` partition `ETA_SOURCES` exactly, so "which sources
+ * are real?" has one answer that a future module cannot let drift: adding a
+ * provider adapter means moving `provider` from here to there, in the same
+ * commit that makes it true.
+ */
+export const UNREACHABLE_ETA_SOURCES = [
+  "provider",
+] as const satisfies readonly EtaSource[];
 
 /**
  * §10 `eta_confidence`. The directive names the field but not its domain;
@@ -667,7 +695,10 @@ export interface ShipmentRow {
   delay_minutes: number | null;
   /** Customer-safe delay wording (§21: calm, no blame, no legal conclusions). */
   delay_reason_public: string | null;
-  /** Operational truth. Never crosses into a customer DTO. */
+  /**
+   * @staffOnly §10/§21 — the operational truth behind a delay. Never crosses
+   * into a customer DTO; swept by name in `tests/unit/shipment-dto.test.ts`.
+   */
   delay_reason_internal: string | null;
 
   created_at: string;
@@ -711,7 +742,25 @@ export interface ShipmentEventRow {
   idempotency_key: string | null;
 }
 
-/** `shipment_exceptions` — §21's 10 fields plus keys. */
+/**
+ * `shipment_exceptions` — §21's 10 fields plus keys (migration 0025, M-78).
+ *
+ * M-78 added TWO fields to M-70's original interface, each argued in 0025's
+ * section 2:
+ *
+ *   * `source_event_id` — the `exception_opened` event this row was opened by,
+ *     or BACKFILLED FROM. Unique in SQL, which is what makes M-75/M-76's
+ *     event-only exceptions migrate idempotently and what lets §7's
+ *     append-only ledger and this lifecycle table be reconciled by a join.
+ *   * `resolution_event_id` — the `exception_resolved` event that closed it.
+ *     Chosen over a `resolved_by` + resolution-timestamp pair: the event
+ *     already records the actor, the time and the wording under §7's
+ *     append-only guarantee, and a pointer to it cannot disagree with it the
+ *     way a copy can.
+ *
+ * Neither is customer-facing. `CustomerExceptionDto` names neither, and 0025's
+ * `my_shipment_exceptions()` return type does not carry them.
+ */
 export interface ShipmentExceptionRow {
   id: string;
   shipment_id: string;
@@ -721,13 +770,21 @@ export interface ShipmentExceptionRow {
    * customer yet" — such an exception is omitted from customer DTOs entirely
    * rather than rendered as a blank alarm. */
   public_description: string | null;
+  /**
+   * @staffOnly §21 — the operational truth, including blame and legal
+   * exposure. Never crosses a customer DTO; swept by name in
+   * `tests/unit/shipment-dto.test.ts`.
+   */
   internal_description: string | null;
   opened_at: string;
   resolved_at: string | null;
   opened_by: string | null;
   assigned_to: string | null;
   customer_notified_at: string | null;
+  /** @staffOnly §21 — what closed it, in operational words. */
   resolution: string | null;
+  source_event_id: string | null;
+  resolution_event_id: string | null;
 }
 
 /** `shipment_eta_history` — §10's "preserve previous ETA values in history". */

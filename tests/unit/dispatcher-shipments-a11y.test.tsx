@@ -21,7 +21,10 @@ import type {
   StaffShipmentRow,
   StaffTimelineEvent,
 } from "@/lib/shipments/staff-detail";
-import type { ShipmentPartyRow } from "@/lib/shipments/types";
+import type {
+  ShipmentExceptionRow,
+  ShipmentPartyRow,
+} from "@/lib/shipments/types";
 
 /**
  * M-75 — §22/§23 for the three new staff routes, scanned with axe-core against
@@ -84,6 +87,8 @@ vi.mock("@/app/actions/dispatcher-shipments", () => {
     issueDriverTokenAction: noop,
     revokeDriverTokenAction: noop,
     logExceptionAction: noop,
+    resolveExceptionAction: noop,
+    triageExceptionAction: noop,
     recordCallAction: noop,
     recordEmailAction: noop,
     releaseCarrierAction: noop,
@@ -301,6 +306,45 @@ const DRIVER_TOKENS = [
 ];
 
 /** M-77 — one pending (review controls drawn) and one approved (not drawn). */
+const STAFF_EXCEPTIONS: ShipmentExceptionRow[] = [
+  /* M-78 — one OPEN (the lifecycle forms are drawn) and one RESOLVED (the
+     "closed" branch of the register). With an empty list every assertion
+     about the register would be true whether or not it rendered. */
+  {
+    id: "ex-1",
+    shipment_id: "sh-1",
+    exception_type: "facility_delay",
+    severity: "high",
+    public_description: "phrase:exception.facility_delay",
+    internal_description: "Receiver dock backed up; guard says 3h.",
+    opened_at: "2026-09-05T09:00:00.000Z",
+    resolved_at: null,
+    opened_by: "u-1",
+    assigned_to: "u-2",
+    customer_notified_at: "2026-09-05T09:05:00.000Z",
+    resolution: null,
+    source_event_id: "ev-x1",
+    resolution_event_id: null,
+  },
+  {
+    id: "ex-2",
+    shipment_id: "sh-1",
+    exception_type: "traffic",
+    severity: "low",
+    public_description: "phrase:exception.traffic",
+    internal_description: "I-80 closure.",
+    opened_at: "2026-09-04T09:00:00.000Z",
+    resolved_at: "2026-09-04T14:00:00.000Z",
+    opened_by: "u-1",
+    assigned_to: null,
+    customer_notified_at: null,
+    resolution: "Road reopened; driver rolling.",
+    source_event_id: "ev-x2",
+    resolution_event_id: "ev-x3",
+  },
+];
+
+/** M-77 — one pending (review controls drawn) and one approved (not drawn). */
 const STAFF_DOCUMENTS: StaffDocumentView[] = [
   {
     id: "sd-1",
@@ -353,6 +397,8 @@ function detail(overrides: Partial<Parameters<typeof ShipmentStaffDetailView>[0]
       documents={STAFF_DOCUMENTS}
       documentsFailed={false}
       documentsHasMore={false}
+      exceptions={STAFF_EXCEPTIONS}
+      exceptionsFailed={false}
       {...overrides}
     />
   );
@@ -789,11 +835,13 @@ describe("§30 — the staff surface does not overclaim either", () => {
     render(<main>{detail()}</main>);
     const text = document.body.textContent ?? "";
     expect(text).toContain("Not here yet");
-    // M-77 built documents and POD approval, so the honest-gap list shrank.
-    // What is still missing is still named.
-    expect(text).toContain("Exception resolution");
-    expect(text).toContain("localized customer emails");
+    // M-78 built exception resolution and the full ETA history, so the
+    // honest-gap list shrank again. What is still missing is still named, and
+    // the two things it names are the two things M-79 and M-80 own.
+    expect(text).toContain("emails");
+    expect(text).toContain("Provider-supplied ETAs are not built");
     expect(text).not.toContain("Documents and POD upload");
+    expect(text).not.toContain("Exception resolution, the full ETA history");
   });
 
   it("states §5 immutability where somebody would look for an edit button", () => {

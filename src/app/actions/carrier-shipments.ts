@@ -5,8 +5,8 @@ import { revalidatePath } from "next/cache";
 import { field } from "@/lib/forms/guard";
 import type { FormState } from "@/lib/form-state";
 import { firstIssueMessage } from "@/lib/validation/shared";
+import { openShipmentException } from "@/lib/shipments/exceptions";
 import {
-  appendShipmentEvent,
   applyShipmentTransition,
   resolveShipmentFacts,
 } from "@/lib/shipments/apply-transition";
@@ -259,30 +259,35 @@ export async function carrierExceptionAction(
   if (refusal !== null) return error(CARRIER_REFUSAL_MESSAGES[refusal]);
 
   /*
-   * §21's `shipment_exceptions` table is M-78's and does NOT exist. M-75
-   * settled the pattern and M-76 follows it exactly rather than creating half
-   * a table: the exception is an `exception_opened` event carrying the §21
-   * type and severity in `metadata`, marked with an
-   * `exception_source` so M-78's backfill can select on it.
+   * M-78 — §13's "submit exception" now opens a REAL §21 ROW.
    *
-   * `severity` is fixed at `medium` — see `carrierExceptionSchema` for why a
-   * carrier does not triage their own exception.
+   * M-76 shipped this as an `exception_opened` EVENT marked
+   * `exception_source = "m76_carrier_report"` because the table did not exist,
+   * and named M-78 as the module that would migrate those events. 0025 did
+   * exactly that — every one of them is now a row, and not one event was
+   * deleted or edited.
+   *
+   * TWO THINGS DELIBERATELY DO NOT CHANGE:
+   *
+   *   * `severity` is still fixed at `medium`. §21 makes triage an
+   *     OPERATIONAL decision; a carrier grading their own exception as
+   *     `critical` (or as `low`) sets the dispatcher's queue order from
+   *     outside the dispatcher's judgement. The register on the staff page
+   *     re-severities it in one control.
+   *   * NOTHING the carrier types is published to the customer. The
+   *     description goes to `internal_description`, so 0025 files the event
+   *     `staff_only` — §21's calm customer explanation is written by a person
+   *     who has decided what to say, and a carrier's raw report is not that.
    */
-  const result = await appendShipmentEvent({
+  const result = await openShipmentException({
     shipmentId: access.shipmentId,
-    eventType: "exception_opened",
-    actor: "carrier",
-    actorId: access.session.userId,
+    exceptionType: d.exception_type,
+    severity: "medium",
+    publicDescription: null,
+    internalDescription: d.description,
+    openedBy: access.session.userId,
     source: "carrier",
-    visibility: "carrier",
-    internalMessage: d.description,
-    metadata: {
-      exception_type: d.exception_type,
-      severity: "medium",
-      exception_source: "m76_carrier_report",
-      reported_by: "carrier",
-    },
-    status: access.status,
+    reportedBy: "carrier",
   });
 
   if (!result.ok) return error(result.message);

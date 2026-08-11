@@ -839,7 +839,8 @@
       "location_unavailable": "Location temporarily unavailable",
       "eta_by_dispatcher": "ETA provided by dispatcher",
       "tracking_link_expired": "Tracking link expired",
-      "dispatch_written": "Written by dispatch, in English"
+      "dispatch_written": "Written by dispatch, in English",
+      "eta_estimated": "Estimated from distance and standard transit times"
     },
     "phrase": {
       "update": {
@@ -861,7 +862,10 @@
         "appointment": "The truck is waiting for its appointment time.",
         "previous_stop": "The truck is running late from an earlier stop.",
         "paperwork": "Paperwork is being completed at the facility.",
-        "driver_hours": "The driver is taking a required rest break."
+        "driver_hours": "The driver is taking a required rest break.",
+        "customs": "The shipment is waiting on a border or customs check.",
+        "detention": "The truck is still waiting to be loaded or unloaded.",
+        "reroute": "The route has changed and the truck is taking a longer way."
       },
       "exception": {
         "pickup_delay": "Pickup is running later than scheduled. Dispatch is confirming a new time.",
@@ -876,6 +880,16 @@
         "driver_unavailable": "The assigned driver is unavailable. Dispatch is arranging coverage.",
         "carrier_cancellation": "The assigned carrier can no longer run this load. Dispatch is sourcing another truck.",
         "documentation_issue": "A document for this shipment needs correcting. Dispatch is handling it."
+      },
+      "resolution": {
+        "moving_again": "The shipment is moving again.",
+        "rescheduled": "A new appointment time has been confirmed and is shown above.",
+        "new_carrier": "Another truck has been assigned and is on its way.",
+        "repaired": "The repair is done and the truck is back on the road.",
+        "conditions_cleared": "Conditions on the route have cleared and the truck is moving.",
+        "delivered_complete": "The shipment has been delivered and this issue is closed.",
+        "documents_corrected": "The paperwork has been corrected and this issue is closed.",
+        "resolved_with_customer": "Dispatch has been in touch and this issue is now closed."
       }
     },
     "page": {
@@ -931,7 +945,10 @@
       "cancelled_title": "This shipment was cancelled",
       "cancelled_body": "Call (908) 404-5373 if you were expecting this freight.",
       "search_again": "Track another shipment",
-      "updates_are_manual": "Updates are entered by our dispatch team as milestones are confirmed. This page does not show a live GPS position."
+      "updates_are_manual": "Updates are entered by our dispatch team as milestones are confirmed. This page does not show a live GPS position.",
+      "exception_resolved_title": "Resolved",
+      "exception_resolved_note": "Dispatch has closed this issue.",
+      "exception_open_note": "Dispatch is working on it and will update this page."
     },
     "support": {
       "button": "Message support about this shipment",
@@ -957,7 +974,8 @@
       "step_exception": "Current step, needs attention",
       "step_upcoming": "Not started",
       "status_region": "Shipment tracking result",
-      "event_list": "Update history"
+      "event_list": "Update history",
+      "exception_list": "Issues reported on this shipment"
     },
     "error": {
       "refused": "We couldn't match that tracking number and verification value. Check both and try again, or call (908) 404-5373.",

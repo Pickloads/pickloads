@@ -47,6 +47,20 @@ interface MockOptions {
   events?: ShipmentEventRow[];
   eventsError?: { message: string } | null;
   logError?: { message: string } | null;
+  /** M-78 — §21's banner rows, in the calm seven-column projection. */
+  exceptions?: PublicExceptionFixture[];
+  exceptionsError?: { message: string } | null;
+}
+
+/** Exactly what `PUBLIC_EXCEPTION_COLUMNS` selects — no internal field. */
+interface PublicExceptionFixture {
+  id: string;
+  shipment_id: string;
+  exception_type: string;
+  severity: string;
+  public_description: string | null;
+  opened_at: string;
+  resolved_at: string | null;
 }
 
 let options: MockOptions = {};
@@ -54,6 +68,8 @@ let inserts: Record<string, unknown>[] = [];
 let shipmentProjection = "";
 let eventFilters: [string, unknown][] = [];
 let eventLimit = 0;
+let exceptionProjection = "";
+let exceptionLimit = 0;
 
 function makeClient() {
   return {
@@ -80,6 +96,32 @@ function makeClient() {
                 };
               },
             };
+          },
+        };
+      }
+      if (table === "shipment_exceptions") {
+        const xChain = {
+          eq() {
+            return xChain;
+          },
+          not() {
+            return xChain;
+          },
+          order() {
+            return xChain;
+          },
+          limit(n: number) {
+            exceptionLimit = n;
+            return Promise.resolve({
+              data: options.exceptions ?? [],
+              error: options.exceptionsError ?? null,
+            });
+          },
+        };
+        return {
+          select(columns: string) {
+            exceptionProjection = columns;
+            return xChain;
           },
         };
       }
@@ -120,6 +162,7 @@ const {
   FORBIDDEN_PUBLIC_COLUMNS,
   MIN_RESPONSE_MS,
   PUBLIC_EVENT_LIMIT,
+  PUBLIC_EXCEPTION_LIMIT,
   TRACK_RATE_LIMIT,
   lookupPublicTracking,
 } = await import("@/lib/shipments/public-lookup");
@@ -508,6 +551,98 @@ describe("timeline bounds (§25)", () => {
     if (!result.ok) return;
     expect(result.timelineTruncated).toBe(true);
     expect(result.tracking.events).toHaveLength(PUBLIC_EVENT_LIMIT);
+  });
+});
+
+/* ================================================================== *
+ * 4b · M-78 — the §21 exception banner, wired
+ * ================================================================== */
+
+describe("§21 exception banner (M-78)", () => {
+  const EXCEPTION_INTERNAL = "SENTINEL-track-internal-do-not-leak";
+
+  function exception(
+    overrides: Partial<PublicExceptionFixture> = {},
+  ): PublicExceptionFixture {
+    return {
+      id: "ex-1",
+      shipment_id: "sh-1",
+      exception_type: "facility_delay",
+      severity: "high",
+      public_description: "phrase:exception.facility_delay",
+      opened_at: "2026-08-07T08:00:00.000Z",
+      resolved_at: null,
+      ...overrides,
+    };
+  }
+
+  it("surfaces the exception on the public DTO — the wiring M-73 deferred", async () => {
+    options = { shipment: shipmentRow(), exceptions: [exception()] };
+    const result = await lookupPublicTracking(request());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.tracking.exceptions).toHaveLength(1);
+    expect(result.tracking.exceptions[0]?.description).toBe(
+      "phrase:exception.facility_delay",
+    );
+    expect(result.tracking.exceptions[0]?.exception_type_key).toBe(
+      "shipment.exception.facility_delay",
+    );
+  });
+
+  it("NON-VACUITY: with no exception rows the list is empty, so the banner is real data", async () => {
+    options = { shipment: shipmentRow(), exceptions: [] };
+    const result = await lookupPublicTracking(request());
+    expect(result.ok && result.tracking.exceptions).toEqual([]);
+  });
+
+  it("selects a projection that names NEITHER forbidden §21 column", async () => {
+    options = { shipment: shipmentRow(), exceptions: [exception()] };
+    await lookupPublicTracking(request());
+    expect(exceptionProjection).not.toContain("internal_description");
+    expect(exceptionProjection).not.toContain("resolution");
+    expect(exceptionProjection).toContain("public_description");
+  });
+
+  it("bounds the read (§25) — a shipment cannot stack unlimited banners", async () => {
+    options = { shipment: shipmentRow(), exceptions: [exception()] };
+    await lookupPublicTracking(request());
+    expect(exceptionLimit).toBe(PUBLIC_EXCEPTION_LIMIT);
+    expect(PUBLIC_EXCEPTION_LIMIT).toBeLessThan(PUBLIC_EVENT_LIMIT);
+  });
+
+  it("FAILS SOFT: an exception-read error still serves the tracking page", async () => {
+    // Deliberately asymmetric with the TIMELINE read, which fails hard. A lost
+    // timeline makes a moving shipment look stalled — a wrong answer. A missing
+    // banner is a missing answer on a page whose status and ETA are correct,
+    // and taking the whole page away to avoid a degraded one is worse.
+    options = {
+      shipment: shipmentRow(),
+      exceptions: [exception()],
+      exceptionsError: { message: "relation does not exist" },
+    };
+    const result = await lookupPublicTracking(request());
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.tracking.exceptions).toEqual([]);
+    // …and the status the customer came for is still there.
+    expect(result.ok && result.tracking.status).toBe("in_transit");
+  });
+
+  it("carries no internal commentary even when the row type has room for it", async () => {
+    // The projection cannot fetch it, so this asserts the SECOND construction:
+    // the widener writes the withheld columns as literal nulls.
+    options = {
+      shipment: shipmentRow(),
+      exceptions: [
+        {
+          ...exception(),
+          // A field the projection never selects, injected anyway.
+          ...({ internal_description: EXCEPTION_INTERNAL } as object),
+        },
+      ],
+    };
+    const result = await lookupPublicTracking(request());
+    expect(JSON.stringify(result)).not.toContain(EXCEPTION_INTERNAL);
   });
 });
 

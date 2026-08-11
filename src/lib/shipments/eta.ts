@@ -2,7 +2,15 @@ import "server-only";
 
 import { recordAuditEvent } from "@/lib/audit";
 import { tryCreateAdminClient } from "@/lib/supabase/admin";
+import { getShipperOwnerRecipient, notifyCustomer } from "@/lib/notify";
 import { logShipmentSignal } from "@/lib/shipments/observability";
+import {
+  ETA_ESTIMATE_METHOD,
+  describeEstimate,
+  estimateEta,
+  type EtaEstimate,
+  type EtaEstimateRefusal,
+} from "@/lib/shipments/eta-estimate";
 import type {
   EtaConfidence,
   EtaKind,
@@ -12,43 +20,76 @@ import type {
 } from "@/lib/shipments/types";
 
 /**
- * M-75 — §14's "update ETA", and an honest statement of where it stops.
+ * M-78 — §10's ETA architecture, complete. (M-75 owned the first half; this
+ * file is the same module grown into the scope the plan assigned to M-78.)
  *
- * ── WHAT M-78 OWNS AND THIS FILE DOES NOT PRETEND TO ──────────────────────
+ * ── §10'S THREE OBLIGATIONS WHEN AN ETA CHANGES ───────────────────────────
  *
- * `docs/FINAL-IMPLEMENTATION-PLAN.md` §7 assigns the ETA ARCHITECTURE to
- * **M-78**: *"ETA architecture (8 fields incl. `eta_confidence`, public/
- * internal delay reasons), ETA-change events, previous-value history"*, plus
- * `shipment_eta_history` (M-70's `ShipmentEtaHistoryRow`, a table M-71
- * deliberately did not create). M-75's own scope line says only "status/ETA
- * updates", and the task is explicit: *"wire what M-71's columns already have
- * and defer the rest honestly."*
+ * *"When ETA changes: create a shipment event; notify the customer according
+ * to preferences; preserve previous ETA values in history or metadata."*
  *
- * So this file writes EXACTLY the seven columns 0017 shipped —
- * `estimated_pickup_at`, `estimated_delivery_at`, `eta_source`,
- * `eta_confidence`, `eta_updated_at`, `delay_minutes`,
- * `delay_reason_public` / `delay_reason_internal` — and records the change as
- * an `eta_update` event carrying the PREVIOUS value in `metadata`.
+ * All three happen, and each one has a named owner:
  *
- * **Deferred to M-78, stated rather than implied:**
- *   * `shipment_eta_history` as a table (queryable ETA history, `event_id`
- *     back-reference, per-kind previous values). Today the history is real but
- *     lives in the event ledger, so M-78 arrives to data it can backfill from
- *     rather than to a column that was never populated.
- *   * Calculated and provider ETAs. `EtaSource` has `calculated`, `provider`
- *     and `dispatcher_adjusted` values; **nothing in M-75 writes them**, and
- *     the dispatcher form offers only `manual` and `dispatcher_adjusted`.
- *     Offering "calculated" from a form that does no calculation is precisely
- *     the fake capability §30 forbids.
- *   * Confidence decay, ETA recomputation on a location update, and the
- *     late-delivery sweep (`system` → `delayed`, M-79).
+ *   1. EVENT — `set_shipment_eta()` inserts the `eta_update` row in the same
+ *      transaction as the column write (0022, unchanged).
+ *   2. HISTORY — 0025 added the `shipment_eta_history` INSERT to that same
+ *      transaction, carrying `previous_eta_at` beside `new_eta_at`. One
+ *      statement, so an ETA whose history is missing is not a state the system
+ *      can reach. The event ALSO keeps its metadata copy: §7 is append-only
+ *      and deleting what past events said would rewrite history.
+ *   3. NOTIFY — `notifyEtaChange()` below.
  *
- * ── §30: THE LABEL IS THE FEATURE ─────────────────────────────────────────
+ * ── WHAT "NOTIFY THE CUSTOMER" HONESTLY MEANS TODAY ───────────────────────
  *
- * `eta_source` is not decoration. M-73 and M-74 both render
- * `label.eta_dispatcher` when it says a human typed the ETA, and that label is
- * only honest if this write path never sets a source it cannot justify. It is
- * a REQUIRED argument here — no default — so a caller has to decide.
+ * The decision, argued rather than assumed. §17 names TWO launch channels:
+ * email and in-app notifications. `src/lib/notify.ts` is the SHIPPED fan-out
+ * that writes the in-app row and, when given a built email, sends it — it is
+ * M-60's, it is used by five existing flows, and it already resolves the
+ * recipient's locale from `profiles.preferred_language`.
+ *
+ * So this module CALLS it, with `email` omitted. That is the honest reuse:
+ *   * the in-app notification is REAL today — the row appears in the shipper's
+ *     portal feed, linked to the shipment, the moment the ETA moves;
+ *   * the localized EMAIL is not, because there is no shipment email template
+ *     in `src/emails/` and inventing one here would be M-79's eleven customer
+ *     events, idempotency, dedupe, retry-with-backoff and preference matrix
+ *     built badly in one file. Passing `email: null` sends nothing and claims
+ *     nothing.
+ *
+ * The HAND-OFF is the `eta_update` event, which M-79's worker selects on. It
+ * is already written, already carries the previous and new values, and already
+ * has an idempotency key when the caller supplies one — so M-79 arrives to a
+ * queue rather than to a retrofit.
+ *
+ * "According to preferences", stated exactly: the only customer preference
+ * that EXISTS today is `profiles.preferred_language`, and `notifyCustomer`
+ * honours it. There is no per-event opt-out table; M-79 owns it. This module
+ * does not pretend to consult one.
+ *
+ * Two things it does decide, because they are §10's own logic and not M-79's:
+ *   * a PICKUP ETA change does not notify the consignee-facing feed — §17's
+ *     customer notification list names "delivery ETA updated", not pickup;
+ *   * a REPLAYED write notifies nobody. A retried form submission must not
+ *     produce a second notification, which is the one dedupe rule that can be
+ *     honoured without M-79's infrastructure.
+ *
+ * ── §30 AND THE THREE REACHABLE SOURCES ───────────────────────────────────
+ *
+ *   `manual` / `dispatcher_adjusted` — a human typed it. The customer page
+ *       labels it "ETA provided by dispatcher".
+ *   `calculated` — the SERVER computed it from `shipments.distance_miles` by
+ *       the stated method in `eta-estimate.ts`. The submitted datetime is
+ *       DISCARDED; an operator cannot label a typed guess as calculated
+ *       because the typed value never reaches the database on this path. The
+ *       customer page labels it "Estimated from distance and standard transit
+ *       times" — a different sentence, because it is a different claim.
+ *   `provider` — UNREACHABLE. Nothing in this codebase receives an ETA from a
+ *       telematics provider; M-80 owns those adapters. `DISPATCHER_ETA_SOURCES`
+ *       excludes it, `UNREACHABLE_ETA_SOURCES` names it, and a unit test pins
+ *       the partition so it cannot drift into the form by accident.
+ *
+ * `eta_source` remains a REQUIRED argument with no default. A caller has to
+ * decide what claim it is making.
  */
 
 export type EtaFailureCode =
@@ -56,6 +97,8 @@ export type EtaFailureCode =
   | "shipment_not_found"
   | "no_change"
   | "invalid_input"
+  /** §26 — `calculated` was asked for and the inputs could not support it. */
+  | "cannot_calculate"
   | "write_failed";
 
 export interface EtaFailure {
@@ -69,10 +112,16 @@ export interface EtaSuccess {
   ok: true;
   shipmentId: string;
   eventId: string;
+  /** The `shipment_eta_history` row 0025 wrote, when one was written. */
+  historyId: string | null;
   kind: EtaKind;
   previousAt: string | null;
   newAt: string | null;
   replayed: boolean;
+  /** Set when the source was `calculated` — the method's own account of itself. */
+  estimate: EtaEstimate | null;
+  /** True when the in-app customer notification was written (§10, §17). */
+  customerNotified: boolean;
 }
 
 export type EtaResult = EtaSuccess | EtaFailure;
@@ -86,7 +135,10 @@ export type EtaResult = EtaSuccess | EtaFailure;
 export interface SetEtaInput {
   shipmentId: string;
   kind: EtaKind;
-  /** `null` clears the ETA — and is recorded as a change, not as a no-op. */
+  /**
+   * `null` clears the ETA — and is recorded as a change, not as a no-op.
+   * IGNORED when `etaSource` is `calculated`: the server computes its own.
+   */
   newAt: string | null;
   /** Required. See the §30 note above. */
   etaSource: EtaSource;
@@ -109,6 +161,12 @@ export interface SetEtaInput {
   visibility?: ShipmentEventVisibility;
   publicMessage?: string | null;
   idempotencyKey?: string | null;
+  /**
+   * Suppress the §10 customer notification. Used by the backfill/replay paths
+   * and by tests; a form never sets it. Named rather than inferred so
+   * "why didn't the customer get told?" has a greppable answer.
+   */
+  skipNotification?: boolean;
 }
 
 interface PostgrestLikeError {
@@ -139,6 +197,16 @@ function defaultEtaSource(
   return ETA_EVENT_SOURCE[actorRole];
 }
 
+/** Operator-readable refusals for the three ways an estimate can be refused. */
+const ESTIMATE_REFUSAL_MESSAGE: Record<EtaEstimateRefusal, string> = {
+  no_distance:
+    "This shipment has no distance recorded, so there is nothing to calculate from. Enter the ETA yourself, or add the mileage first.",
+  distance_out_of_range:
+    "The recorded distance is outside the range this method can estimate from. Check the mileage, or enter the ETA yourself.",
+  invalid_departure:
+    "Couldn't read the departure time to estimate from. Enter the ETA yourself.",
+};
+
 export async function setShipmentEta(input: SetEtaInput): Promise<EtaResult> {
   const admin = tryCreateAdminClient();
   if (!admin) {
@@ -150,15 +218,95 @@ export async function setShipmentEta(input: SetEtaInput): Promise<EtaResult> {
     };
   }
 
+  /*
+   * §25 — ONE extra read, and only on the two paths that need it: the
+   * calculated source needs `distance_miles`, and the notification needs
+   * `shipper_id` + `tracking_number`. Both are on the same row, so the
+   * `calculated` + notify case costs one query rather than two.
+   *
+   * The columns are named. §18's financial trio and `public_access_hash` are
+   * not among them, so an ETA write never has a margin in memory.
+   */
+  const needsShipment =
+    input.etaSource === "calculated" || input.skipNotification !== true;
+  let distanceMiles: number | null = null;
+  let shipperId: string | null = null;
+  let trackingNumber: string | null = null;
+
+  if (needsShipment) {
+    const { data, error } = await admin
+      .from("shipments")
+      .select("distance_miles, shipper_id, tracking_number")
+      .eq("id", input.shipmentId)
+      .maybeSingle();
+    if (error) {
+      return etaFailure({ code: "PL500", message: error.message }, input);
+    }
+    if (!data) {
+      return etaFailure(
+        { code: "PL404", message: "shipment not found" },
+        input,
+      );
+    }
+    distanceMiles = data.distance_miles;
+    shipperId = data.shipper_id;
+    trackingNumber = data.tracking_number;
+  }
+
+  /*
+   * THE CALCULATED PATH. `input.newAt` is discarded here, deliberately and
+   * visibly: whatever the form submitted, the value stored is the one this
+   * server computed. That is the whole mechanism behind the honest label —
+   * `eta_source = 'calculated'` cannot be attached to an operator's number,
+   * because on this branch the operator's number is not used.
+   */
+  let estimate: EtaEstimate | null = null;
+  let newAt = input.newAt;
+  let confidence = input.etaConfidence ?? null;
+  let reasonInternal = input.reasonInternal ?? null;
+
+  if (input.etaSource === "calculated") {
+    const result = estimateEta(distanceMiles);
+    if (!result.ok) {
+      // §26 names `eta_calculation_failure` among the nine tracked signals,
+      // and THIS is the case it was named for: the pipeline was asked for a
+      // number and honestly could not produce one.
+      logShipmentSignal({
+        signal: "eta_calculation_failure",
+        code: result.reason,
+        shipmentId: input.shipmentId,
+        trackingNumber,
+        actorRole: input.actorRole,
+        actorId: input.actorId,
+        detail: `${ETA_ESTIMATE_METHOD}: ${result.reason}`,
+      });
+      return {
+        ok: false,
+        code: "cannot_calculate",
+        message: ESTIMATE_REFUSAL_MESSAGE[result.reason],
+        shipmentId: input.shipmentId,
+      };
+    }
+    estimate = result;
+    newAt = result.etaAt;
+    // The method grades its own output; a form cannot overrule it upward.
+    confidence = result.confidence;
+    // The method's own account of itself, on the staff record. §24 exempts
+    // internal staff notes from translation and this is one.
+    reasonInternal = [reasonInternal, describeEstimate(result)]
+      .filter((part): part is string => part !== null && part !== "")
+      .join(" · ");
+  }
+
   const { data, error } = await admin.rpc("set_shipment_eta", {
     p_shipment_id: input.shipmentId,
     p_kind: input.kind,
-    p_new_eta_at: input.newAt,
+    p_new_eta_at: newAt,
     p_eta_source: input.etaSource,
-    p_eta_confidence: input.etaConfidence ?? null,
+    p_eta_confidence: confidence,
     p_delay_minutes: input.delayMinutes ?? null,
     p_reason_public: input.reasonPublic ?? null,
-    p_reason_internal: input.reasonInternal ?? null,
+    p_reason_internal: reasonInternal,
     p_actor: input.actorId,
     p_source: input.source ?? defaultEtaSource(input.actorRole),
     p_visibility: input.visibility ?? "shipper",
@@ -173,11 +321,15 @@ export async function setShipmentEta(input: SetEtaInput): Promise<EtaResult> {
     ok: true,
     shipmentId: input.shipmentId,
     eventId: String(envelope.event_id ?? ""),
+    historyId:
+      typeof envelope.history_id === "string" ? envelope.history_id : null,
     kind: input.kind,
     previousAt:
       typeof envelope.previous_at === "string" ? envelope.previous_at : null,
     newAt: typeof envelope.new_at === "string" ? envelope.new_at : null,
     replayed: envelope.replayed === true,
+    estimate,
+    customerNotified: false,
   };
 
   if (!success.replayed) {
@@ -191,15 +343,84 @@ export async function setShipmentEta(input: SetEtaInput): Promise<EtaResult> {
         previous_at: success.previousAt,
         new_at: success.newAt,
         eta_source: input.etaSource,
-        eta_confidence: input.etaConfidence ?? null,
+        eta_confidence: confidence,
         delay_minutes: input.delayMinutes ?? null,
         event_id: success.eventId,
+        history_id: success.historyId,
+        estimate_method: estimate === null ? null : ETA_ESTIMATE_METHOD,
         actor_role: input.actorRole,
       },
+    });
+
+    // §10's second obligation. Best-effort by construction — see the note in
+    // `notifyEtaChange`.
+    success.customerNotified = await notifyEtaChange({
+      kind: input.kind,
+      shipperId,
+      shipmentId: input.shipmentId,
+      trackingNumber,
+      skip: input.skipNotification === true,
     });
   }
 
   return success;
+}
+
+/* ------------------------------------------------------------------ *
+ * §10 — "notify the customer according to preferences"
+ * ------------------------------------------------------------------ */
+
+interface NotifyEtaChangeInput {
+  kind: EtaKind;
+  shipperId: string | null;
+  shipmentId: string;
+  trackingNumber: string | null;
+  skip: boolean;
+}
+
+/**
+ * Write the in-app customer notification for an ETA change.
+ *
+ * BEST-EFFORT, and that is a decision rather than an oversight: the ETA is
+ * already committed by the time this runs, so a notification failure must not
+ * fail the operator's action and roll nothing back. `notifyCustomer` is itself
+ * best-effort for the same reason (M-60), and this function returns a boolean
+ * rather than throwing so the caller can record what actually happened.
+ *
+ * NO EMAIL. `email` is omitted, so `notifyCustomer` writes the feed row and
+ * sends nothing. See the module header for why building a shipment email here
+ * would be M-79's job done badly.
+ *
+ * The title carries the tracking number and nothing else. §17: *"do not expose
+ * sensitive data"* — a notification row is rendered in a feed, may be
+ * summarised in a push payload later, and has no business carrying a delay
+ * reason, a customer's own commercial reference or an address.
+ */
+async function notifyEtaChange(
+  input: NotifyEtaChangeInput,
+): Promise<boolean> {
+  // §17's customer list names "delivery ETA updated". A pickup ETA is
+  // operational scheduling between dispatch and the carrier; the shipper sees
+  // it on their timeline, which is where it belongs.
+  if (input.skip || input.kind !== "delivery") return false;
+  if (input.shipperId === null) return false;
+
+  const admin = tryCreateAdminClient();
+  if (!admin) return false;
+
+  const recipient = await getShipperOwnerRecipient(admin, input.shipperId);
+  // No portal owner = nobody to notify. Not an error: a shipment can be
+  // created for an organization before its owner account is invited.
+  if (!recipient) return false;
+
+  await notifyCustomer({
+    recipient,
+    kind: "shipment_eta",
+    title: `Updated delivery estimate — ${input.trackingNumber ?? "your shipment"}`,
+    body: "Open the shipment for the current estimate and timeline.",
+    href: `/portal/shipper/shipments/${input.shipmentId}`,
+  });
+  return true;
 }
 
 function etaFailure(
@@ -228,9 +449,9 @@ function etaFailure(
   }
 
   // §26 names `eta_calculation_failure` among the nine tracked signals. It is
-  // the right one even though nothing here CALCULATES: the signal is about
-  // the ETA pipeline failing to produce a value, and M-78's calculator will
-  // emit the same one rather than a tenth string.
+  // the right one even for a write failure: the signal is about the ETA
+  // pipeline failing to produce a value, and the calculator above emits the
+  // same one rather than a tenth string.
   logShipmentSignal({
     signal: "eta_calculation_failure",
     code,

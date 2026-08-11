@@ -67,6 +67,9 @@ function literal(value: unknown): string {
 interface Filter {
   column: string;
   value: unknown;
+  /** M-78 — `not(column, "is", null)`, the one negation the module uses. */
+  negated?: boolean;
+  operator?: "eq" | "is";
 }
 
 interface Ordering {
@@ -85,7 +88,23 @@ class SelectBuilder implements PromiseLike<{ rows: unknown[]; error: PgError | n
   ) {}
 
   eq(column: string, value: unknown): this {
-    this.filters.push({ column, value });
+    this.filters.push({ column, value, operator: "eq" });
+    return this;
+  }
+
+  /**
+   * M-78 — `not(column, "is", null)`, which `lookupPublicTracking` uses so an
+   * exception with nothing honest to publish never enters the process. Only
+   * `is` is implemented; anything else THROWS, so a future query shape cannot
+   * silently take an untested path (the same rule the RLS adapter follows).
+   */
+  not(column: string, operator: string, value: unknown): this {
+    if (operator !== "is") {
+      throw new Error(
+        `psql-supabase: not("${column}", "${operator}") is not supported`,
+      );
+    }
+    this.filters.push({ column, value, negated: true, operator: "is" });
     return this;
   }
 
@@ -124,7 +143,11 @@ class SelectBuilder implements PromiseLike<{ rows: unknown[]; error: PgError | n
       this.filters.length === 0
         ? ""
         : ` where ${this.filters
-            .map((f) => `"${f.column}" = ${literal(f.value)}`)
+            .map((f) =>
+              f.operator === "is"
+                ? `"${f.column}" is ${f.negated ? "not " : ""}${literal(f.value)}`
+                : `"${f.column}" = ${literal(f.value)}`,
+            )
             .join(" and ")}`;
     const order =
       this.orderings.length === 0

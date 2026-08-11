@@ -239,6 +239,40 @@ export const logExceptionSchema = z.object({
   ),
 });
 
+/**
+ * M-78 — §14's other half: resolve.
+ *
+ * `resolution` is REQUIRED here, refused blank by 0025 with PL422, and refused
+ * a third time by the `shipment_exceptions_resolution_present` CHECK. Three
+ * layers for one rule, and this is the only one that can explain itself to the
+ * operator — the same shape `correctionSchema` gives §20's mandatory reason.
+ */
+export const resolveExceptionSchema = z.object({
+  exception_id: z.uuid("Choose an open exception."),
+  resolution: requiredText(
+    2000,
+    "Say what closed it — six months from now this is the only answer to “what happened on that load?”.",
+  ),
+  /** Optional calm line for the customer timeline — a D-6 token or free text. */
+  public_message: optionalText(600),
+});
+
+/**
+ * M-78 — §21's triage fields. EVERY field is optional and blank means "leave
+ * it alone": a form that cleared what it did not set would un-assign an
+ * exception every time somebody changed its severity.
+ */
+export const triageExceptionSchema = z.object({
+  exception_id: z.uuid("Choose an open exception."),
+  assigned_to: optionalUuid,
+  severity: z
+    .union([z.literal(""), z.enum(SHIPMENT_EXCEPTION_SEVERITIES)])
+    .transform((v) => (v ? v : null)),
+  public_description: optionalText(600),
+  /** One-way. 0025 refuses un-notifying; `false` here means "no change". */
+  mark_customer_notified: z.coerce.boolean().catch(false),
+});
+
 /** §14 "request POD". */
 export const requestPodSchema = z.object({
   shipment_id: shipmentId,

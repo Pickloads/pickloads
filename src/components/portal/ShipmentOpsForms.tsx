@@ -10,6 +10,8 @@ import {
   correctStatusAction,
   createShipmentAction,
   logExceptionAction,
+  resolveExceptionAction,
+  triageExceptionAction,
   recordCallAction,
   recordEmailAction,
   releaseCarrierAction,
@@ -23,9 +25,10 @@ import {
 } from "@/app/actions/dispatcher-shipments";
 import { initialFormState, type FormState } from "@/lib/form-state";
 import {
-  PUBLIC_PHRASE_IDS,
   PUBLIC_PHRASES,
   phraseToken,
+  phrasesInGroup,
+  type PhraseGroup,
 } from "@/lib/shipments/phrases";
 import {
   DISPATCHER_ETA_SOURCES,
@@ -163,11 +166,13 @@ function PhrasePicker({
 }: {
   name: string;
   label: string;
-  group: "update" | "delay" | "exception";
+  group: PhraseGroup;
   help?: string;
 }) {
   const [value, setValue] = useState("");
-  const ids = PUBLIC_PHRASE_IDS.filter((id) => id.startsWith(`${group}.`));
+  // M-78: the group list is DATA (`PHRASE_GROUPS`), so adding `resolution.*`
+  // to the library made it pickable here with no change to this component.
+  const ids = phrasesInGroup(group);
   return (
     <div className="field">
       <label htmlFor={`${name}-pick`}>{label} — pick a translated phrase</label>
@@ -746,15 +751,18 @@ export function EtaUpdateForm({
   shipmentId,
   pickupEta,
   deliveryEta,
+  distanceMiles,
 }: {
   shipmentId: string;
   pickupEta: string | null;
   deliveryEta: string | null;
+  /** M-78 — `shipments.distance_miles`, the ONLY input `calculated` has. */
+  distanceMiles: number | null;
 }) {
   return (
     <ActionCard
       title="Update ETA"
-      description="Dispatcher-entered ETAs only. The customer page labels them as entered by dispatch — PickLoads does not predict ETAs."
+      description="Manual and dispatcher-adjusted ETAs are typed by you and labelled to the customer as provided by dispatch. Calculated is arithmetic over the recorded mileage — the server works it out and ignores whatever time you typed. PickLoads does not predict ETAs and has no provider feed."
       action={updateEtaAction}
       submitLabel="Save ETA"
       busyLabel="Saving…"
@@ -806,6 +814,12 @@ export function EtaUpdateForm({
       <p className="pempty" style={{ padding: "0 0 12px" }}>
         Currently — pickup ETA: {pickupEta ?? "not set"} · delivery ETA:{" "}
         {deliveryEta ?? "not set"}
+        <br />
+        {/* §30 on a staff surface: say what "calculated" can and cannot do,
+            where the operator is choosing it, rather than in a doc. */}
+        {distanceMiles === null
+          ? "Calculated is unavailable on this shipment — no mileage is recorded, and the estimate has nothing to work from."
+          : `Calculated uses ${distanceMiles.toLocaleString("en-US")} mi at 50 mph planning speed, plus required rest (49 CFR 395.3) and 2 h dock dwell at each end. Not traffic-, weather- or route-aware.`}
       </p>
     </ActionCard>
   );
@@ -960,7 +974,7 @@ export function LogExceptionForm({ shipmentId }: { shipmentId: string }) {
   return (
     <ActionCard
       title="Log an exception"
-      description="Recorded on the timeline with its type and severity. Resolving exceptions, assignment and customer-notified tracking arrive with the exceptions module."
+      description="Opens a tracked exception: it appears in the register below with its type, severity and lifecycle, and on the timeline. Leave the customer line blank and it stays internal."
       action={logExceptionAction}
       submitLabel="Log exception"
       busyLabel="Logging…"
@@ -1004,6 +1018,187 @@ export function LogExceptionForm({ shipmentId }: { shipmentId: string }) {
           maxLength={2000}
           required
         />
+      </div>
+    </ActionCard>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * M-78 — §21's other half: triage and resolve
+ * ------------------------------------------------------------------ */
+
+/** One open exception, as the two lifecycle forms need to name it. */
+export interface OpenExceptionOption {
+  id: string;
+  exception_type: string;
+  severity: string;
+  opened_at: string;
+}
+
+function exceptionOptionLabel(e: OpenExceptionOption): string {
+  const type = e.exception_type.replace(/_/g, " ");
+  const opened = new Date(e.opened_at).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `${type} · ${e.severity} · opened ${opened}`;
+}
+
+/**
+ * §14's "resolve exception" — the action M-75 named as M-78's and did not
+ * build, because *"resolving needs a row to resolve and a lifecycle to
+ * close"*.
+ *
+ * The resolution is REQUIRED and the field says why. 0025 refuses a blank one
+ * with PL422 and a CHECK refuses it a second time, so this is the layer that
+ * explains rather than the layer that enforces — the same shape M-75 gave the
+ * §20 correction reason.
+ */
+export function ResolveExceptionForm({
+  shipmentId,
+  exceptions,
+}: {
+  shipmentId: string;
+  exceptions: readonly OpenExceptionOption[];
+}) {
+  return (
+    <ActionCard
+      title="Resolve an exception"
+      description="Closes it for good — resolution is one-way, and re-opening means logging a new exception. The customer line is optional and is translated when you pick a standard phrase."
+      action={resolveExceptionAction}
+      submitLabel="Resolve exception"
+      busyLabel="Resolving…"
+      tone="ghost"
+    >
+      {/* The §19 scope gate keys on the SHIPMENT, exactly as every other
+          action in this file; the server then checks that the chosen
+          exception belongs to it. Two conditions, both server-side. */}
+      <Hidden id={shipmentId} />
+      <div className="field">
+        <label htmlFor="rx-id">Which exception</label>
+        <select id="rx-id" name="exception_id" required defaultValue="">
+          <option value="" disabled>
+            Choose an open exception…
+          </option>
+          {exceptions.map((e) => (
+            <option key={e.id} value={e.id}>
+              {exceptionOptionLabel(e)}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="field">
+        <label htmlFor="rx-resolution">What closed it *</label>
+        <textarea
+          id="rx-resolution"
+          name="resolution"
+          rows={3}
+          maxLength={2000}
+          required
+          aria-describedby="rx-resolution-help"
+        />
+        <p id="rx-resolution-help" className="pempty" style={{ padding: "4px 0 0" }}>
+          Internal, and mandatory. Six months from now this is the only answer
+          to &ldquo;what happened on that load?&rdquo;.
+        </p>
+      </div>
+      <PhrasePicker
+        name="public_message"
+        label="What the customer is told"
+        group="resolution"
+        help="Optional. Leave it blank and the closure stays internal — the warning banner still comes down, because a resolved exception is no longer shown as open."
+      />
+    </ActionCard>
+  );
+}
+
+/**
+ * Triage: assign, re-severity, add the customer wording, or record that the
+ * customer was told.
+ *
+ * No timeline event is written — see `triageShipmentException`. Every field is
+ * OPTIONAL and blank means "leave it alone": a triage form that cleared what
+ * it did not set would un-assign an exception every time somebody changed its
+ * severity.
+ */
+export function TriageExceptionForm({
+  shipmentId,
+  exceptions,
+  staff,
+}: {
+  shipmentId: string;
+  exceptions: readonly OpenExceptionOption[];
+  staff: AssignOption[];
+}) {
+  return (
+    <ActionCard
+      title="Triage an exception"
+      description="Assign it, change its severity, publish customer wording, or record that the customer has been told. Blank fields are left as they are."
+      action={triageExceptionAction}
+      submitLabel="Save triage"
+      busyLabel="Saving…"
+      tone="ghost"
+    >
+      <Hidden id={shipmentId} />
+      <div className="field">
+        <label htmlFor="tx-id">Which exception</label>
+        <select id="tx-id" name="exception_id" required defaultValue="">
+          <option value="" disabled>
+            Choose an open exception…
+          </option>
+          {exceptions.map((e) => (
+            <option key={e.id} value={e.id}>
+              {exceptionOptionLabel(e)}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="pform-row">
+        <div className="field">
+          <label htmlFor="tx-assign">Assign to</label>
+          <select id="tx-assign" name="assigned_to" defaultValue="">
+            <option value="">Leave unchanged</option>
+            {staff.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="tx-severity">Severity</label>
+          <select id="tx-severity" name="severity" defaultValue="">
+            <option value="">Leave unchanged</option>
+            {SHIPMENT_EXCEPTION_SEVERITIES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <PhrasePicker
+        name="public_description"
+        label="What the customer is told"
+        group="exception"
+        help="Publishing wording here makes the banner appear on their tracking page. Leave it blank to change nothing."
+      />
+      <div className="field">
+        <label htmlFor="tx-notified">
+          <input
+            id="tx-notified"
+            name="mark_customer_notified"
+            type="checkbox"
+            value="true"
+          />{" "}
+          Record that the customer has been told
+        </label>
+        <p className="pempty" style={{ padding: "4px 0 0" }}>
+          One-way. It stamps the time; it cannot be un-stamped, because the
+          customer either was told or was not.
+        </p>
       </div>
     </ActionCard>
   );

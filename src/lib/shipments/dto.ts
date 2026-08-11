@@ -339,6 +339,11 @@ export interface StaffExceptionDto {
   assigned_to: string | null;
   customer_notified_at: string | null;
   resolution: string | null;
+  /** M-78 — the `exception_opened` event this row was opened by / backfilled
+   *  from, and the `exception_resolved` event that closed it. Staff jump from
+   *  the exception card to the ledger entry; no customer DTO names either. */
+  source_event_id: string | null;
+  resolution_event_id: string | null;
 }
 
 function toStaffExceptionDto(
@@ -359,6 +364,8 @@ function toStaffExceptionDto(
     assigned_to: exception.assigned_to,
     customer_notified_at: exception.customer_notified_at,
     resolution: exception.resolution,
+    source_event_id: exception.source_event_id,
+    resolution_event_id: exception.resolution_event_id,
   };
 }
 

@@ -6,11 +6,11 @@ import { field, guardPublicForm } from "@/lib/forms/guard";
 import type { FormState } from "@/lib/form-state";
 import { firstIssueMessage } from "@/lib/validation/shared";
 import {
-  appendShipmentEvent,
   applyShipmentTransition,
   resolveShipmentFacts,
 } from "@/lib/shipments/apply-transition";
 import { setShipmentEta } from "@/lib/shipments/eta";
+import { openShipmentException } from "@/lib/shipments/exceptions";
 import {
   DRIVER_UPDATE_RATE_LIMIT,
   DRIVER_UPDATE_RATE_LIMIT_FORM,
@@ -404,22 +404,29 @@ export async function driverExceptionAction(
     return fail(DRIVER_NOT_NOW_KEY);
   }
 
-  const result = await appendShipmentEvent({
+  /*
+   * M-78 — the driver's report now opens a REAL §21 row, exactly as the
+   * carrier portal's does. M-76 marked these events `m76_driver_report`
+   * BECAUSE the table did not exist and named M-78 as the module that would
+   * migrate them; 0025's backfill did, and deleted nothing.
+   *
+   * `driver_token_id` stays in `metadata` — it is an internal correlation id
+   * for §13's audit, NOT a credential (the token itself exists only in the
+   * driver's URL and is never stored in any form, hashed or otherwise).
+   *
+   * Severity `medium` and NOTHING published to the customer, for the same two
+   * reasons argued in `carrierExceptionAction`.
+   */
+  const result = await openShipmentException({
     shipmentId: grant.shipment.shipment_id,
-    eventType: "exception_opened",
-    actor: "driver",
-    actorId: null,
+    exceptionType: d.exception_type,
+    severity: "medium",
+    publicDescription: null,
+    internalDescription: d.description,
+    openedBy: null,
     source: "driver",
-    visibility: "carrier",
-    internalMessage: d.description,
-    metadata: {
-      exception_type: d.exception_type,
-      severity: "medium",
-      exception_source: "m76_driver_report",
-      reported_by: "driver",
-      driver_token_id: grant.tokenId,
-    },
-    status: grant.shipment.status,
+    reportedBy: "driver",
+    metadata: { driver_token_id: grant.tokenId },
   });
   if (!result.ok) return fail(DRIVER_NOT_NOW_KEY);
   return done(DRIVER_REPORTED_KEY);

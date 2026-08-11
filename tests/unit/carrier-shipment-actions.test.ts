@@ -168,12 +168,34 @@ vi.mock("@/lib/supabase/admin", () => ({
     },
     from(table: string) {
       writes.push(`admin:${table}`);
+      /* M-78 widened this builder: `setShipmentEta` now reads the shipment
+       * row (distance / shipper / tracking number) before writing, for the
+       * `calculated` source and the §10 customer notification. `eq()` is a
+       * CHAINABLE that is also awaitable, so the pre-existing `.update().eq()`
+       * write path and the new `.select().eq().maybeSingle()` read path both
+       * work against one stub. */
       const b = {
         update: () => b,
         insert: () => Promise.resolve({ error: null }),
-        eq: () => Promise.resolve({ error: null }),
+        eq: () => b,
         select: () => b,
-        maybeSingle: () => Promise.resolve({ data: null }),
+        not: () => b,
+        order: () => b,
+        limit: () => b,
+        maybeSingle: () =>
+          Promise.resolve({
+            data:
+              table === "shipments"
+                ? {
+                    distance_miles: 480,
+                    shipper_id: "22222222-2222-4222-8222-222222222222",
+                    tracking_number: "PL-2026-000458",
+                  }
+                : null,
+            error: null,
+          }),
+        then: (resolve: (value: { error: null; data: null }) => unknown) =>
+          resolve({ error: null, data: null }),
       };
       return b;
     },
@@ -517,13 +539,17 @@ describe("§13 carrier actions call M-72's engine with `actor: carrier`", () => 
     expect(rpcCalls).toEqual(["set_shipment_eta"]);
   });
 
-  it("the exception path is ONE event append with §21's type in metadata", async () => {
+  /* M-78 — §13's "submit exception" now opens a REAL §21 row through 0025's
+   * atomic function, which writes the identical `exception_opened` event in
+   * the same transaction. M-76's `m76_carrier_report` events were migrated by
+   * the 0025 backfill and none was deleted. */
+  it("the exception path is ONE atomic call that opens a §21 row and its event", async () => {
     const result = await carrierActions.carrierExceptionAction(
       { status: "idle" },
       carrierForm(),
     );
     expect(result.status).toBe("success");
-    expect(rpcCalls).toEqual(["append_shipment_event"]);
+    expect(rpcCalls).toEqual(["open_shipment_exception"]);
   });
 
   it("issuing a driver link mints one and returns the path exactly once", async () => {

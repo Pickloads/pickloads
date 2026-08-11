@@ -156,6 +156,8 @@ const OPEN_EXCEPTION: ShipmentExceptionRow = {
   assigned_to: null,
   customer_notified_at: null,
   resolution: "INTERNAL-RESOLUTION",
+  source_event_id: null,
+  resolution_event_id: null,
 };
 
 function renderResult(

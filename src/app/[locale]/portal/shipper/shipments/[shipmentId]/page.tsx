@@ -14,6 +14,10 @@ import {
   parseTimelineCursor,
 } from "@/lib/shipments/shipper-detail";
 import { listShipmentDocuments } from "@/lib/shipments/document-store";
+import {
+  listCustomerExceptions,
+  toCustomerExceptionRows,
+} from "@/lib/shipments/exceptions";
 import { ShipmentDetailView } from "@/components/portal/ShipmentDetailView";
 import type { ShipmentEventRow, ShipmentRow } from "@/lib/shipments/types";
 
@@ -84,14 +88,25 @@ export default async function ShipperShipmentDetailPage({
   // The document read is BOUNDED (`DOCUMENT_PAGE_SIZE` + 1 to answer "is there
   // more?"), so a shipment with four hundred documents costs what one with
   // four costs.
-  const [summary, history, invoiceResult, contactResult, documentResult] =
-    await Promise.all([
-      getShipmentSummary(supabase, shipperId, shipmentId),
-      getShipmentTimelinePage(supabase, shipmentId, { before }),
-      getShipmentInvoices(supabase, shipmentId),
-      getShipmentContacts(supabase, shipmentId),
-      listShipmentDocuments(supabase, shipmentId, "shipper"),
-    ]);
+  // M-78 adds a SIXTH concurrent read on the same principle: §21's exceptions,
+  // through 0025's `my_shipment_exceptions()` under the caller's own session,
+  // which resolves the audience from their memberships and whose return type
+  // carries neither `internal_description` nor `resolution`.
+  const [
+    summary,
+    history,
+    invoiceResult,
+    contactResult,
+    documentResult,
+    exceptionResult,
+  ] = await Promise.all([
+    getShipmentSummary(supabase, shipperId, shipmentId),
+    getShipmentTimelinePage(supabase, shipmentId, { before }),
+    getShipmentInvoices(supabase, shipmentId),
+    getShipmentContacts(supabase, shipmentId),
+    listShipmentDocuments(supabase, shipmentId, "shipper"),
+    listCustomerExceptions(supabase, shipmentId),
+  ]);
 
   if (summary === null) notFound();
 
@@ -144,7 +159,14 @@ export default async function ShipperShipmentDetailPage({
     idempotency_key: null,
   }));
 
-  const shipment = toShipperDto({ shipment: row, events });
+  const shipment = toShipperDto({
+    shipment: row,
+    events,
+    // M-78 — §21's banner on the shipper's own detail page. `toShipperDto`
+    // already drops any exception with no public description, so an internal
+    // exception the shipper has not been told about renders nothing.
+    exceptions: toCustomerExceptionRows(exceptionResult.exceptions),
+  });
 
   const listPath = getPathname({ href: "/portal/shipper/shipments", locale });
   const supportPath = getPathname({ href: "/portal/shipper/support", locale });

@@ -1377,12 +1377,21 @@ select rls_test.ok(
                         'release_shipment_assignment','set_shipment_eta')) = false,
   'NEITHER authenticated NOR anon holds EXECUTE on any of the four (the REVOKE FROM PUBLIC held)');
 
--- 0022 is additive in the strictest sense: it created no table and no policy.
+-- M-78 (0025) INVERTED this assertion. It read, through M-77:
+--
+--   'M-75 did NOT create shipment_exceptions or shipment_eta_history — both
+--    are M-78''s, and a half-created table is a specification that has
+--    started to rot'
+--
+-- The deferral is over. Both tables now exist, both carry M-70's column lists,
+-- and §13 below proves what each audience may read from them. Keeping the old
+-- assertion would fail the suite; deleting it without saying so would erase
+-- the record of a deliberate deferral being honoured.
 select rls_test.ok(
   (select count(*) from information_schema.tables
     where table_schema = 'public'
-      and table_name in ('shipment_exceptions','shipment_eta_history')) = 0,
-  'M-75 did NOT create shipment_exceptions or shipment_eta_history — both are M-78''s, and a half-created table is a specification that has started to rot');
+      and table_name in ('shipment_exceptions','shipment_eta_history')) = 2,
+  'M-78 created BOTH tables M-71 deferred — the deferral was honoured, not forgotten');
 
 -- §5 immutability survives everything M-75 added. Asserted as the OWNER, so
 -- the refusal can only be the 0017 trigger.
@@ -1942,3 +1951,305 @@ select rls_test.ok(
   (shipment_transition_facts('ffffffff-ffff-ffff-ffff-ffffffff0a01') ->> 'closeout_completed_at')
     is null,
   'closeout is STILL a caller assertion — M-77 changed one fact, not two');
+
+-- ===========================================================================
+-- §14 · M-78 — ETA history and §21 exceptions (migration 0025)
+--
+-- The section exists to prove FOUR things this module is accountable for:
+--
+--   1. THE BASE TABLES ARE STAFF-ONLY. Not "customers see a filtered set" —
+--      customers see NOTHING, at any column. That is the design: §21 forbids
+--      exposing `internal_description` and `resolution`, a ROW policy cannot
+--      restrict a COLUMN, and staff share the `authenticated` role with
+--      customers so a column-level REVOKE would blind dispatch. Asserted here
+--      by reading the table as five different sessions.
+--   2. THE ACCESSOR IS THE CUSTOMER PATH, and its RETURN TYPE is the
+--      allow-list. `my_shipment_exceptions()` resolves the audience from the
+--      caller's own memberships — never from an argument — so a shipper
+--      cannot ask for the staff view.
+--   3. §21'S FORBIDDEN COLUMNS ARE UNREACHABLE, proved by SENTINEL: every
+--      fixture row carries a unique string in `internal_description` and
+--      `resolution`, and no customer path returns one.
+--   4. THE WRITE PATH IS service_role ONLY, exactly as 0019/0022/0024.
+--
+-- Non-vacuity throughout: every zero is mirrored by a staff read that is not
+-- zero, so an empty table can never be mistaken for a policy result.
+-- ===========================================================================
+
+reset role;
+set request.jwt.claim.sub = '';
+
+-- ---- 1 · Catalog facts, not inferred from a refusal --------------------
+
+select rls_test.ok(
+  (select relrowsecurity from pg_class where relname = 'shipment_exceptions'),
+  'RLS is ENABLED on shipment_exceptions');
+select rls_test.ok(
+  (select relrowsecurity from pg_class where relname = 'shipment_eta_history'),
+  'RLS is ENABLED on shipment_eta_history');
+
+-- EXACTLY ONE policy on each, and it is the staff one. A second permissive
+-- policy is how a customer band would arrive by accident.
+select rls_test.eq((select count(*) from pg_policies
+   where tablename = 'shipment_exceptions'), 1,
+  'shipment_exceptions carries exactly ONE policy — no customer band exists at the table level');
+select rls_test.eq((select count(*) from pg_policies
+   where tablename = 'shipment_eta_history'), 1,
+  'shipment_eta_history carries exactly ONE policy');
+
+-- The WRITE grants were revoked, which is checked IN ADDITION to RLS. Without
+-- this, a future permissive policy would inherit a write privilege nobody
+-- meant to give. SELECT survives because `is_staff()` evaluates inside an
+-- `authenticated` session and the policy needs a grant to filter.
+select rls_test.ok(
+  (select bool_or(has_table_privilege('authenticated', 'shipment_exceptions', p))
+     from unnest(array['INSERT','UPDATE','DELETE']) p) = false,
+  'authenticated holds NO WRITE privilege on shipment_exceptions — every write goes through the service-role functions');
+select rls_test.ok(
+  has_table_privilege('authenticated', 'shipment_exceptions', 'SELECT'),
+  'NON-VACUITY: authenticated DOES hold SELECT, so every customer zero below is a POLICY result and not a permission error');
+select rls_test.ok(
+  (select bool_or(has_table_privilege('anon', 'shipment_eta_history', p))
+     from unnest(array['SELECT','INSERT','UPDATE','DELETE']) p) = false,
+  'anon holds NO privilege at all on shipment_eta_history');
+select rls_test.ok(
+  (select bool_or(has_table_privilege('anon', 'shipment_exceptions', p))
+     from unnest(array['SELECT','INSERT','UPDATE','DELETE']) p) = false,
+  'anon holds NO privilege at all on shipment_exceptions');
+
+-- ---- 2 · The base tables reach NO customer ----------------------------
+
+set role authenticated;
+
+-- ZERO ROWS is zero columns. That is the whole design: the customer holds
+-- SELECT (so the policy has something to filter) and the policy returns
+-- nothing, so `internal_description` and `resolution` are unreachable without
+-- a column-level REVOKE — which could not work anyway, because staff and
+-- customers share the `authenticated` role.
+
+-- SHIPPER A owns shipment A and still reads nothing FROM THE TABLE.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1';
+select rls_test.reads_nothing('shipment_exceptions',
+  '§21 PROOF: the SHIPPER of the shipment reads NOTHING from the exception TABLE — the internal commentary is unreachable at every column');
+select rls_test.reads_nothing('shipment_eta_history',
+  'the shipper reads NOTHING from the ETA history table — reason_internal lives there');
+
+-- CARRIER A hauls shipment A. Same answer.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';
+select rls_test.reads_nothing('shipment_exceptions',
+  'the assigned CARRIER reads nothing from the exception table either');
+
+-- BROKER A is linked to shipment A. Same answer.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab01';
+select rls_test.reads_nothing('shipment_exceptions',
+  'the linked BROKER PARTNER reads nothing from the exception table');
+
+-- ANON — refused at the PRIVILEGE layer, before RLS is consulted at all.
+set role anon;
+set request.jwt.claim.sub = '';
+select rls_test.rejects_with($$select count(*) from shipment_exceptions$$,
+  '42501', 'ANON cannot select exceptions AT ALL — §4 gives them no anonymous table surface');
+select rls_test.rejects_with($$select count(*) from shipment_eta_history$$,
+  '42501', 'ANON cannot select the ETA history');
+
+-- STAFF — which is what makes every zero above a POLICY result.
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000e1';
+select rls_test.eq((select count(*) from shipment_exceptions), 4,
+  'a DISPATCHER reads all four exception rows — every customer zero above is a policy decision, not an empty table');
+select rls_test.eq((select count(*) from shipment_eta_history), 3,
+  'a DISPATCHER reads all three ETA history rows');
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000f1';
+select rls_test.eq((select count(*) from shipment_exceptions), 4,
+  'an ADMIN reads all four');
+
+-- ---- 3 · The accessor, per audience -----------------------------------
+
+-- SHIPPER A: the two PUBLISHED exceptions on their own shipment. Not the
+-- unpublished one (§21: nothing honest to say yet), not shipment B's.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1';
+select rls_test.eq(
+  (select count(*) from my_shipment_exceptions('ffffffff-ffff-ffff-ffff-ffffffff0a01')), 2,
+  '§21 PROOF: the shipper reads exactly the TWO published exceptions through the accessor');
+select rls_test.eq(
+  (select count(*) from my_shipment_exceptions('ffffffff-ffff-ffff-ffff-ffffffff0a01')
+    where exception_type = 'damaged_freight'), 0,
+  'the UNPUBLISHED exception reaches nobody — a blank alarm is worse than silence (§21)');
+select rls_test.eq(
+  (select count(*) from my_shipment_exceptions('ffffffff-ffff-ffff-ffff-ffffffff0a01')
+    where resolved_at is not null), 1,
+  'a RESOLVED exception is still returned, with its resolved_at — the customer sees it closed, not vanished');
+select rls_test.eq(
+  (select count(*) from my_shipment_exceptions('ffffffff-ffff-ffff-ffff-ffffffff0b01')), 0,
+  '§19 PROOF: SHIPPER A READS NOTHING OF SHIPMENT B THROUGH THE ACCESSOR');
+
+-- The RETURN TYPE is the allow-list. Read out of the catalog rather than
+-- inferred: a future `alter function` that added a column would pass every
+-- assertion above and fail this one.
+reset role;
+select rls_test.ok(
+  (select count(*) from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'my_shipment_exceptions'
+     and 'internal_description' = any (p.proargnames)) = 0,
+  '§21 PROOF: `internal_description` is NOT in my_shipment_exceptions() OUT columns — the projection is a TYPE, not a string');
+select rls_test.ok(
+  (select count(*) from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'my_shipment_exceptions'
+     and 'resolution' = any (p.proargnames)) = 0,
+  '§21 PROOF: `resolution` is NOT in my_shipment_exceptions() OUT columns either');
+select rls_test.ok(
+  (select count(*) from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'my_shipment_exceptions'
+     and 'public_description' = any (p.proargnames)) = 1,
+  'NON-VACUITY: `public_description` IS an OUT column, so the two zeros above are omissions and not a typo');
+
+set role authenticated;
+
+-- CARRIER A hauls shipment A: same two published rows.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';
+select rls_test.eq(
+  (select count(*) from my_shipment_exceptions('ffffffff-ffff-ffff-ffff-ffffffff0a01')), 2,
+  'the assigned CARRIER reads the two published exceptions on the load they are hauling');
+select rls_test.eq(
+  (select count(*) from my_shipment_exceptions('ffffffff-ffff-ffff-ffff-ffffffff0b01')), 0,
+  '§19 PROOF: CARRIER A READS NOTHING OF CARRIER B''S SHIPMENT');
+
+-- BROKER A, linked to shipment A (§12's "status and timeline").
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab01';
+select rls_test.eq(
+  (select count(*) from my_shipment_exceptions('ffffffff-ffff-ffff-ffff-ffffffff0a01')), 2,
+  'the linked BROKER PARTNER reads the two published exceptions (§12)');
+
+-- BROKER C: invited, NOT approved. §12 requires verification before access.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000ab03';
+select rls_test.eq(
+  (select count(*) from my_shipment_exceptions('ffffffff-ffff-ffff-ffff-ffffffff0a01')), 0,
+  'an UNAPPROVED broker organization reads no exception at all (§12)');
+
+-- An authenticated outsider with no membership anywhere.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000d1';
+select rls_test.eq(
+  (select count(*) from my_shipment_exceptions('ffffffff-ffff-ffff-ffff-ffffffff0a01')), 0,
+  'an unaffiliated authenticated user reads no exception');
+
+-- ---- 4 · The SENTINEL sweep, in SQL -----------------------------------
+--
+-- The three §21 strings the fixtures planted, searched for across the whole
+-- customer payload. This is the database-level twin of the DTO sentinel sweep
+-- in tests/unit/shipment-dto.test.ts, and it can fail for reasons the unit
+-- test cannot see (a widened accessor, a new policy, a column-level grant).
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1';
+select rls_test.eq(
+  (select count(*) from my_shipment_exceptions('ffffffff-ffff-ffff-ffff-ffffffff0a01') x
+    where to_jsonb(x)::text like '%SENTINEL-INTERNAL-%'
+       or to_jsonb(x)::text like '%SENTINEL-RESOLUTION-%'), 0,
+  '§21 SENTINEL SWEEP: NO internal description and NO resolution text reaches the shipper, anywhere in the payload');
+
+-- NON-VACUITY: staff DO get the sentinels, so a clean sweep above can never be
+-- the result of a fixture that never carried them.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000e1';
+select rls_test.ok(
+  (select bool_or(to_jsonb(e)::text like '%SENTINEL-INTERNAL-%')
+     from shipment_exceptions e),
+  'NON-VACUITY: a DISPATCHER does see the internal sentinels — the sweep above is a real result');
+select rls_test.ok(
+  (select bool_or(to_jsonb(h)::text like '%SENTINEL-ETA-INTERNAL-%')
+     from shipment_eta_history h),
+  'NON-VACUITY: a DISPATCHER does see reason_internal on the ETA history');
+
+-- ---- 5 · The write path is service_role ONLY --------------------------
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000f1';
+select rls_test.rejects_with(
+  $$select open_shipment_exception('ffffffff-ffff-ffff-ffff-ffffffff0a01','weather')$$,
+  '42501', 'an ADMIN SESSION cannot call open_shipment_exception');
+select rls_test.rejects_with(
+  $$select resolve_shipment_exception('fbfbfbfb-fbfb-fbfb-fbfb-fbfbfbfb0a01','done')$$,
+  '42501', 'nor resolve_shipment_exception');
+select rls_test.rejects_with(
+  $$select update_shipment_exception('fbfbfbfb-fbfb-fbfb-fbfb-fbfbfbfb0a01')$$,
+  '42501', 'nor update_shipment_exception');
+select rls_test.rejects_with(
+  $$select backfill_shipment_exceptions()$$,
+  '42501', 'nor the backfill');
+
+set role anon;
+set request.jwt.claim.sub = '';
+select rls_test.rejects_with(
+  $$select open_shipment_exception('ffffffff-ffff-ffff-ffff-ffffffff0a01','weather')$$,
+  '42501', 'anon cannot call open_shipment_exception');
+select rls_test.rejects_with(
+  $$select my_shipment_exceptions('ffffffff-ffff-ffff-ffff-ffffffff0a01')$$,
+  '42501', 'anon cannot even call the ACCESSOR — /track goes through the service role behind the §4 two-factor check');
+
+reset role;
+set request.jwt.claim.sub = '';
+
+select rls_test.ok(
+  (select bool_and(p.prosecdef) from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public'
+     and p.proname in ('open_shipment_exception','resolve_shipment_exception',
+                       'update_shipment_exception','backfill_shipment_exceptions',
+                       'my_shipment_exceptions')),
+  'all five 0025 functions are SECURITY DEFINER (the 0019 model, unchanged)');
+select rls_test.ok(
+  (select bool_and(has_function_privilege('service_role', p.oid, 'EXECUTE'))
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public'
+     and p.proname in ('open_shipment_exception','resolve_shipment_exception',
+                       'update_shipment_exception','backfill_shipment_exceptions')),
+  'service_role CAN execute all four writers — the non-vacuity control for the 42501s above');
+select rls_test.ok(
+  (select bool_or(has_function_privilege('authenticated', p.oid, 'EXECUTE')
+                  or has_function_privilege('anon', p.oid, 'EXECUTE'))
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public'
+     and p.proname in ('open_shipment_exception','resolve_shipment_exception',
+                       'update_shipment_exception','backfill_shipment_exceptions')) = false,
+  'NEITHER authenticated NOR anon holds EXECUTE on any writer (the REVOKE FROM PUBLIC held)');
+
+-- ---- 6 · Lifecycle and append-only, as the OWNER ----------------------
+--
+-- Asserted as the table owner, so a refusal can ONLY be the trigger and never
+-- a policy. This is the same technique §11 uses for tracking-number
+-- immutability.
+
+select rls_test.rejects_with(
+  $$update shipment_eta_history set new_eta_at = now() where new_eta_at is not null$$,
+  'PL409', 'shipment_eta_history is APPEND-ONLY — even the owner cannot rewrite what an ETA used to be (§6, §10)');
+select rls_test.rejects_with(
+  $$delete from shipment_eta_history$$,
+  'PL409', 'nor delete an ETA history row');
+
+select rls_test.rejects_with(
+  $$update shipment_exceptions set exception_type = 'traffic' where id = 'fbfbfbfb-fbfb-fbfb-fbfb-fbfbfbfb0a02'$$,
+  'PL409', '§21: what an exception IS cannot change — re-typing damaged_freight as traffic is refused');
+select rls_test.rejects_with(
+  $$update shipment_exceptions set resolved_at = null where id = 'fbfbfbfb-fbfb-fbfb-fbfb-fbfbfbfb0a03'$$,
+  'PL409', '§21: a resolution is ONE-WAY — re-opening means logging a new exception');
+select rls_test.rejects_with(
+  $$update shipment_exceptions set customer_notified_at = null where id = 'fbfbfbfb-fbfb-fbfb-fbfb-fbfbfbfb0a01'$$,
+  'PL409', '§17: customer_notified_at cannot be cleared — un-telling somebody is not a state');
+select rls_test.rejects_with(
+  $$update shipment_exceptions set severity = 'critical' where id = 'fbfbfbfb-fbfb-fbfb-fbfb-fbfbfbfb0a03'$$,
+  'PL409', '§21: a CLOSED exception is read-only for triage fields');
+select rls_test.rejects_with(
+  $$insert into shipment_exceptions (shipment_id, exception_type, resolved_at, resolution)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','other', now(), null)$$,
+  '23514', 'a resolved exception with NO resolution text is refused by CHECK — the log would be useless six months later');
+select rls_test.rejects_with(
+  $$insert into shipment_exceptions (shipment_id, exception_type)
+    values ('ffffffff-ffff-ffff-ffff-ffffffff0a01','other')$$,
+  '23514', 'an exception with NEITHER description is refused — it says nothing to anybody');
+
+-- NON-VACUITY: a legal triage UPDATE on an OPEN exception still succeeds, so
+-- the six refusals above are rules and not a broken trigger.
+select rls_test.affects(
+  $$update shipment_exceptions set severity = 'critical'
+     where id = 'fbfbfbfb-fbfb-fbfb-fbfb-fbfbfbfb0a01'$$, 1,
+  'NON-VACUITY: re-severitying an OPEN exception IS allowed — the trigger blocks rules, not writes');

@@ -49,11 +49,29 @@ export const PHRASE_TOKEN_PREFIX = "phrase:";
 /**
  * The curated library, id → canonical English.
  *
- * Three groups, matching D-6's three named categories:
+ * Four groups. Three are D-6's own named categories; the fourth is M-78's
+ * extension, and it is an EXTENSION rather than a parallel mechanism by
+ * construction — same object, same token prefix, same resolver, same
+ * `shipment.phrase.*` key space, so `/track`, the shipper detail page and
+ * every dispatcher picker pick it up with no code change at all:
  *
- *   `update.*`    — standard public status notes (§7 `public_message`)
- *   `delay.*`     — standard delay reasons (§10 `delay_reason_public`)
- *   `exception.*` — standard exception messages (§21 `public_description`)
+ *   `update.*`     — standard public status notes (§7 `public_message`)
+ *   `delay.*`      — standard delay reasons (§10 `delay_reason_public`)
+ *   `exception.*`  — standard exception messages (§21 `public_description`)
+ *   `resolution.*` — M-78. What the customer is told when an exception is
+ *                    CLOSED (§21's open/resolve lifecycle, customer half).
+ *
+ * §21's lifecycle has two ends and D-6 only furnished one. An exception that
+ * opens in the reader's own language and then closes in English — or, worse,
+ * closes silently and leaves a stale warning banner on the page — is the
+ * failure D-6 exists to prevent, arriving one step later. Every resolution
+ * sentence is written to the same standard as the rest: clear, calm, no blame,
+ * no legal conclusion, no promise the system cannot keep.
+ *
+ * M-78 also adds THREE delay reasons (`delay.customs`, `delay.detention`,
+ * `delay.reroute`) that dispatchers were reaching for free text to express.
+ * Adding a curated phrase is strictly better than free text: free text renders
+ * in English under an honest label, a phrase renders in the reader's language.
  *
  * Every sentence is written to §21's standard: clear, calm, no blame, no legal
  * conclusion, no internal detail, and no promise the system cannot keep.
@@ -86,6 +104,9 @@ export const PUBLIC_PHRASES = {
   "delay.previous_stop": "The truck is running late from an earlier stop.",
   "delay.paperwork": "Paperwork is being completed at the facility.",
   "delay.driver_hours": "The driver is taking a required rest break.",
+  "delay.customs": "The shipment is waiting on a border or customs check.",
+  "delay.detention": "The truck is still waiting to be loaded or unloaded.",
+  "delay.reroute": "The route has changed and the truck is taking a longer way.",
 
   /* ---- standard exception messages ---- */
   "exception.pickup_delay":
@@ -112,6 +133,22 @@ export const PUBLIC_PHRASES = {
     "The assigned carrier can no longer run this load. Dispatch is sourcing another truck.",
   "exception.documentation_issue":
     "A document for this shipment needs correcting. Dispatch is handling it.",
+
+  /* ---- M-78: standard RESOLUTION messages (§21's other end) ---- */
+  "resolution.moving_again": "The shipment is moving again.",
+  "resolution.rescheduled":
+    "A new appointment time has been confirmed and is shown above.",
+  "resolution.new_carrier":
+    "Another truck has been assigned and is on its way.",
+  "resolution.repaired": "The repair is done and the truck is back on the road.",
+  "resolution.conditions_cleared":
+    "Conditions on the route have cleared and the truck is moving.",
+  "resolution.delivered_complete":
+    "The shipment has been delivered and this issue is closed.",
+  "resolution.documents_corrected":
+    "The paperwork has been corrected and this issue is closed.",
+  "resolution.resolved_with_customer":
+    "Dispatch has been in touch and this issue is now closed.",
 } as const;
 
 export type PublicPhraseId = keyof typeof PUBLIC_PHRASES;
@@ -119,6 +156,31 @@ export type PublicPhraseId = keyof typeof PUBLIC_PHRASES;
 export const PUBLIC_PHRASE_IDS = Object.keys(
   PUBLIC_PHRASES,
 ) as PublicPhraseId[];
+
+/**
+ * The library's groups, as data.
+ *
+ * Every picker in the product filters `PUBLIC_PHRASE_IDS` by one of these
+ * prefixes, so the list lives here rather than as a union re-typed in each
+ * client component — the fourth group arriving in M-78 was a one-line edit
+ * because of it, and a fifth will be too.
+ * `tests/unit/shipment-phrases.test.ts` asserts every id belongs to exactly
+ * one group, so a phrase that no picker can reach is a test failure rather
+ * than a dead translation in five catalogues.
+ */
+export const PHRASE_GROUPS = [
+  "update",
+  "delay",
+  "exception",
+  "resolution",
+] as const;
+
+export type PhraseGroup = (typeof PHRASE_GROUPS)[number];
+
+/** The ids in one group, in declaration order. */
+export function phrasesInGroup(group: PhraseGroup): PublicPhraseId[] {
+  return PUBLIC_PHRASE_IDS.filter((id) => id.startsWith(`${group}.`));
+}
 
 /** Message key for a library phrase, e.g. `shipment.phrase.delay.traffic`. */
 export function phraseKey(id: PublicPhraseId): string {
