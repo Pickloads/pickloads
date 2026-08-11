@@ -21,6 +21,7 @@ import {
   RevokeProviderLinkForm,
   type AssignOption,
 } from "@/components/portal/ShipmentOpsForms";
+import { ScrollRegion } from "@/components/portal/ScrollRegion";
 import { LocationPanel } from "@/components/tracking/LocationPanel";
 import type { ProviderStatus } from "@/lib/shipments/providers";
 import { statusLabel } from "@/components/portal/ShipmentBoardView";
@@ -113,7 +114,7 @@ function Summary({ shipment }: { shipment: StaffShipmentRow }) {
       <span className="psec" id="sd-summary-h">
         Shipment summary
       </span>
-      <div className="ptable-wrap">
+      <ScrollRegion label="Shipment summary">
         <table className="ptable ptable--cards">
           <thead>
             <tr>
@@ -145,7 +146,7 @@ function Summary({ shipment }: { shipment: StaffShipmentRow }) {
             </tr>
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
       <p className="pempty" style={{ padding: "8px 0 0" }}>
         {/* §30 honest label — the ETA is whatever a person typed. */}
         {shipment.eta_source === null
@@ -193,7 +194,7 @@ function UpdateHistory({
           Nothing has happened to this shipment yet beyond its creation.
         </p>
       ) : (
-        <div className="ptable-wrap">
+        <ScrollRegion label="Update history">
           <table className="ptable ptable--cards">
             <thead>
               <tr>
@@ -245,7 +246,7 @@ function UpdateHistory({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       )}
       {nextCursor !== null ? (
         <p className="psh-more">
@@ -280,7 +281,7 @@ function AssignmentHistory({
       {assignments.length === 0 ? (
         <p className="pempty">No carrier has been assigned yet.</p>
       ) : (
-        <div className="ptable-wrap">
+        <ScrollRegion label="Assignment history">
           <table className="ptable ptable--cards">
             <thead>
               <tr>
@@ -307,7 +308,7 @@ function AssignmentHistory({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       )}
     </section>
   );
@@ -320,7 +321,7 @@ function Parties({ parties }: { parties: ShipmentPartyRow[] }) {
       <span className="psec" id="sd-parties-h">
         Contacts
       </span>
-      <div className="ptable-wrap">
+      <ScrollRegion label="Contacts">
         <table className="ptable ptable--cards">
           <thead>
             <tr>
@@ -349,7 +350,7 @@ function Parties({ parties }: { parties: ShipmentPartyRow[] }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
     </section>
   );
 }
@@ -434,7 +435,7 @@ function ProviderConnections({
         rewrite.
       </p>
 
-      <div className="ptable-wrap">
+      <ScrollRegion label="Tracking provider adapters">
         <table className="ptable">
           <caption className="sr-only">
             Tracking provider adapters and their configuration state
@@ -464,7 +465,7 @@ function ProviderConnections({
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
 
       {failed ? (
         <p className="pempty" role="status">
@@ -475,7 +476,7 @@ function ProviderConnections({
           No tracking link is attached to this shipment. It is milestone-tracked.
         </p>
       ) : (
-        <div className="ptable-wrap">
+        <ScrollRegion label="Tracking links attached to this shipment">
           <table className="ptable">
             <caption className="sr-only">
               Tracking links attached to this shipment
@@ -530,7 +531,7 @@ function ProviderConnections({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       )}
     </section>
   );
@@ -777,7 +778,7 @@ function ExceptionRegister({
           No exceptions have been logged on this shipment.
         </p>
       ) : (
-        <div className="ptable-wrap">
+        <ScrollRegion label="Exceptions logged on this shipment">
           <table className="ptable ptable--cards">
             <caption className="sr-only">
               Exceptions logged on this shipment, newest first
@@ -832,7 +833,7 @@ function ExceptionRegister({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       )}
 
       {open.length === 0 ? null : (

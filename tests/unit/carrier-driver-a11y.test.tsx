@@ -6,6 +6,7 @@ import axe from "axe-core";
 import { readFileSync } from "node:fs";
 
 import messages from "../../messages/en.json";
+import { emitHarness, harnessWritten } from "../harness/emit";
 import esMessages from "../../messages/es.json";
 import frMessages from "../../messages/fr.json";
 import ruMessages from "../../messages/ru.json";
@@ -849,5 +850,48 @@ describe("§24 — the driver page in five locales", () => {
       ),
     );
     expect(es.querySelector(".driver-title")?.textContent).not.toBe(englishTitle);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * M-82 — emit the rendered DOM for the browser lane. See
+ * `tests/harness/emit.ts` for why this exists and what it does not claim.
+ * ------------------------------------------------------------------ */
+
+describe("M-82 — browser harness fixtures", () => {
+  it("emits the §13 carrier and driver states", () => {
+    emitHarness("carrier-list", "portal", render(carrierList()).container);
+    cleanup();
+    emitHarness("carrier-detail", "portal", render(carrierDetail()).container);
+    cleanup();
+    emitHarness(
+      "carrier-detail-no-actions",
+      "portal",
+      render(carrierDetail({ offeredActions: [], tokens: [], documents: [] }))
+        .container,
+    );
+    cleanup();
+    emitHarness("driver-granted", "driver", render(driverPage()).container);
+    cleanup();
+    emitHarness(
+      "driver-expired",
+      "driver",
+      render(
+        wrap(
+          <main id="main" className="driver-shell">
+            <DriverLinkExpired />
+          </main>,
+        ),
+      ).container,
+    );
+    expect(
+      harnessWritten([
+        "carrier-list",
+        "carrier-detail",
+        "carrier-detail-no-actions",
+        "driver-granted",
+        "driver-expired",
+      ]),
+    ).toBe(true);
   });
 });

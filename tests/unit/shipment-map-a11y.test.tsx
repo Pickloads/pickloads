@@ -6,6 +6,7 @@ import { NextIntlClientProvider } from "next-intl";
 import axe from "axe-core";
 
 import messages from "../../messages/en.json";
+import { emitHarness, harnessWritten } from "../harness/emit";
 import esMessages from "../../messages/es.json";
 import { LocationPanel } from "@/components/tracking/LocationPanel";
 import ShipmentMap, { projectPoints } from "@/components/tracking/ShipmentMap";
@@ -511,5 +512,58 @@ describe("§23 — reduced motion", () => {
     expect(block.indexOf("shipmap-pulse")).toBeGreaterThan(query);
     // And nothing outside it animates.
     expect(block.slice(0, query)).not.toContain("animation");
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * M-82 — emit the rendered DOM for the browser lane. The MOUNTED map is the
+ * one state jsdom could never measure: `.shipmap` is `width:100%;height:auto;
+ * max-height:320px`, and whether that is an oversized map at 320px is a
+ * question only a layout engine can answer.
+ * ------------------------------------------------------------------ */
+
+describe("M-82 — browser harness fixtures", () => {
+  it("emits the mounted map and the text-only panel", () => {
+    emitHarness(
+      "map-mounted",
+      "portal",
+      render(
+        <NextIntlClientProvider locale="en" messages={messages}>
+          <main id="main">
+            <h1>Shipment</h1>
+            <section className="track-section" aria-labelledby="m-h">
+              <h2 id="m-h">Location</h2>
+              <div className="psh-mapslot">
+                <div className="shipmap-wrap">
+                  <ShipmentMap
+                    points={[
+                      {
+                        recorded_at: "2026-08-04T13:05:00.000Z",
+                        latitude: 37.5407,
+                        longitude: -77.436,
+                        city: "Richmond",
+                        state: "VA",
+                      },
+                      {
+                        recorded_at: "2026-08-04T09:00:00.000Z",
+                        latitude: 39.2904,
+                        longitude: -76.6122,
+                        city: "Baltimore",
+                        state: "MD",
+                      },
+                    ]}
+                    title="Route diagram of recorded positions"
+                    description="2 location updates on record. Most recent: Richmond, VA."
+                  />
+                </div>
+              </div>
+            </section>
+          </main>
+        </NextIntlClientProvider>,
+      ).container,
+    );
+    cleanup();
+    emitHarness("map-text-only", "portal", panel().container);
+    expect(harnessWritten(["map-mounted", "map-text-only"])).toBe(true);
   });
 });

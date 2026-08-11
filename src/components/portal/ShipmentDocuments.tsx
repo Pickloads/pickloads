@@ -198,7 +198,11 @@ export function DocumentList({
             </thead>
             <tbody>
               {documents.map((doc) => (
-                <tr key={doc.id}>
+                /* M-82 §23 "meaningful document labels": the row is keyed by
+                   its DOCUMENT TYPE, not only its file name, and says so in
+                   the markup so the requirement is checkable rather than
+                   inferred from prose. */
+                <tr key={doc.id} data-doc-row data-doc-type={doc.doc_type}>
                   <td data-th={t("shipment.document.col_type")}>
                     {t(doc.doc_type_key)}
                   </td>

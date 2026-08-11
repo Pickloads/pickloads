@@ -255,7 +255,7 @@ export function ShipmentDetailView({
 
       {/* ── §11 current status · ETA · route (§22 priority order) ──────── */}
       <div className="track-head">
-        <div>
+        <div data-prio="status">
           <span className="k">{t("shipment.result.current_status")}</span>
           <span className="v">
             <span className={`track-status ${statusClass}`.trim()}>
@@ -263,7 +263,7 @@ export function ShipmentDetailView({
             </span>
           </span>
         </div>
-        <div>
+        <div data-prio="eta">
           <span className="k">{t("shipment.result.estimated_delivery")}</span>
           <span className="v">
             {formatTrackingDateTime(shipment.estimated_delivery_at, locale) ??
@@ -275,7 +275,7 @@ export function ShipmentDetailView({
             </span>
           ) : null}
         </div>
-        <div>
+        <div data-prio="route">
           <span className="k">{t("shipment.result.origin")}</span>
           <span className="v">
             {shipment.origin_company === null
@@ -316,7 +316,9 @@ export function ShipmentDetailView({
       </div>
 
       {/* ── §11 timeline — M-73's component, M-73's phrase library ─────── */}
-      <TrackingTimeline tracking={shipment} headingId="psh-progress-heading" />
+      <div data-prio="timeline">
+        <TrackingTimeline tracking={shipment} headingId="psh-progress-heading" />
+      </div>
 
       {/* ── §11 shipment summary ───────────────────────────────────────── */}
       <section className="track-section" aria-labelledby="psh-summary-heading">
@@ -372,22 +374,12 @@ export function ShipmentDetailView({
         </dl>
       </section>
 
-      {/* ── §9's location panel — M-80 fills M-74's slot ───────────────── */}
-      <LocationPanel
-        headingId="psh-map-heading"
-        level={shipment.location_visibility}
-        trackingMode={shipment.tracking_mode}
-        currentCity={shipment.current_city}
-        currentState={shipment.current_state}
-        currentLatitude={shipment.current_latitude}
-        currentLongitude={shipment.current_longitude}
-        lastLocationAt={shipment.last_location_at}
-        readings={shipment.locations}
-        failed={locationsFailed}
-      />
-
-      {/* ── §11 support messages ───────────────────────────────────────── */}
-      <section className="track-section" aria-labelledby="psh-support-heading">
+      {/* ── §11 support messages — §22's fifth priority ─────────────────── */}
+      <section
+        className="track-section"
+        data-prio="support"
+        aria-labelledby="psh-support-heading"
+      >
         <h2 id="psh-support-heading">{t("shipment.result.contact_title")}</h2>
         <p className="pempty" style={{ padding: "0 0 10px" }}>
           {t("shipment.result.contact_body")}
@@ -407,15 +399,37 @@ export function ShipmentDetailView({
            `carrier` band only, so it is filtered out on the server, refused by
            0024's policy, and absent from the DTO — three independent
            constructions of one rule. ───────────────────────────────────── */}
-      <DocumentList
-        documents={documents}
-        failed={documentsFailed}
-        hasMore={documentsHasMore}
-        downloadAction={getShipperDocumentUrlAction}
-        headingId="psh-docs-heading"
-        titleKey="shipment.document.title"
-        blurbKey="shipment.document.shipper_blurb"
-      />
+      <div data-prio="documents">
+        <DocumentList
+          documents={documents}
+          failed={documentsFailed}
+          hasMore={documentsHasMore}
+          downloadAction={getShipperDocumentUrlAction}
+          headingId="psh-docs-heading"
+          titleKey="shipment.document.title"
+          blurbKey="shipment.document.shipper_blurb"
+        />
+      </div>
+
+      {/* ── §22's LAST priority. M-82 moved it here from between the summary
+           and the support block, where M-74 had placed the slot and M-80
+           filled it: that put the route diagram above both the "talk to a
+           human" link and the paperwork, which on a 320px screen is exactly
+           the ordering §22 legislates against. ─────────────────────────── */}
+      <div data-prio="map">
+        <LocationPanel
+          headingId="psh-map-heading"
+          level={shipment.location_visibility}
+          trackingMode={shipment.tracking_mode}
+          currentCity={shipment.current_city}
+          currentState={shipment.current_state}
+          currentLatitude={shipment.current_latitude}
+          currentLongitude={shipment.current_longitude}
+          lastLocationAt={shipment.last_location_at}
+          readings={shipment.locations}
+          failed={locationsFailed}
+        />
+      </div>
 
       {/* ── §11 invoice status — from `invoices`, never from the shipment ─ */}
       <section className="track-section" aria-labelledby="psh-invoice-heading">

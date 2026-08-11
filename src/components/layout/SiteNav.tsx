@@ -31,6 +31,14 @@ const MOBILE_LINKS = [
   // the /create-account chooser.
   { href: "/login", label: "Login" },
   { href: "/create-account", label: "Get Started →" },
+  // M-82 (§22 "no hidden actions"): `Start Carrier Setup` → `/#quote` lives in
+  // `.nav-cta`, which v4.css hides at ≤960px. Every other collapsing control
+  // has a drawer or footer equivalent by DESTINATION; this one had neither, so
+  // on every phone-width page — including the tracking pages this module
+  // audits — the primary carrier call to action was simply unreachable. The
+  // label is already in the v4 dictionary (`.nav-cta` renders it), so this
+  // adds no string and no translation debt.
+  { href: "/#quote", label: "Start Carrier Setup" },
   { href: "/contact", label: "Support" },
 ] as const;
 

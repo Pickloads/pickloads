@@ -522,7 +522,7 @@ details .a{padding:0 22px 20px;font-size:.93rem;color:#4a545b}
 .track-note{font-family:var(--font-mono);font-size:.72rem;color:var(--color-slate-aa);display:block;margin-top:10px;line-height:1.5}
 
 .track-banner{border:1px solid rgba(122,42,42,.35);background:rgba(122,42,42,.07);color:#7a2a2a;border-radius:8px;padding:16px 18px;margin-bottom:24px}
-.track-banner h3{font-size:1.02rem;font-weight:800;margin-bottom:6px}
+.track-banner h2{font-size:1.02rem;font-weight:800;margin-bottom:6px}
 .track-banner p{font-size:.93rem;line-height:1.55}
 .track-banner.is-neutral{border-color:var(--line-dark);background:rgba(18,22,26,.04);color:var(--color-slate-body)}
 
@@ -712,3 +712,45 @@ details .a{padding:0 22px 20px;font-size:.93rem;color:#4a545b}
   .psh-mapslot{padding:16px 14px}
   .shipmap-list li{flex-direction:column;gap:2px}
 }
+
+/* ============================================================================
+   M-82 — §22/§23 remediation on the SHARED vocabulary.
+
+   These three rules live here rather than in `portal.css` because `/track` is
+   a public page: it loads `globals.css` (which imports this file) and never
+   loads the portal stylesheet, so a fix parked there would have closed the
+   defect on five tracking surfaces and left it open on the sixth — the only
+   one an unauthenticated customer ever sees.
+   ========================================================================== */
+
+/* ── D-1 · iOS zooms any form control under 16px on focus ──────────────────
+   §22 names "no iOS date-input overflow" explicitly, and this is the
+   mechanism behind it: Safari on iOS scales the whole page up when a focused
+   field's text would render below 16px, and a scaled page scrolls sideways.
+   `.field` controls are .94rem = 15.04px, so the `Pickup from` / `Pickup to`
+   date inputs on the shipper list and the dispatcher board trip it, as does
+   every other `.field` control on the site. M-76 already set 16px on the
+   driver page (`.driver-field` above) for exactly this reason — the shared
+   vocabulary never did. Applied across §22's mobile and tablet tiers. */
+@media(max-width:820px){
+  .field select,.field input,.field textarea{font-size:16px}
+}
+/* And UNCONDITIONALLY for the date/time family, which is the control §22
+   names by hand. A date field is the one input a user is guaranteed to focus
+   on a phone held in landscape or on an iPad at a "desktop" width, and the
+   ~1px it differs from its neighbours is not visible; the zoom is. */
+.field input[type="date"],.field input[type="datetime-local"],.field input[type="time"],.field input[type="month"]{font-size:16px}
+
+/* ── D-11 · `.field input{width:100%}` stretches checkboxes and radios ──────
+   A checkbox IS an input, so it inherited the full-width rule and rendered as
+   a 242x13 bar on the dispatcher update form, the exception form and the
+   location-visibility radio group. M-74 wrote the correct override but scoped
+   it to `.psh-filters .psh-toggle`, so the identical markup outside the filter
+   bar never matched. Same values, widened to the vocabulary. */
+.field input[type="checkbox"],.field input[type="radio"]{width:auto;min-width:20px;min-height:20px;accent-color:var(--amber)}
+
+/* ── D-4 · long operator free text does not break ──────────────────────────
+   `.track-events .msg` carries §24's dispatcher-authored free text, which is
+   not guaranteed to contain a space. 335px of it overflowed the broker detail
+   by 15px. Same treatment `.track-summary dd` already carries. */
+.track-events .msg{overflow-wrap:anywhere}

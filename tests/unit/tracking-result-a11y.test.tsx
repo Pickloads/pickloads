@@ -5,6 +5,7 @@ import { NextIntlClientProvider } from "next-intl";
 import axe from "axe-core";
 
 import messages from "../../messages/en.json";
+import { emitHarness, harnessWritten } from "../harness/emit";
 import esMessages from "../../messages/es.json";
 import { toPublicTrackingDto } from "@/lib/shipments/dto";
 import { TrackingResult } from "@/components/tracking/TrackingResult";
@@ -382,5 +383,71 @@ describe("tracking result — §30 honesty and §4 exposure", () => {
     renderResult();
     const meta = document.head.querySelector('meta[name="robots"]');
     expect(meta?.getAttribute("content")).toBe("noindex, nofollow");
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * M-82 — emit the rendered DOM for the browser lane
+ *
+ * §22 and §23's layout requirements (twelve widths, overflow, clipping, touch
+ * targets, real colour contrast) are not observable in jsdom, which applies no
+ * stylesheet. These five states are written to disk and re-measured in
+ * Chromium behind the real compiled CSS by
+ * `tests/e2e/tracking-responsive-a11y.spec.ts`. Same components, same
+ * fixtures, same catalogue — only the renderer changes.
+ * ------------------------------------------------------------------ */
+
+describe("M-82 — browser harness fixtures", () => {
+  it("emits the public result states", () => {
+    emitHarness("track-result-populated", "site", renderResult().container);
+    cleanup();
+    emitHarness(
+      "track-result-exception",
+      "site",
+      renderResult({}, [OPEN_EXCEPTION]).container,
+    );
+    cleanup();
+    emitHarness(
+      "track-result-cancelled",
+      "site",
+      renderResult({ status: "cancelled", cancelled_at: "2026-08-03T10:00:00.000Z" })
+        .container,
+    );
+    cleanup();
+    emitHarness(
+      "track-result-delayed",
+      "site",
+      renderResult({
+        status: "delayed",
+        delay_minutes: 120,
+        delay_reason_public: "phrase:delay.weather",
+      }).container,
+    );
+    cleanup();
+    const empty = render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <main id="main">
+          <h1>Track a shipment</h1>
+          <TrackingResult
+            tracking={toPublicTrackingDto({
+              shipment: { ...ZIP_SHIPMENT, status: "quote_requested" },
+              events: [],
+              exceptions: [],
+            })}
+            timelineTruncated={false}
+          />
+        </main>
+      </NextIntlClientProvider>,
+    );
+    emitHarness("track-result-empty", "site", empty.container);
+    expect(
+      harnessWritten([
+        "track-result-populated",
+        "track-result-exception",
+        "track-result-cancelled",
+        "track-result-delayed",
+        "track-result-empty",
+      ]),
+    ).toBe(true);
   });
 });

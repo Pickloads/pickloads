@@ -2,6 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { useV4 } from "@/i18n/v4";
+import { ScrollRegion } from "@/components/portal/ScrollRegion";
 import { SHIPMENT_STATUSES } from "@/lib/shipments/types";
 import { statusKey } from "@/lib/shipments/types";
 import type {
@@ -256,7 +257,7 @@ export function ShipmentListView({
             : `${rangeStart}–${rangeEnd} ${tv("of")} ${total}`}
       </p>
 
-      <div className="ptable-wrap">
+      <ScrollRegion label={tv("Your shipments")}>
         {rows.length === 0 ? (
           <p className="pempty">
             {failed
@@ -323,7 +324,7 @@ export function ShipmentListView({
             </tbody>
           </table>
         )}
-      </div>
+      </ScrollRegion>
 
       {/* ── §25 server-side pagination ─────────────────────────────────── */}
       {pageCount > 1 ? (

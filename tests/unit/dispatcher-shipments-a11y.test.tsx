@@ -5,6 +5,7 @@ import axe from "axe-core";
 import { NextIntlClientProvider } from "next-intl";
 
 import messages from "../../messages/en.json";
+import { emitHarness, harnessWritten } from "../harness/emit";
 
 import {
   BOARD_COLUMNS,
@@ -19,6 +20,7 @@ import {
 } from "@/components/portal/ShipmentBoardView";
 import type { StaffDocumentView } from "@/components/portal/ShipmentDocumentReview";
 import { ShipmentStaffDetailView } from "@/components/portal/ShipmentStaffDetailView";
+import { ShipmentCreateForm } from "@/components/portal/ShipmentOpsForms";
 import type {
   StaffAssignmentRow,
   StaffShipmentRow,
@@ -704,7 +706,10 @@ describe("§22/§23 structure", () => {
         scopedCarrierCount={0}
       />,
     );
-    const headings = [...document.querySelectorAll(".kcol h3")].map((h) =>
+    // M-82 D-7: these were `h3` directly under the page `h1`. The expanded
+    // single-column view already rendered the same thing as an `h2`, so the
+    // board was the odd one out and §23's "correct headings" was the casualty.
+    const headings = [...document.querySelectorAll(".kcol h2")].map((h) =>
       h.textContent?.replace(/\d+$/, "").trim(),
     );
     expect(headings).toEqual([
@@ -1029,5 +1034,143 @@ describe("CLAUDE.md — the visual layer is reused, not invented", () => {
     for (const el of document.querySelectorAll("[style]")) {
       expect(el.getAttribute("style")).not.toMatch(/#[0-9a-f]{3,8}\b/i);
     }
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * M-82 — emit the rendered DOM for the browser lane. See
+ * `tests/harness/emit.ts` for why this exists and what it does not claim.
+ * ------------------------------------------------------------------ */
+
+describe("M-82 — browser harness fixtures", () => {
+  const board = (
+    props: Partial<React.ComponentProps<typeof ShipmentBoard>> = {},
+  ) => (
+    <main id="main">
+      <h1>Shipments</h1>
+      <ShipmentBoard
+        columns={columns()}
+        filters={EMPTY_FILTERS}
+        search={EMPTY_SEARCH}
+        restricted={false}
+        scopedCarrierCount={0}
+        {...props}
+      />
+    </main>
+  );
+
+  it("emits the §14 board, §5 search and detail states", () => {
+    emitHarness("dispatcher-board", "portal", render(board()).container);
+    cleanup();
+    emitHarness(
+      "dispatcher-board-empty",
+      "portal",
+      render(board({ columns: columns([]) })).container,
+    );
+    cleanup();
+    emitHarness(
+      "dispatcher-board-failed",
+      "portal",
+      render(
+        board({
+          columns: BOARD_COLUMNS.map((column) => ({
+            column,
+            rows: [],
+            total: null,
+            page: 1,
+            pageSize: 8,
+            pageCount: 1,
+            failed: true,
+          })),
+        }),
+      ).container,
+    );
+    cleanup();
+    emitHarness(
+      "dispatcher-search",
+      "portal",
+      render(
+        board({
+          columns: columns([]),
+          restricted: true,
+          scopedCarrierCount: 3,
+          search: {
+            term: {
+              kind: "exact",
+              value: "PL-2026-000458",
+              pattern: null,
+              raw: "PL-2026-000458",
+            },
+            rows: [ROW],
+            searched: true,
+            failed: false,
+            truncated: false,
+          },
+        }),
+      ).container,
+    );
+    cleanup();
+    emitHarness(
+      "dispatcher-column",
+      "portal",
+      render(
+        <main id="main">
+          <h1>Shipments</h1>
+          <ShipmentColumnView
+            result={{
+              column: BOARD_COLUMNS[5]!,
+              rows: [ROW],
+              total: 60,
+              page: 2,
+              pageSize: 25,
+              pageCount: 3,
+              failed: false,
+            }}
+            filters={EMPTY_FILTERS}
+            search={EMPTY_SEARCH}
+            restricted={false}
+            scopedCarrierCount={0}
+          />
+        </main>,
+      ).container,
+    );
+    cleanup();
+    emitHarness(
+      "dispatcher-detail",
+      "portal",
+      render(<main id="main">{detail()}</main>).container,
+    );
+    // §14's CREATE surface. It is the densest form in the product and the one
+    // §22's "no form control outside viewport" / "no iOS date-input overflow"
+    // clauses are actually about — two appointment date-times, a shipper
+    // select and eleven text fields on a 320px screen.
+    cleanup();
+    emitHarness(
+      "dispatcher-new",
+      "portal",
+      render(
+        <main id="main">
+          <h1>New shipment</h1>
+          <ShipmentCreateForm
+            shippers={[
+              { id: "11111111-1111-1111-1111-111111111111", name: "Acme Foods" },
+            ]}
+            brokerageOpen
+            brokerageMessage=""
+          />
+        </main>,
+      ).container,
+    );
+    expect(
+      harnessWritten([
+        "dispatcher-new",
+        "dispatcher-board",
+        "dispatcher-board-empty",
+        "dispatcher-board-failed",
+        "dispatcher-search",
+        "dispatcher-column",
+        "dispatcher-detail",
+      ]),
+    ).toBe(true);
   });
 });

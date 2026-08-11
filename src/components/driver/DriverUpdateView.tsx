@@ -127,19 +127,35 @@ function DriverForm({
           {pending ? busyLabel : submitLabel}
         </button>
       </fieldset>
-      {/* Both regions are LIVE. A driver who cannot see the bottom of the
-          screen must still be told what happened. Server actions return
-          message KEYS (§24), so the sentence is in the reader's language. */}
-      {state.status === "error" ? (
-        <p className="driver-alert" role="alert">
-          {t(state.message ?? "shipment.driver.invalid")}
-        </p>
-      ) : null}
-      {state.status === "success" ? (
-        <p className="driver-ok" role="status">
-          {t(state.message ?? "shipment.driver.saved")}
-        </p>
-      ) : null}
+      {/* Both regions are LIVE, and — M-82 D-9 — both EXIST BEFORE they have
+          anything to say.
+
+          They used to be conditional: the `<p role="alert">` was mounted at
+          the same moment its text arrived. A live region has to be in the
+          accessibility tree *before* its contents change for the change to be
+          observed; a region and its text inserted in one mutation is the
+          single most common way an announcement is silently dropped, and it
+          fails differently on every screen reader, which is why it survived
+          six modules of structural review. Rendering both containers up front
+          and swapping only the text is the ARIA-APG shape, and it costs two
+          empty paragraphs.
+
+          Server actions return message KEYS (§24), so the sentence is in the
+          reader's language. */}
+      <div role="alert">
+        {state.status === "error" ? (
+          <p className="driver-alert">
+            {t(state.message ?? "shipment.driver.invalid")}
+          </p>
+        ) : null}
+      </div>
+      <div role="status">
+        {state.status === "success" ? (
+          <p className="driver-ok">
+            {t(state.message ?? "shipment.driver.saved")}
+          </p>
+        ) : null}
+      </div>
     </form>
   );
 }

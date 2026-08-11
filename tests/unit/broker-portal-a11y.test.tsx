@@ -5,6 +5,7 @@ import { NextIntlClientProvider } from "next-intl";
 import axe from "axe-core";
 
 import messages from "../../messages/en.json";
+import { emitHarness, harnessWritten } from "../harness/emit";
 import esMessages from "../../messages/es.json";
 import frMessages from "../../messages/fr.json";
 import { toBrokerDto } from "@/lib/shipments/dto";
@@ -496,5 +497,19 @@ describe("broker detail structure (§12, §22, §30)", () => {
     // The shared TrackingTimeline emits its own text-equivalent list.
     expect(container.querySelector("ol, ul")).not.toBeNull();
     expect(container.querySelector(".track-events")).not.toBeNull();
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * M-82 — emit the rendered DOM for the browser lane. See
+ * `tests/harness/emit.ts` for why this exists and what it does not claim.
+ * ------------------------------------------------------------------ */
+
+describe("M-82 — browser harness fixtures", () => {
+  it("emits the §12 broker list and detail", () => {
+    emitHarness("broker-list", "portal", renderList().container);
+    cleanup();
+    emitHarness("broker-detail", "portal", renderDetail().container);
+    expect(harnessWritten(["broker-list", "broker-detail"])).toBe(true);
   });
 });

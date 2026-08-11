@@ -119,6 +119,89 @@
 }
 
 /* ============================================================================
+   M-82 — §22/§23 remediation. Every rule below closes a defect the twelve-
+   breakpoint browser audit measured; none of them is a design change.
+
+   Why none of this was caught before: M-73→M-81 each proved their surfaces
+   with axe-core in **jsdom**, which applies no stylesheet. Structure was
+   provable there; geometry was not. The first time these components met a
+   real layout engine behind the real compiled CSS was this module.
+   ========================================================================== */
+
+/* ── D-2 · the card transform never actually shrank the table ──────────────
+   M-59 turned `tr` into a block and `td` into a flex row but left `table` and
+   `tbody` as table boxes, so the table kept TABLE min-content sizing: the
+   widest `label + gap + unbreakable cell` pair set a floor no viewport could
+   push below. On the shipment-documents table that floor is 371px and on the
+   dispatcher detail 395px — i.e. 36-75px of horizontal page overflow at
+   320px, which is the exact failure `.ptable--cards` exists to prevent.
+   Completing the transform (block table + block tbody) removes the floor;
+   `overflow-wrap:anywhere` lets a long file name or env-var list break rather
+   than re-create it. */
+@media(max-width:640px){
+  .ptable--cards{display:block;width:100%}
+  .ptable--cards tbody{display:block;width:100%}
+  .ptable--cards td{min-width:0;overflow-wrap:anywhere}
+  .ptable--cards td::before{max-width:45%;overflow-wrap:anywhere}
+}
+
+/* ── D-1 / D-11 live in v4.css, not here: `.field` is public vocabulary and
+   `/track` does not load this stylesheet. This one rule is portal-only —
+   `.psh-toggle` outside the filter bar. ─────────────────────────────────── */
+.psh-toggle label{display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:.02em;font-size:.8rem;color:#cfd6da;min-height:44px;margin:0}
+
+/* ── D-3 · a bare `input[type=file]` is wider than a phone ─────────────────
+   `.pform-row` lays out a grid but styles no controls, so the document-upload
+   inputs on the staff, carrier and broker surfaces are user-agent defaults:
+   the file input takes its intrinsic ~356px and pushes the page 36px wide at
+   320px, and the `Document type` select renders 22px tall (under WCAG 2.2 AA
+   2.5.8's 24px floor — the same rule M-80 caught `.langsel` on). Constrained,
+   not restyled. */
+.pform-row>input,.pform-row>select,.pform-row>textarea{max-width:100%;min-width:0;box-sizing:border-box}
+.pform-row>select,.pform-row>input:not([type="checkbox"]):not([type="radio"]){font-size:16px;min-height:32px}
+.pform-row>input[type="file"]{width:100%}
+/* A grid item stretches to its track by default, so the `staff only` and
+   `mark customer notified` checkboxes were drawn as 242x13 bars across half
+   the form. Same defect as D-11, different mechanism. */
+.pform-row>input[type="checkbox"],.pform-row>input[type="radio"]{justify-self:start;align-self:center;width:auto;min-width:20px;min-height:20px;accent-color:var(--amber)}
+
+/* ── D-5 · the pager links are 19px tall ───────────────────────────────────
+   `.psh-pager` is a mono 0.74rem flex row, so its two links measured 46x19 and
+   42x19 on the dispatcher column view and every card-table pager — under
+   2.5.8's 24x24 minimum at EVERY viewport, not only on touch devices. */
+.psh-pager a{display:inline-flex;align-items:center;min-height:24px;padding:2px 0}
+
+/* ── D-7 · the board's column headings skipped a level ─────────────────────
+   `ShipmentBoard` rendered `h3` directly under the page `h1`; the expanded
+   single-column view rendered `h2` for the same thing. The markup is now `h2`
+   in both, so the selector follows. */
+.kcol h2{font-family:var(--font-mono);font-size:.64rem;letter-spacing:.12em;text-transform:uppercase;color:var(--steel);padding:2px 4px 10px;display:flex;justify-content:space-between}
+.kcol h2 i{font-style:normal;color:var(--amber)}
+
+/* ── D-6 · a horizontally scrolling region needs a keyboard route in ───────
+   `.ptable-wrap` and `.kanban` scroll sideways. When what is inside them
+   holds no focusable element — the provider-adapter table, the exception
+   table, an empty or failed board — a keyboard user cannot reach the content
+   at all (axe `scrollable-region-focusable`, serious). The markup fix is
+   M-59's `.flow` pattern (`tabIndex`/`role`/`aria-label`); this is the focus
+   ring that makes the resulting stop visible. */
+.ptable-wrap:focus-visible,.kanban:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+
+/* ── D-8 · `.sr-only` escapes a horizontally scrolled table and widens the page
+   `.sr-only` is `position:absolute` (v4.css). `.ptable-wrap` is `overflow-x:
+   auto` but was NOT positioned, so it never became a containing block: the
+   hidden "Revoke" / "Action" / "Open" column labels inside the driver-link and
+   carrier tables resolved against the INITIAL containing block instead, landed
+   at x=346 on a 320px screen, and pushed the document 27px wide — a real
+   horizontal scrollbar produced entirely by text nobody can see.
+
+   `overflow` clips in-flow content; it does not clip an absolutely positioned
+   descendant whose containing block sits outside the scroller. One
+   `position:relative` makes the scroller that containing block, which is what
+   every other property of these boxes already assumes. */
+.ptable-wrap,.kanban{position:relative}
+
+/* ============================================================================
    M-74 — §11 shipper shipments (list + detail), token-only.
 
    TWO JOBS, and they are different.

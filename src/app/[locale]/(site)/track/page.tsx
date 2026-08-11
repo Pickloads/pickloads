@@ -80,7 +80,13 @@ export default async function TrackPage({
         <div className="wrap">
           {brokerageActive ? null : (
             <div className="track-banner is-neutral" role="note">
-              <h3>{t("page.title")}</h3>
+              {/* M-82: this was an <h3> directly under the hero's <h1>, with
+                  no <h2> between them — a skipped heading level on the one
+                  public tracking page, in all five locales. §23 asks for
+                  "correct headings"; axe's `heading-order` rule is tagged
+                  best-practice rather than WCAG A/AA, which is why six modules
+                  of scanning never reported it. */}
+              <h2>{t("page.title")}</h2>
               <p>{t("page.gate_notice")}</p>
             </div>
           )}

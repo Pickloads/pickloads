@@ -11,6 +11,9 @@ const PORT = 4321;
 
 export default defineConfig({
   testDir: "tests/e2e",
+  // M-82: rebuild the session-gated tracking fixtures the responsive/a11y
+  // suite measures. See tests/e2e/global-setup.ts for why it is not optional.
+  globalSetup: "./tests/e2e/global-setup.ts",
   timeout: 30_000,
   expect: { timeout: 10_000 },
   fullyParallel: true,

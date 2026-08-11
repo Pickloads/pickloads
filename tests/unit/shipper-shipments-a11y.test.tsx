@@ -5,6 +5,7 @@ import { NextIntlClientProvider } from "next-intl";
 import axe from "axe-core";
 
 import messages from "../../messages/en.json";
+import { emitHarness, harnessWritten } from "../harness/emit";
 import esMessages from "../../messages/es.json";
 import frMessages from "../../messages/fr.json";
 import ruMessages from "../../messages/ru.json";
@@ -926,5 +927,81 @@ describe("i18n catalogue (§24)", () => {
         lookup(messages, partyRoleKey("consignee")),
       );
     }
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * M-82 — emit the rendered DOM for the browser lane. See
+ * `tests/harness/emit.ts` for why this exists and what it does not claim.
+ * ------------------------------------------------------------------ */
+
+describe("M-82 — browser harness fixtures", () => {
+  it("emits the §11 list and detail states", () => {
+    emitHarness("shipper-list-populated", "portal", renderList().container);
+    cleanup();
+    emitHarness(
+      "shipper-list-empty",
+      "portal",
+      renderList({ rows: [], total: 0, pageCount: 1, filtered: true }).container,
+    );
+    cleanup();
+    emitHarness(
+      "shipper-list-failed",
+      "portal",
+      renderList({ rows: [], total: 0, pageCount: 1, failed: true }).container,
+    );
+    cleanup();
+    emitHarness("shipper-detail-populated", "portal", renderDetail().container);
+    cleanup();
+    emitHarness(
+      "shipper-detail-exception",
+      "portal",
+      renderDetail({ status: "delayed", delay_minutes: 180 }, [OPEN_EXCEPTION])
+        .container,
+    );
+    cleanup();
+    emitHarness(
+      "shipper-detail-degraded",
+      "portal",
+      renderDetail({}, [], {
+        documents: [],
+        documentsFailed: true,
+        invoices: [],
+        invoicesFailed: true,
+        contacts: [],
+        locationsFailed: true,
+      }).container,
+    );
+    // §11's dashboard summary is a tracking surface too — the tile row is the
+    // first thing a shipper sees and the first thing that has to reflow.
+    cleanup();
+    emitHarness(
+      "shipper-tiles",
+      "portal",
+      wrap(
+        <ShipperTiles
+          counts={{
+            ...EMPTY_TILE_COUNTS,
+            booked: 2,
+            in_transit: 5,
+            delayed: 1,
+            completed: 41,
+            outstanding_invoices: 3,
+          }}
+          ids={SHIPPER_TILE_IDS}
+        />,
+      ).container,
+    );
+    expect(
+      harnessWritten([
+        "shipper-tiles",
+        "shipper-list-populated",
+        "shipper-list-empty",
+        "shipper-list-failed",
+        "shipper-detail-populated",
+        "shipper-detail-exception",
+        "shipper-detail-degraded",
+      ]),
+    ).toBe(true);
   });
 });

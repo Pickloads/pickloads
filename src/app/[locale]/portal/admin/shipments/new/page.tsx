@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ScrollRegion } from "@/components/portal/ScrollRegion";
 import { Link } from "@/i18n/navigation";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -94,7 +95,7 @@ export default async function NewShipmentPage({
       {quote !== null && mapped !== null ? (
         <>
           <span className="psec">From quote</span>
-          <div className="ptable-wrap" style={{ marginBottom: 16 }}>
+          <ScrollRegion label="Quote this shipment converts" style={{ marginBottom: 16 }}>
             <table className="ptable ptable--cards">
               <thead>
                 <tr>
@@ -120,7 +121,7 @@ export default async function NewShipmentPage({
                 </tr>
               </tbody>
             </table>
-          </div>
+          </ScrollRegion>
 
           {!mapped.ok ? (
             <p className="pempty" role="alert">

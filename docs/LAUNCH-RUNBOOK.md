@@ -6,7 +6,25 @@ degrades gracefully when a secret is missing (dev warnings, honest pending
 states) — so a partial deploy never crashes, it just quietly disables the
 affected integration. **Production must have every var set.**
 
-*Last revised for M-81 (broker-partner access): migrations **0028–0029**
+*Last revised for M-82 (responsive + accessibility QA for the tracking
+surfaces): **no migration, no environment variable, no `company_settings` key
+and no cron entry** — M-82 is a QA and remediation module. Refreshed gate
+counts (1468 unit / 742 RLS / 329 integration / **360** e2e / 388 pages). Three
+things an operator should know: (1) **the mobile navigation drawer gained one
+entry** — `Start Carrier Setup` (→ `/#quote`). It was in the desktop CTA row
+only, which v4.css hides at ≤960px, so on every phone-width page the primary
+carrier call to action was unreachable; the label was already in the v4
+dictionary, so no translation changed. (2) **Portal form controls changed size
+slightly**: date and time fields now render at 16px (below 16px, iOS Safari
+zooms the page on focus and scrolls it sideways), checkboxes and radios are no
+longer stretched to full width, and the document-upload file input and type
+select are constrained to their container. Nothing moved, nothing was
+restyled. (3) **Twelve horizontally scrolling tables and the dispatcher board
+strip are now keyboard focus stops** (`Tab` reaches them, `←`/`→` scrolls
+them) — several held no link at all and were previously unreachable without a
+mouse. Full defect table in
+[`docs/modules/M-82-responsive-a11y-qa.md`](modules/M-82-responsive-a11y-qa.md).*
+Previously revised for M-81 (broker-partner access): migrations **0028–0029**
 added to the order-and-rollback table, the `0001 → 0029` chain, refreshed gate
 counts (1462 unit / 742 RLS / 329 integration / 283 e2e / 388 pages), a new
 **§9c Broker-partner onboarding** section with its smoke test — and **no new
@@ -389,11 +407,22 @@ sets them expecting an effect:
 
 ```bash
 npm run typecheck && npm run lint && npm run build   # module gate (CLAUDE.md)
-npm test                 # 1462 unit assertions
+npm test                 # 1468 unit assertions
 npm run test:rls         # 742 RLS isolation assertions — see below
 npm run test:integration # 329 integration tests against local PG16 — see below
-npm run test:e2e         # 283 chromium tests against the production build
+npm run test:e2e         # 360 chromium tests against the production build
 ```
+
+**Since M-82 the Playwright run regenerates its own fixtures.** A `globalSetup`
+step re-runs the six tracking a11y suites in vitest (~28s) and writes the DOM
+they render to `test-results/tracking-harness/`, which
+`tests/e2e/tracking-responsive-a11y.spec.ts` then measures in Chromium behind
+the real compiled stylesheets at §22's twelve widths. It has **no skip
+switch** — stale fixtures are the exact failure mode that suite exists to
+prevent — so `npm run build` must have run first, and a failure in setup fails
+the whole run rather than silently measuring yesterday's markup. Budget ~6
+minutes for the full e2e gate; the tracking responsive/a11y suite alone is
+~1.9 minutes.
 
 **`npm run test:rls` is a release gate, not an optional extra.** It rebuilds
 a throwaway database from `0001 → 0029` + seed + two/three-tenant fixtures and

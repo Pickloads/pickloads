@@ -5,6 +5,7 @@ import {
   type BoardColumnResult,
   type ShipmentBoardRow,
 } from "@/lib/shipments/board";
+import { ScrollRegion } from "@/components/portal/ScrollRegion";
 import { SHIPMENT_STATUSES, type ShipmentStatus } from "@/lib/shipments/types";
 import type { ShipmentListFilters } from "@/lib/shipments/shipper-list";
 import type { TrackingSearchResult } from "@/lib/shipments/search";
@@ -219,7 +220,7 @@ export function SearchResults({ search }: { search: TrackingSearchResult }) {
           No shipment matches that number in your scope.
         </p>
       ) : (
-        <div className="ptable-wrap">
+        <ScrollRegion label="Search results">
           <table className="ptable">
             <thead>
               <tr>
@@ -250,7 +251,7 @@ export function SearchResults({ search }: { search: TrackingSearchResult }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       )}
       {search.truncated ? (
         <p className="pempty" style={{ padding: "8px 0 0" }}>
@@ -284,10 +285,16 @@ function queryFor(
 }
 
 function ColumnHeading({ result }: { result: BoardColumnResult }) {
+  /* M-82 D-7: was an <h3> directly under the page <h1> — a skipped level on
+     the operational board, while the expanded single-column view rendered the
+     same thing as an <h2>. §23 asks for "correct headings"; axe's
+     `heading-order` rule is tagged best-practice rather than WCAG A/AA, which
+     is why the board shipped with it. `portal.css` carries the matching
+     `.kcol h2` rule — the type is unchanged. */
   return (
-    <h3>
+    <h2>
       {result.column.label} <i>{result.failed ? "—" : (result.total ?? "—")}</i>
-    </h3>
+    </h2>
   );
 }
 
@@ -319,7 +326,10 @@ export function ShipmentBoard({
         columns. Cancelled shipments are not on the board — find them with the
         status filter.
       </p>
-      <div className="kanban">
+      <ScrollRegion
+        className="kanban"
+        label="Operational board — eight columns, scrolls sideways"
+      >
         {columns.map((result) => (
           <section
             key={result.column.id}
@@ -348,7 +358,7 @@ export function ShipmentBoard({
             ) : null}
           </section>
         ))}
-      </div>
+      </ScrollRegion>
     </>
   );
 }
@@ -397,7 +407,7 @@ export function ShipmentColumnView({
           ? "This column failed to load."
           : `${result.total ?? 0} shipment${result.total === 1 ? "" : "s"} · page ${result.page} of ${result.pageCount}`}
       </p>
-      <div className="ptable-wrap">
+      <ScrollRegion label={`${column.label} column`}>
         {result.failed ? (
           <p className="pempty" role="alert">
             Couldn&apos;t load this column. Retry, and check the Supabase
@@ -441,7 +451,7 @@ export function ShipmentColumnView({
             </tbody>
           </table>
         )}
-      </div>
+      </ScrollRegion>
       {result.pageCount > 1 ? (
         <nav className="psh-pager" aria-label={`${column.label} pagination`}>
           {result.page > 1 ? (

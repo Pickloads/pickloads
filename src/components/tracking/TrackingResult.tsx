@@ -30,9 +30,16 @@ import {
  *
  * The header grid is `auto-fit`, so the DOM order IS the mobile order: status
  * and estimated delivery are the first two cells and stack first at 320px.
- * Documents (M-77) and map (M-80) are not built yet and are therefore absent
- * rather than stubbed — an empty "Documents" heading on a shipment with no
- * documents is a promise, and §30 forbids those.
+ * There are no documents on the PUBLIC surface (§16 gives a public visitor no
+ * document band at all), so six of the seven slots exist here and each one
+ * carries a `data-prio` marker naming which it is.
+ *
+ * M-82 moved the location panel BELOW the contact block. It had been sitting
+ * between the timeline and the update history since M-80, which put §22's
+ * LAST-priority item above its FIFTH — on a 320px screen that is roughly two
+ * thumb-scrolls of route diagram between "where is my freight" and "how do I
+ * ask a human". The order is now asserted at all twelve widths in
+ * `tests/e2e/tracking-responsive-a11y.spec.ts`.
  *
  * ── §30 honest labels ─────────────────────────────────────────────────────
  *
@@ -167,14 +174,14 @@ export function TrackingResult({
 
       {cancelled ? (
         <div className="track-banner is-neutral" role="note">
-          <h3>{t("shipment.result.cancelled_title")}</h3>
+          <h2>{t("shipment.result.cancelled_title")}</h2>
           <p>{t("shipment.result.cancelled_body")}</p>
         </div>
       ) : null}
 
       {delayed ? (
         <div className="track-banner" role="note">
-          <h3>{t("shipment.result.delay_title")}</h3>
+          <h2>{t("shipment.result.delay_title")}</h2>
           {tracking.delay_minutes === null ? null : (
             <p>
               {t("shipment.result.delay_minutes", {
@@ -195,7 +202,7 @@ export function TrackingResult({
           className="track-banner"
           role="note"
         >
-          <h3>{t("shipment.result.exception_title")}</h3>
+          <h2>{t("shipment.result.exception_title")}</h2>
           <p>
             {t(exception.exception_type_key)} · {t(exception.severity_key)}
           </p>
@@ -205,7 +212,7 @@ export function TrackingResult({
 
       {/* ── §8 header summary ── */}
       <div className="track-head">
-        <div>
+        <div data-prio="status">
           <span className="k">{t("shipment.result.current_status")}</span>
           <span className="v">
             <span className={`track-status ${statusClass}`.trim()}>
@@ -213,7 +220,7 @@ export function TrackingResult({
             </span>
           </span>
         </div>
-        <div>
+        <div data-prio="eta">
           <span className="k">{t("shipment.result.estimated_delivery")}</span>
           <span className="v">
             {formatTrackingDateTime(tracking.estimated_delivery_at, locale) ??
@@ -225,7 +232,7 @@ export function TrackingResult({
             </span>
           ) : null}
         </div>
-        <div>
+        <div data-prio="route">
           <span className="k">{t("shipment.result.origin")}</span>
           <span className="v">
             {tracking.origin_city}, {tracking.origin_state}
@@ -268,26 +275,9 @@ export function TrackingResult({
       </div>
 
       {/* ── §8 progress timeline (+ §23 text equivalent) ── */}
-      <TrackingTimeline tracking={tracking} />
-
-      {/*
-        ── §9's location panel — M-80's, honest ────────────────────────────
-        The DTO already capped this audience at city/state at EVERY privacy
-        level, so nothing here can plot a coordinate for a public visitor and
-        the map never mounts on this page. What renders is §30's label, the
-        last recorded place, and §23's text equivalent.
-      */}
-      <LocationPanel
-        headingId="track-location-heading"
-        level={tracking.location_visibility}
-        trackingMode={tracking.tracking_mode}
-        currentCity={tracking.current_city}
-        currentState={tracking.current_state}
-        currentLatitude={tracking.current_latitude}
-        currentLongitude={tracking.current_longitude}
-        lastLocationAt={tracking.last_location_at}
-        readings={tracking.locations}
-      />
+      <div data-prio="timeline">
+        <TrackingTimeline tracking={tracking} />
+      </div>
 
       {/* ── update history — §25-bounded ── */}
       <section className="track-section" aria-labelledby="track-events-heading">
@@ -373,8 +363,12 @@ export function TrackingResult({
         </dl>
       </section>
 
-      {/* ── §8 contact ── */}
-      <section className="track-section" aria-labelledby="track-contact-heading">
+      {/* ── §8 contact + §22's "support" priority slot ── */}
+      <section
+        className="track-section"
+        data-prio="support"
+        aria-labelledby="track-contact-heading"
+      >
         <h2 id="track-contact-heading">
           {t("shipment.result.contact_title")}
         </h2>
@@ -387,6 +381,27 @@ export function TrackingResult({
         </div>
         <TrackingSupportForm trackingNumber={tracking.tracking_number} />
       </section>
+
+      {/*
+        ── §9's location panel — M-80's, honest ────────────────────────────
+        The DTO already capped this audience at city/state at EVERY privacy
+        level, so nothing here can plot a coordinate for a public visitor and
+        the map never mounts on this page. What renders is §30's label, the
+        last recorded place, and §23's text equivalent.
+      */}
+      <div data-prio="map">
+        <LocationPanel
+          headingId="track-location-heading"
+          level={tracking.location_visibility}
+          trackingMode={tracking.tracking_mode}
+          currentCity={tracking.current_city}
+          currentState={tracking.current_state}
+          currentLatitude={tracking.current_latitude}
+          currentLongitude={tracking.current_longitude}
+          lastLocationAt={tracking.last_location_at}
+          readings={tracking.locations}
+        />
+      </div>
     </div>
   );
 }

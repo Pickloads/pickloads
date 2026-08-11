@@ -88,6 +88,99 @@ for (const path of PAGES) {
   });
 }
 
+/* ==========================================================================
+ * M-82 — the tracking routes in the STATES that matter, not only at rest.
+ *
+ * The list above scans `/track` and `/driver/update/[token]` as they first
+ * paint. §23 is not a property of a first paint: an error message, an empty
+ * result and an expired token are the moments a customer most needs the page
+ * to be readable, and each renders markup the resting page does not have.
+ *
+ * ── WHAT IS SCANNED WHERE, AND WHY THE SPLIT ─────────────────────────────
+ *
+ *   * HERE, in a real browser: every state a route can reach with no session
+ *     and no database — the lookup form in five locales, its ERROR state
+ *     (driven by a real submit, not simulated), and the driver link's
+ *     EXPIRED-TOKEN refusal, which is what a token that cannot be redeemed
+ *     honestly produces in this lane.
+ *   * In `tests/e2e/tracking-responsive-a11y.spec.ts`: the 27 session-gated
+ *     surface states (populated, empty, filtered-empty, failed, exception,
+ *     cancelled, delayed, degraded, terminal, no-actions, map-mounted,
+ *     text-only …), scanned with the same axe engine at 320/768/1440 against
+ *     the real compiled stylesheets, from the DOM the real components emit.
+ *
+ * Neither half is a claim about the other. `responsive.spec.ts` asserts the
+ * session gate that makes the split necessary.
+ * ======================================================================== */
+
+const LOCALES = ["en", "es", "fr", "ht", "ru"] as const;
+
+for (const locale of LOCALES) {
+  const path = locale === "en" ? "/track" : `/${locale}/track`;
+  test(`axe: ${path} (§24 locale) has no WCAG A/AA violations`, async ({
+    page,
+  }) => {
+    await page.goto(path);
+    const results = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+      .analyze();
+    const summary = results.violations.map((v) => ({
+      id: v.id,
+      impact: v.impact,
+      nodes: v.nodes.slice(0, 3).map((n) => n.target.join(" ")),
+    }));
+    expect(summary, JSON.stringify(summary, null, 2)).toEqual([]);
+  });
+}
+
+test("axe: /track ERROR state (§23 accessible error states)", async ({
+  page,
+}) => {
+  await page.goto("/track");
+  await page.fill("#tk-number", "PL-2026-000000");
+  await page.fill("#tk-secondary", "00000");
+  await page.click('#track-form button[type="submit"]');
+  // The alert region is always in the DOM (M-73 built it that way on purpose);
+  // `.show` is what makes it visible. Requiring VISIBILITY is what stops this
+  // test from passing on a submit that silently did nothing.
+  const err = page.locator("#tk-err.show");
+  await expect(err, "the lookup produced no error state to scan").toBeVisible();
+  await expect(err).not.toBeEmpty();
+
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+    .analyze();
+  const summary = results.violations.map((v) => ({
+    id: v.id,
+    impact: v.impact,
+    nodes: v.nodes.slice(0, 3).map((n) => n.target.join(" ")),
+  }));
+  expect(summary, JSON.stringify(summary, null, 2)).toEqual([]);
+});
+
+test("axe: expired driver token, in five locales (§13 refusal card)", async ({
+  page,
+}) => {
+  for (const locale of LOCALES) {
+    const prefix = locale === "en" ? "" : `/${locale}`;
+    await page.goto(`${prefix}/driver/update/${"A".repeat(43)}`);
+    // A token that cannot be redeemed renders the refusal, and the refusal is
+    // an ALERT — a driver at a dock must be told, not left to notice.
+    await expect(page.locator('[role="alert"]').first()).toBeVisible();
+    const results = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+      .analyze();
+    const summary = results.violations.map((v) => ({
+      id: v.id,
+      impact: v.impact,
+      nodes: v.nodes.slice(0, 3).map((n) => n.target.join(" ")),
+    }));
+    expect(summary, `${locale}: ${JSON.stringify(summary, null, 2)}`).toEqual(
+      [],
+    );
+  }
+});
+
 test("skip link is the first focusable element and targets #main", async ({
   page,
 }) => {
