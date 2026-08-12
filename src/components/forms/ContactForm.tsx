@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { useLocale } from "next-intl";
 import { useV4 } from "@/i18n/v4";
+import { track, type AnalyticsEvent } from "@/lib/analytics";
 import { initialFormState } from "@/lib/form-state";
 import { submitContactMessage } from "@/app/actions/contact-message";
 import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
@@ -12,13 +13,43 @@ import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
  * form; V4 sketched none, so this composes the existing .bigform vocabulary:
  * grid2 rows + .field + textarea, exactly the shipper-form pattern).
  */
-export function ContactForm() {
+/**
+ * The ONE public contact form.
+ *
+ * Careers and Partners reuse it with a preset subject rather than shipping
+ * their own. A second contact form would mean a second Zod schema, a second
+ * rate limit, a second Turnstile call site and a second place for a lead to go
+ * missing — for a field that differs by one string.
+ */
+export function ContactForm({
+  defaultSubject,
+  surface = "contact",
+  startedEvent = "contact_started",
+  submittedEvent = "contact_submitted",
+}: {
+  /** Prefills the subject. The visitor can still edit it. */
+  defaultSubject?: string;
+  surface?: string;
+  startedEvent?: AnalyticsEvent;
+  submittedEvent?: AnalyticsEvent;
+} = {}) {
   const tv = useV4();
   const locale = useLocale();
+  const started = useRef(false);
   const [state, formAction, pending] = useActionState(
     submitContactMessage,
     initialFormState,
   );
+  useEffect(() => {
+    if (state.status === "success") track(submittedEvent, { surface });
+  }, [state, submittedEvent, surface]);
+
+  const onFirstInput = () => {
+    if (started.current) return;
+    started.current = true;
+    track(startedEvent, { surface });
+  };
+
   return (
     <div className="bigform" id="message">
       <h2>{tv("Send us a message")}</h2>
@@ -27,7 +58,7 @@ export function ContactForm() {
           "Prefer to write it out? We reply within one business day — usually much faster.",
         )}
       </p>
-      <form action={formAction}>
+      <form action={formAction} onInput={onFirstInput}>
         <input type="hidden" name="locale" value={locale} />
         <div className="grid2">
           <div className="field">
@@ -71,6 +102,7 @@ export function ContactForm() {
               id="ct-subject"
               name="subject"
               type="text"
+              defaultValue={defaultSubject}
               placeholder={tv("e.g. Dispatch for 2 dry vans")}
             />
           </div>

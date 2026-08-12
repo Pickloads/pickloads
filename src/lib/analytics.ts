@@ -32,8 +32,13 @@ export type AnalyticsEvent =
   | "carrier_application_started"
   | "carrier_application_submitted"
   | "new_authority_inquiry"
+  // Corporate enquiries
+  | "career_interest"
+  | "partner_inquiry_started"
+  | "partner_inquiry_submitted"
   // Utility and contact
   | "tracking_lookup"
+  | "contact_started"
   | "contact_submitted"
   | "meeting_booked"
   | "account_signup";
@@ -47,7 +52,11 @@ export const ANALYTICS_EVENTS = [
   "carrier_application_started",
   "carrier_application_submitted",
   "new_authority_inquiry",
+  "career_interest",
+  "partner_inquiry_started",
+  "partner_inquiry_submitted",
   "tracking_lookup",
+  "contact_started",
   "contact_submitted",
   "meeting_booked",
   "account_signup",

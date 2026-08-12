@@ -57,6 +57,7 @@ sensitive data. One specification contradiction, minor, recorded in §5.
 | Surface | Status | Notes |
 |---|---|---|
 | **Request a Quote (page)** | ✅ **DELIVERED** | `/request-a-quote`, live in all five locales. Renders the SAME `FreightQuoteForm` and `submitFreightQuote` action as `/shippers` — one quote system, not two. Funnel instrumented (`quote_view` / `quote_started` / `quote_submitted` / `quote_failed`). Registered in `PUBLIC_ROUTES`, so it is in the sitemap with hreflang. 8 dedicated e2e tests + 12-breakpoint responsive + axe. **It also fixed a live mis-targeting**: the primary CTA pointed at `/#quote`, the home page's *carrier* setup form |
+| **Carrier Resources** | ✅ **DELIVERED** | `/carrier-resources` — a hub over existing routes only. **No form, no input, no textarea** (asserted): it must never become a second carrier capture point. Links to `/downloads` rather than copying it. 8 e2e tests including negative assertions on internal carrier data and a live status check on every link. Nav activated |
 | **Become a Carrier** | ✅ **DELIVERED** | `/become-a-carrier` — hosts the real `CarrierWizard` (unchanged), now with §17's documentation and expectations sections and onward links. 5 e2e tests: at most one application form, **no internal carrier rating exposed**, no earnings claim, and the dispatch CTA verified to land here |
 | **Get Dispatch / Start Dispatching** | 🟠 | CTAs exist across equipment pages; no single owned funnel entry |
 | **Book a Consultation** | ❌ ⚙️ | No booking surface. Requires an approved Calendly (or equivalent) URL |
@@ -157,6 +158,3 @@ The plan in `docs/FINAL-WEBSITE-IMPLEMENTATION-PLAN.md` sequences them so that
 each phase ships something verifiable, the certified lanes stay green
 throughout, and nothing is built ahead of the legal or business fact it depends
 on.
-
-
-> **Carrier Resources — DELIVERED** (`/carrier-resources`): hub over existing routes, no form, links to /downloads, nav activated.

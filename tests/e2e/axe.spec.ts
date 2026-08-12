@@ -39,6 +39,8 @@ const PAGES = [
   "/knowledge-base",
   "/downloads",
   "/carrier-resources",
+  "/careers",
+  "/partners",
   "/shippers",
   "/become-a-carrier",
   "/start-your-trucking-company",

@@ -126,10 +126,10 @@ describe("unbuilt destinations are declared but never rendered", () => {
     // /knowledge-base left this list when its page shipped and its flag was
     // flipped. Pinning the set is the point: an entry cannot quietly become
     // visible, and one cannot quietly stay hidden after its page exists.
-    expect(hrefs).toEqual([
-      "/careers",
-      "/partners",
-    ]);
+    // Empty at last: every declared destination now exists and ships.
+    // The assertion stays as the guard against a future entry being added
+    // for a page that does not exist.
+    expect(hrefs).toEqual([]);
   });
 
   it("none of them is rendered", () => {

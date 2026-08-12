@@ -144,23 +144,51 @@ function AboutContent() {
         </div>
       </section>
 
-      <section className="cta-band">
+      {/* DUAL-PATH CTA (§ About CTA paths).
+          The previous band offered "Start Carrier Setup" -> /#quote, which is
+          the home page's CARRIER form, and "Request a Freight Quote" ->
+          /shippers. Two problems: a shipper reading an About page had no
+          direct route to the quote page, and neither audience was offered the
+          funnel that actually fits them. Every destination below is a real
+          route, and the labels are existing approved V4 strings. */}
+      <section className="light">
         <div className="wrap">
-          <div>
-            <h2>{tv("Want to work with us?")}</h2>
-            <p>{tv("Carrier or shipper — start the conversation today.")}</p>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <Link className="btn btn-dark" href="/#quote">
-              {tv("Start Carrier Setup")}
-            </Link>
-            <Link
-              className="btn btn-ghost"
-              style={{ borderColor: "rgba(18,22,26,.35)", color: "var(--ink)" }}
-              href="/shippers"
-            >
-              {tv("Request a Freight Quote")}
-            </Link>
+          <h2 className="sec">{tv("Want to work with us?")}</h2>
+          <p className="sub">
+            {tv("Carrier or shipper — start the conversation today.")}
+          </p>
+          <div className="values">
+            <div>
+              <h3>{tv("For Carriers")}</h3>
+              <p>
+                <Link className="btn btn-amber" href="/dispatch-services">
+                  {tv("Dispatch Services")}
+                </Link>{" "}
+                <Link className="btn btn-ghost" href="/become-a-carrier">
+                  {tv("Become a Carrier")}
+                </Link>{" "}
+                <Link
+                  className="btn btn-ghost"
+                  href="/start-your-trucking-company"
+                >
+                  {tv("Start Your Trucking Company")}
+                </Link>
+              </p>
+            </div>
+            <div>
+              <h3>{tv("For Shippers")}</h3>
+              <p>
+                <Link className="btn btn-amber" href="/request-a-quote">
+                  {tv("Request a Quote")}
+                </Link>{" "}
+                <Link className="btn btn-ghost" href="/shippers">
+                  {tv("For Shippers")}
+                </Link>{" "}
+                <Link className="btn btn-ghost" href="/track">
+                  {tv("Track Shipment")}
+                </Link>
+              </p>
+            </div>
           </div>
         </div>
       </section>

@@ -203,10 +203,37 @@ One address, one phone, one mailbox, MC/USDOT rendering as **pending**. Nothing
 invented. Legal column links the shells, which are `noindex` until counsel
 delivers text.
 
-### CAREERS · PARTNERS · REFERRAL · `COWORK REVIEW REQUIRED`
-Not built. When they are, they ship with honest empty states — **no invented
-job openings, partner terms or referral amounts**. `referral_program_active` is
-false and no dollar figure may be shown.
+### CAREERS · `COWORK REVIEW REQUIRED` · `MARKETING`
+`/careers` **built and live.** Honest state: "No open roles right now" — no
+invented vacancy, and no "we're always hiring" implying a pipeline that does
+not exist. No `JobPosting` structured data, because it describes a vacancy and
+there is none. Enquiries reuse `ContactForm`.
+
+**Cowork owns:** the employer positioning and whether any role should be
+listed. **If a real vacancy is approved,** it needs more than copy — a job
+model, and a decision on CV storage, which is personal data with its own
+retention and privacy position. Flag it as a project, not a content edit.
+
+### PARTNERS · `COWORK REVIEW REQUIRED` · `BUSINESS`
+`/partners` **built and live.** Five partnership *types* described; **no
+partner named, no logo, no commission, discount, affiliate term or payout**.
+A published commission is an offer, and none has been agreed. The page says
+terms are agreed case by case.
+
+**Cowork/business owns:** whether any partner may be named, and any commercial
+terms. Engineering will not add a number here.
+
+### REFERRAL PROGRAM · `COWORK REVIEW REQUIRED` + `LEGAL` · `BUSINESS`
+**Not built, and deliberately so.** `company_settings.referral_program_active`
+is **false**, and M-69/P-2 already gates the one referral line that exists
+(in `CtaBand`) behind it — the promise stops today and returns with one
+setting flip.
+
+Building a referral *page* while the flag is false would create a surface whose
+entire subject is a programme that cannot pay out. The architecture that
+matters — the gate — already exists and is honoured on every page. **Engineering
+is waiting on approved terms** (eligibility, amount, payout timing), which are
+a business and legal decision, not a copy edit.
 
 ---
 

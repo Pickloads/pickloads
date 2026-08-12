@@ -83,6 +83,8 @@ const ROUTES: { path: string; slug: string; group: string; chrome?: false }[] = 
   { path: "/knowledge-base", slug: "knowledge-base", group: "public" },
   { path: "/downloads", slug: "downloads", group: "public" },
   { path: "/carrier-resources", slug: "carrier-resources", group: "public" },
+  { path: "/careers", slug: "careers", group: "public" },
+  { path: "/partners", slug: "partners", group: "public" },
   { path: "/shippers", slug: "shippers", group: "public" },
   { path: "/become-a-carrier", slug: "become-a-carrier", group: "public" },
   {
