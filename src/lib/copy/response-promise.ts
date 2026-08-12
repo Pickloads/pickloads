@@ -12,29 +12,38 @@
  *
  * A shared convention would not have prevented that. A shared constant does.
  *
- * ── WHY THE TIMING PROMISE WENT AWAY ─────────────────────────────────────
+ * ── THE TIMING, AND WHY IT READS THE WAY IT DOES (owner, 2026-08-12) ─────
  *
- * A stated response time is an operational commitment, not marketing copy. It
- * is only honest if there is a real SLA behind it — staffed hours, a queue
- * someone owns, and a way to know when it was missed. None of that is
- * established yet, so the site no longer states one.
+ * The site used to promise a callback "within 15 minutes". That is a
+ * guarantee, in the strongest word available, against an SLA nobody had
+ * agreed to — no staffed window, no owned queue, no way to know when it was
+ * missed. It is gone from every public surface.
  *
- * This is the same standard the rest of the platform already holds itself to:
- * MC and USDOT render as "pending" rather than as numbers, testimonials render
- * nothing rather than invented praise, and the tracking page says plainly that
- * it does not show a live GPS position. A response-time guarantee nobody has
- * agreed to is the same kind of claim.
+ * Fifteen minutes still exists: as an INTERNAL target on the staff lead
+ * notification email, where it is an instruction to a person rather than a
+ * commitment to a customer. That distinction is the whole decision — an
+ * operational KPI and a public promise are different objects, and only one of
+ * them belongs in marketing copy.
  *
- * ── IF AN SLA IS ESTABLISHED LATER ───────────────────────────────────────
+ * What replaced it is deliberately hedged: "typically", and "during business
+ * hours". Both words are load-bearing. "Typically within the hour" describes
+ * what usually happens; "guaranteed within one hour" would recreate exactly
+ * the problem that was just removed, with a friendlier number. Do not let
+ * this sentence drift toward a guarantee.
  *
- * Change this constant, add the new English string to `SUPPLEMENTAL` in
- * `scripts/extract-i18n.mjs` with real es/fr, regenerate the catalogues, and
- * every surface follows in one commit. Do not reintroduce a time anywhere else.
+ * ── IF THIS CHANGES AGAIN ────────────────────────────────────────────────
+ *
+ * Change this constant, add the new English string to the locale catalogues
+ * for all five languages, and every surface follows in one commit. Do not
+ * state a response time anywhere else.
  */
 
-/** The approved sentence. Business-approved wording — do not edit casually. */
+/**
+ * The approved sentence. Owner-approved wording — do not edit casually, and
+ * in particular do not turn "typically" into "guaranteed".
+ */
 export const RESPONSE_PROMISE =
-  "A PickLoads representative will review your request and follow up with you promptly.";
+  "We respond fast — typically within the hour during business hours.";
 
 /** The same promise, prefixed for a confirmation state. */
 export const RESPONSE_PROMISE_RECEIVED = `✓ RECEIVED — ${RESPONSE_PROMISE}`;

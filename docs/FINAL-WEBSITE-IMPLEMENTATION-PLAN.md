@@ -1,5 +1,14 @@
 # Final website — implementation plan
 
+> **2026-08-12 — superseded for public copy.** The owner's pre-launch business
+> decisions now govern availability, response time, first-load timing,
+> shipper-flow labels, pricing, public statistics, careers, partners, referral,
+> New Authority and testimonials. Where this plan disagrees with
+> `OWNER-BUSINESS-DECISIONS.md`, the decisions win. Launch sequencing now lives
+> in `PICKLOADS-BUSINESS-LAUNCH-CHECKLIST.md`.
+>
+> The engineering plan below is otherwise unchanged and still accurate.
+
 **Baseline:** `m84b-certified` (`2315386`) · **Branch:**
 `final-website-production` · **Companion:** `docs/FINAL-WEBSITE-GAP-AUDIT.md`
 
@@ -24,27 +33,27 @@ assembled from those, not beside them.
 
 ## 2 · Page inventory
 
-| Page | Action | Source of truth |
-|---|---|---|
-| Home | polish — add the §11 dual-path split; confirm hero copy | V4 HTML |
-| Dispatch Services | **new** conversion page above the equipment/state pages | §12 |
-| Freight Brokerage (`/shippers`) | polish to §14; keep the gate | §14 |
-| New Authority | polish only — disclaimer is correct | §16 |
-| Become a Carrier | polish — add documents/expectations | §17 |
-| Request a Quote | **new** public page | §15 / M-85 |
-| Track | integrate visually; **do not touch behaviour** | §19 |
-| About | polish to §21 | §21 |
-| Contact | polish — add §33 categories | §33 |
-| FAQ | polish; table migration deferred | §27 |
-| Knowledge Base | **new** | M-90 |
-| Downloads Center | **new**, on `packet_downloads_live` | M-92 |
-| Support Center | **new** public/guest surface | M-89 |
-| Blog | real categories, authors, related | M-91 |
-| Careers | **new**, honest empty state | M-93 |
-| Partner Program | **new** | M-94 |
-| Referral Program | **new**, on `referral_program_active` | M-95 |
-| Login Center | **new** — see the §7 recommendation in the audit | §38 |
-| Legal shells | leave as they are until counsel delivers | 🔒 |
+| Page                            | Action                                                  | Source of truth |
+| ------------------------------- | ------------------------------------------------------- | --------------- |
+| Home                            | polish — add the §11 dual-path split; confirm hero copy | V4 HTML         |
+| Dispatch Services               | **new** conversion page above the equipment/state pages | §12             |
+| Freight Brokerage (`/shippers`) | polish to §14; keep the gate                            | §14             |
+| New Authority                   | polish only — disclaimer is correct                     | §16             |
+| Become a Carrier                | polish — add documents/expectations                     | §17             |
+| Request a Quote                 | **new** public page                                     | §15 / M-85      |
+| Track                           | integrate visually; **do not touch behaviour**          | §19             |
+| About                           | polish to §21                                           | §21             |
+| Contact                         | polish — add §33 categories                             | §33             |
+| FAQ                             | polish; table migration deferred                        | §27             |
+| Knowledge Base                  | **new**                                                 | M-90            |
+| Downloads Center                | **new**, on `packet_downloads_live`                     | M-92            |
+| Support Center                  | **new** public/guest surface                            | M-89            |
+| Blog                            | real categories, authors, related                       | M-91            |
+| Careers                         | **new**, honest empty state                             | M-93            |
+| Partner Program                 | **new**                                                 | M-94            |
+| Referral Program                | **new**, on `referral_program_active`                   | M-95            |
+| Login Center                    | **new** — see the §7 recommendation in the audit        | §38             |
+| Legal shells                    | leave as they are until counsel delivers                | 🔒              |
 
 ## 3 · Component strategy
 
@@ -68,19 +77,19 @@ primitives rather than per-page markup.
 Each phase ends with the full gate (`typecheck · lint · unit · rls ·
 integration · e2e · build`) and one clean commit. CI runs the same gate.
 
-| Phase | Scope | Ships |
-|---|---|---|
-| **A** ✅ | CI + branch + baseline preservation | **Done** — `e3b6d98` |
-| **B** | Design system audit + global nav + footer (§8, §48, §59) | Nav/footer used by every later phase |
-| **C** | Homepage — dual-path split, hero, section order (§9–§11) | The main entry |
-| **D** | Dispatch Services page + New Authority polish + Become a Carrier (§12, §13, §16, §17) | Carrier funnel |
-| **E** | Freight Brokerage polish + **Request a Quote** page (§14, §15) | Shipper funnel |
-| **F** | Track integration + Support Center + Knowledge Base + Downloads (§19, §26, §27, §28) | Resources |
-| **G** | About + Careers + Partners + Referral + Blog categories (§21–§24, §29–§32) | Company |
-| **H** | Login Center + portal transition polish (§38, §39) | Auth entry |
-| **I** | SEO + analytics taxonomy + PWA + performance (§44–§46, §52, §53, §42) | Platform |
-| **J** | Full responsive / accessibility / security QA (§49, §50, §54, §61–§63) | Certification |
-| **K** | Production readiness audit (§64, §65) | Launch pack |
+| Phase    | Scope                                                                                 | Ships                                |
+| -------- | ------------------------------------------------------------------------------------- | ------------------------------------ |
+| **A** ✅ | CI + branch + baseline preservation                                                   | **Done** — `e3b6d98`                 |
+| **B**    | Design system audit + global nav + footer (§8, §48, §59)                              | Nav/footer used by every later phase |
+| **C**    | Homepage — dual-path split, hero, section order (§9–§11)                              | The main entry                       |
+| **D**    | Dispatch Services page + New Authority polish + Become a Carrier (§12, §13, §16, §17) | Carrier funnel                       |
+| **E**    | Freight Brokerage polish + **Request a Quote** page (§14, §15)                        | Shipper funnel                       |
+| **F**    | Track integration + Support Center + Knowledge Base + Downloads (§19, §26, §27, §28)  | Resources                            |
+| **G**    | About + Careers + Partners + Referral + Blog categories (§21–§24, §29–§32)            | Company                              |
+| **H**    | Login Center + portal transition polish (§38, §39)                                    | Auth entry                           |
+| **I**    | SEO + analytics taxonomy + PWA + performance (§44–§46, §52, §53, §42)                 | Platform                             |
+| **J**    | Full responsive / accessibility / security QA (§49, §50, §54, §61–§63)                | Certification                        |
+| **K**    | Production readiness audit (§64, §65)                                                 | Launch pack                          |
 
 ## 5 · Testing strategy
 
@@ -89,7 +98,7 @@ integration · e2e · build`) and one clean commit. CI runs the same gate.
 - **Every new form** gets: server-side Zod validation, rate limiting, spam
   protection, and unit tests for the validation schema — the M-14 doctrine,
   not a new one.
-- **Every gated surface** gets a test for *both* states. A gate tested only in
+- **Every gated surface** gets a test for _both_ states. A gate tested only in
   its closed state is a gate that opens wrong.
 - **Security lanes re-run after every phase**, not only at the end. An RLS
   regression introduced in Phase C should fail in Phase C.
@@ -97,23 +106,23 @@ integration · e2e · build`) and one clean commit. CI runs the same gate.
 
 ## 6 · Legal and external dependencies
 
-| Dependency | Blocks | Owner |
-|---|---|---|
-| Privacy / Terms / Cookie text | production launch of any page | counsel |
-| Dispatch + Carrier agreement text & Dropbox template | carrier funnel completion | counsel |
-| Broker-Carrier + Shipper-Broker agreements | brokerage activation | counsel |
-| MC authority + BMC-84 bond | `brokerage_active = true` | business |
-| Google Business Profile | Google Reviews (§36) | business |
-| Booking provider URL | Book a Consultation (§34) | business |
-| Approved pricing | Dispatch pricing (§13) | business |
-| Real imagery | §47 image strategy | business |
+| Dependency                                           | Blocks                        | Owner    |
+| ---------------------------------------------------- | ----------------------------- | -------- |
+| Privacy / Terms / Cookie text                        | production launch of any page | counsel  |
+| Dispatch + Carrier agreement text & Dropbox template | carrier funnel completion     | counsel  |
+| Broker-Carrier + Shipper-Broker agreements           | brokerage activation          | counsel  |
+| MC authority + BMC-84 bond                           | `brokerage_active = true`     | business |
+| Google Business Profile                              | Google Reviews (§36)          | business |
+| Booking provider URL                                 | Book a Consultation (§34)     | business |
+| Approved pricing                                     | Dispatch pricing (§13)        | business |
+| Real imagery                                         | §47 image strategy            | business |
 
 **None blocks engineering from proceeding.** Each has a defined honest state.
 
 ## 7 · Git strategy
 
 One repository, one branch (`final-website-production`), one commit per
-validated phase, message explaining *why* not merely *what*. `m84b-certified`
+validated phase, message explaining _why_ not merely _what_. `m84b-certified`
 is never moved. No milestone proliferation: this phase is documented as **FINAL
 WEBSITE PRODUCTION**, not M-85+.
 

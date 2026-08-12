@@ -71,7 +71,7 @@ export function ContactForm({
       <h2>{tv("Send us a message")}</h2>
       <p>
         {tv(
-          "Prefer to write it out? We reply within one business day — usually much faster.",
+          "Prefer to write it out? We reply promptly — typically within the hour during business hours.",
         )}
       </p>
       <form action={formAction} onInput={onFirstInput}>
@@ -180,7 +180,7 @@ export function ContactForm({
         role="status"
       >
         {tv(
-          "✓ SENT — We'll reply within one business day at the email provided. Urgent? Call (908) 404-5373.",
+          "✓ SENT — We'll reply at the email provided, typically within the hour during business hours. Urgent? Call (908) 404-5373.",
         )}
       </div>
       <div

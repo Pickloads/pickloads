@@ -85,11 +85,16 @@ export default async function CareersPage({
         <div className="wrap">
           {/* The honest state. No invented vacancy, and no "we are always
               hiring" implying a pipeline that does not exist. */}
+          {/* Owner decision D2 (2026-08-12): "We're building our team." The
+              heading is the approved positioning; the sentence under it keeps
+              the substance that made this page safe in the first place. A
+              growth statement without "no open roles today" reads as active
+              hiring, which would be a fabricated vacancy by implication. */}
           <div className="state state--empty">
-            <h3>{tv("No open roles right now")}</h3>
+            <h3>{tv("We're building our team.")}</h3>
             <p>
               {tv(
-                "Tell us what you do and we will keep your details on file for when something opens.",
+                "There are no open roles posted today. Tell us what you do and we will keep your details on file for when something opens.",
               )}
             </p>
           </div>

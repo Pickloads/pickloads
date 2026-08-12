@@ -49,7 +49,7 @@ export default async function ShipperSupportPage({
           <p className="mono" style={{ fontSize: ".8rem", color: "var(--steel)" }}>
             (908) 404-5373
             <br />
-            {tv("Dispatch support: 24/7 · Office Mon–Fri 8am–6pm ET")}
+            {tv("Dispatch support: 7 days a week · Office Mon–Fri 8am–6pm ET")}
           </p>
         </div>
       </div>

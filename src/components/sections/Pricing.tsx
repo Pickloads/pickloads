@@ -1,5 +1,6 @@
 import { Link } from "@/i18n/navigation";
 import { useV4 } from "@/i18n/v4";
+import { tierRate } from "@/lib/pricing";
 
 /*
  * Reconstructed section (audit F-01, decision Q2): the V4 file lost this
@@ -21,7 +22,8 @@ export function Pricing() {
             <h3>Owner-Operator</h3>
             <span className="for">{tv("1 truck · your authority")}</span>
             <span className="price">
-              5<small>%</small>
+              {tierRate("owner_operator")}
+              <small>%</small>
             </span>
             <span className="per">{tv("of gross per load")}</span>
             <ul>
@@ -30,7 +32,7 @@ export function Pricing() {
               <li>{tv("Broker verification on every load")}</li>
               <li>{tv("Rate cons, BOLs & paperwork")}</li>
               <li>{tv("Detention & TONU support")}</li>
-              <li>{tv("24/7 driver support")}</li>
+              <li>{tv("Driver support 7 days a week")}</li>
             </ul>
             <Link
               className="btn btn-ghost"
@@ -45,7 +47,8 @@ export function Pricing() {
             <h3>{tv("Small Fleet")}</h3>
             <span className="for">{tv("2–10 trucks")}</span>
             <span className="price">
-              4.5<small>%</small>
+              {tierRate("small_fleet")}
+              <small>%</small>
             </span>
             <span className="per">{tv("of gross per load")}</span>
             <ul>
@@ -63,7 +66,8 @@ export function Pricing() {
             <h3>Box Truck &amp; Hot Shot</h3>
             <span className="for">{tv("Non-CDL & expedited")}</span>
             <span className="price">
-              8<small>%</small>
+              {tierRate("box_truck_hot_shot")}
+              <small>%</small>
             </span>
             <span className="per">{tv("of gross per load")}</span>
             <ul>
@@ -71,7 +75,7 @@ export function Pricing() {
               <li>{tv("Higher-touch booking (smaller loads)")}</li>
               <li>{tv("Paperwork & invoicing")}</li>
               <li>{tv("Detention & TONU support")}</li>
-              <li>{tv("24/7 driver support")}</li>
+              <li>{tv("Driver support 7 days a week")}</li>
             </ul>
             <Link
               className="btn btn-ghost"

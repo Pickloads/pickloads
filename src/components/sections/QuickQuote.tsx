@@ -27,7 +27,7 @@ export function QuickQuote() {
           <h2>{tv("Need a dispatcher?")}</h2>
           <p>
             {tv(
-              "Tell us about your operation — a dispatcher calls you back within 15 minutes during business hours.",
+              "Tell us about your operation — we respond fast, typically within the hour during business hours.",
             )}
           </p>
           <form className="quote-form" action={formAction}>
@@ -103,7 +103,7 @@ export function QuickQuote() {
             role="status"
           >
             {tv(
-              "✓ RECEIVED — A dispatcher will call you within 15 minutes (Mon–Sat, 7am–9pm ET). Or call us now: (908) 404-5373",
+              "✓ RECEIVED — We respond fast, typically within the hour during business hours. Or call us now: (908) 404-5373",
             )}
           </div>
           <div

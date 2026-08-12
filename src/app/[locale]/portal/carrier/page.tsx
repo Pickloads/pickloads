@@ -200,7 +200,7 @@ export default async function CarrierOverviewPage({
         <div className={`ptile ${pendingCount > 0 ? "" : "good"}`}>
           <b>{pendingCount}</b>
           <span>{tv("Documents in review")}</span>
-          <span className="sub">{tv("Reviewed within one business day")}</span>
+          <span className="sub">{tv("Typically reviewed within one business day")}</span>
         </div>
         <div className={`ptile ${missingDocs.length > 0 ? "warn" : "good"}`}>
           <b>{missingDocs.length}</b>

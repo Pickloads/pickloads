@@ -64,7 +64,7 @@ export function CreateCarrierForm() {
                   )
                 : state.next === "new_authority"
                   ? tv(
-                      "We'll help you launch: your checklist is ready, and a dispatcher calls you the same day.",
+                      "We'll help you launch: your checklist is ready, and a dispatcher typically calls you the same day.",
                     )
                   : tv(
                       "Because you run leased-on, a dispatcher reviews your setup personally and calls you — usually the same day.",
@@ -180,7 +180,7 @@ export function CreateCarrierForm() {
           <p className="mono" style={{ fontSize: ".72rem", color: "var(--color-amber-aa)", margin: "0 0 16px" }}>
             {"// "}
             {tv(
-              "No authority yet? You still get a full account — plus the launch checklist and a same-day call from a dispatcher.",
+              "No authority yet? You still get a full account — plus the launch checklist and a call from a dispatcher, typically the same day.",
             )}
           </p>
         ) : authority === "leased_on" ? (

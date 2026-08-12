@@ -70,7 +70,7 @@ export function ServicesSplit() {
             <span className="flow-arrow">→</span>
             <span className="flow-node">PAPERWORK</span>
             <span className="flow-arrow">→</span>
-            <span className="flow-node">DRIVER SUPPORT 24/7</span>
+            <span className="flow-node">DRIVER SUPPORT 7 DAYS</span>
           </div>
         </div>
       </div>

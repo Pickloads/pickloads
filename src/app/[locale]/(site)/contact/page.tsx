@@ -55,7 +55,7 @@ function ContactContent() {
             <div className="c-card">
               <span className="ic" aria-hidden="true">☎</span>
               <div>
-                <b>{tv("Phone — 24/7 Dispatch Line")}</b>
+                <b>{tv("Phone — Dispatch Line")}</b>
                 <a href="tel:+19084045373" className="mono">
                   (908) 404-5373
                 </a>

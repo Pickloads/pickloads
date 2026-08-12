@@ -1,11 +1,37 @@
 # Final website — technical readiness
 
-**Measured 2026-08-11.** Every number below was produced by running the lane,
-not read from a previous report.
+**Measured 2026-08-11; re-certified 2026-08-12** after the owner's pre-launch
+business decisions. Every number below was produced by running the lane, not
+read from a previous report.
+
+> **2026-08-12 — business decisions applied.** Public copy changed across ~20
+> surfaces and all five locale catalogues: availability, response time,
+> first-load timing, shipper flow labels and the homepage statistics. Dispatch
+> pricing is now single-sourced. See `OWNER-BUSINESS-DECISIONS.md` for the
+> decisions and `PICKLOADS-BUSINESS-LAUNCH-CHECKLIST.md` for what launch still
+> needs. Unit count rose 1,785 → 1,824.
+>
+> **Second sweep, same day — two defects the first pass left behind:**
+>
+> 1. **A3 was applied to the FAQ only.** "On the road with us in 24 hours."
+>    was still the homepage onboarding heading and the `/become-a-carrier`
+>    hero — the same unconditional promise in the largest type on the site.
+>    Now single-sourced in `src/lib/copy/onboarding-timing.ts`.
+> 2. **Retired claims were shipping inside the server bundle.** A
+>    template-literal dynamic import in `src/i18n/request.ts` made webpack
+>    bundle every `.json` in `messages/`, including the generated
+>    `_key-index.json` and its pre-decision wording. Unreachable, so nothing
+>    rendered it; present in every deployment. Catalogues are now imported
+>    explicitly.
+>
+> The build output is scanned for retired claims by test, with a non-vacuity
+> control. The previous version of this report asserted that scan had already
+> been run and returned zero — it had not. `COWORK-CONTENT-REVIEW.md` carries
+> the correction.
 
 |                  |                              |
 | ---------------- | ---------------------------- |
-| **HEAD**         | `d9feece` + this commit      |
+| **HEAD**         | `4c121f2` + this commit      |
 | **Branch**       | `final-website-production`   |
 | **Baseline tag** | `m84b-certified` (untouched) |
 | **Route files**  | 89 (`page.tsx` + `route.ts`) |
@@ -15,18 +41,18 @@ not read from a previous report.
 
 ## 1 · Certified gate
 
-| Lane             | Result                                                     |
-| ---------------- | ---------------------------------------------------------- |
-| TypeScript       | ✅ PASS                                                    |
-| ESLint           | ✅ PASS                                                    |
-| Unit             | ✅ **1,785 / 1,785** (1,782 + 3 new extractor-guard tests) |
-| RLS              | ✅ **806 / 806**                                           |
-| Integration      | ✅ **369 / 369**                                           |
-| E2E              | ✅ **546 / 546**                                           |
-| Responsive       | ✅ 12 breakpoints, in Chromium                             |
-| Accessibility    | ✅ WCAG 2.2 AA (axe), executed                             |
-| Production build | ✅ 434 pages                                               |
-| `npm audit`      | ✅ **0**                                                   |
+| Lane             | Result                                                         |
+| ---------------- | -------------------------------------------------------------- |
+| TypeScript       | ✅ PASS                                                        |
+| ESLint           | ✅ PASS                                                        |
+| Unit             | ✅ **1,824 / 1,824** (+36 owner-decision, +3 response-promise) |
+| RLS              | ✅ **806 / 806**                                               |
+| Integration      | ✅ **369 / 369**                                               |
+| E2E              | ✅ **546 / 546**                                               |
+| Responsive       | ✅ 12 breakpoints, in Chromium                                 |
+| Accessibility    | ✅ WCAG 2.2 AA (axe), executed                                 |
+| Production build | ✅ 434 pages                                                   |
+| `npm audit`      | ✅ **0**                                                       |
 
 Two lanes could not be run at all on this machine when the audit started, and
 neither failure was visible as a failure. Both are fixed and re-run in §9 — the
@@ -294,14 +320,27 @@ re-measured after these fixes.
 
 ## 10 · Scores
 
-|                                 | Score        | Reasoning                                                                                                                                                                |
-| ------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Technical website readiness** | **92 / 100** | Every lane green and executed; 434 pages; security proved. Held back by: CWV unmeasured, CI unverified, i18n extractor unsafe, PWA icons absent                          |
-| **Dispatch launch readiness**   | **70 / 100** | Engineering essentially done. Gated entirely on legal documents and external service configuration — not on code                                                         |
-| **Brokerage launch readiness**  | **35 / 100** | Code complete and fail-closed. Gated on MC authority, BMC-84 bond, and two agreements that do not exist yet. **Do not treat the technical score as brokerage readiness** |
+|                                 | Score        | Reasoning                                                                                                                                                                                                                                  |
+| ------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Technical website readiness** | **94 / 100** | Every lane green and executed; 434 pages; security proved; public claims now match what the business can stand behind, enforced by test. Held back by: CWV unmeasured, CI unverified, PWA icons absent, ru/ht mirroring English            |
+| **Dispatch launch readiness**   | **78 / 100** | Engineering done and the copy is now defensible. Counsel has the business inputs it was missing. Still gated entirely on legal documents and external configuration — not on code                                                          |
+| **Brokerage launch readiness**  | **35 / 100** | Unchanged, and correctly so. Code complete and fail-closed; gated on MC authority, the BMC-84 bond and two agreements that do not exist. Nothing in a copy pass can move this. **Do not treat the technical score as brokerage readiness** |
 
 Technical readiness and legal readiness are different things, and the gap
-between 92 and 35 is entirely the second one.
+between 94 and 35 is entirely the second one.
+
+### Why the technical score did not rise after a clean second sweep
+
+It stayed at 94. The second sweep found two real defects — an unconditional
+24-hour promise still in display type on two pages, and retired claims shipping
+inside the server bundle — and both are fixed, verified and held by tests.
+
+That is the argument for leaving the score alone rather than raising it. The
+lanes were all green before the sweep too; green lanes were what made the first
+version of this report confident enough to assert a build scan it had not run.
+The held-back items are unchanged (CWV unmeasured, CI unverified, PWA icons
+absent, ru/ht mirroring English), and finding defects in your own prior work is
+evidence the checks improved, not that the artifact got better than 94.
 
 ## 11 · Remaining actions before public launch
 

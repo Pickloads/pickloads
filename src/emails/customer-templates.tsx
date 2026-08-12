@@ -957,7 +957,7 @@ export function buildSupportConfirmationEmail(
         eyebrow: "Support",
         title: "Message received",
         p1: (s) => `Your message "${s}" reached the dispatch desk. We answer support threads within one business day — usually much faster.`,
-        p2: "Urgent load issue? Don't wait on email — call (908) 404-5373, dispatch support answers 24/7.",
+        p2: "Urgent load issue? Don't wait on email — call (908) 404-5373 — dispatch support answers 7 days a week, with after-hours emergency support.",
         cta: "View my support threads",
       },
       es: {
@@ -965,7 +965,7 @@ export function buildSupportConfirmationEmail(
         eyebrow: "Soporte",
         title: "Mensaje recibido",
         p1: (s) => `Tu mensaje "${s}" llegó a la mesa de dispatch. Respondemos los hilos de soporte dentro de un día hábil — normalmente mucho más rápido.`,
-        p2: "¿Problema urgente con una carga? No esperes el correo — llama al (908) 404-5373, soporte de dispatch responde 24/7.",
+        p2: "¿Problema urgente con una carga? No esperes el correo — llama al (908) 404-5373 — soporte de dispatch responde los 7 días, con urgencias fuera de horario.",
         cta: "Ver mis hilos de soporte",
       },
       fr: {
@@ -973,7 +973,7 @@ export function buildSupportConfirmationEmail(
         eyebrow: "Support",
         title: "Message reçu",
         p1: (s) => `Votre message « ${s} » est arrivé au bureau dispatch. Nous répondons aux fils de support sous un jour ouvré — généralement bien plus vite.`,
-        p2: "Problème urgent sur un chargement ? N'attendez pas l'e-mail — appelez le (908) 404-5373, le support dispatch répond 24/7.",
+        p2: "Problème urgent sur un chargement ? N'attendez pas l'e-mail — appelez le (908) 404-5373 — le support dispatch répond 7 jours sur 7, avec urgences hors horaires.",
         cta: "Voir mes fils de support",
       },
     },

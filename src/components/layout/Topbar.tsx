@@ -8,7 +8,7 @@ export function Topbar() {
     <div className="topbar">
       <div className="wrap">
         <a className="phone" href="tel:+19084045373">
-          {tv("☎ (908) 404-5373 · 24/7 Dispatch")}
+          {tv("☎ (908) 404-5373 · Dispatch 7 days a week")}
         </a>
         <div className="right">
           {/* M-59: ≤700px the mail/login links hide (tb-hide) — all three are

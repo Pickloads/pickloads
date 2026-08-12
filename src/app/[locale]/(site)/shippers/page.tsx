@@ -186,7 +186,7 @@ function ShippersContent({
               <h3>{tv("Claims & paperwork handled")}</h3>
               <p>
                 {tv(
-                  "BOLs, PODs and claims support managed for you, with documents delivered same day.",
+                  "BOLs, PODs and claims support managed for you, with documents delivered promptly.",
                 )}
               </p>
             </div>
@@ -237,7 +237,7 @@ function ShippersContent({
             <div className="flow-track">
               <span className="flow-node">{tv("QUOTE REQUEST")}</span>
               <span className="flow-arrow">→</span>
-              <span className="flow-node hot">{tv("RATE IN 1 HOUR")}</span>
+              <span className="flow-node hot">{tv("FAST, TRANSPARENT QUOTES")}</span>
               <span className="flow-arrow">→</span>
               <span className="flow-node">{tv("CARRIER VETTING")}</span>
               <span className="flow-arrow">→</span>
@@ -247,7 +247,7 @@ function ShippersContent({
               <span className="flow-arrow">→</span>
               <span className="flow-node">{tv("DELIVERY + POD")}</span>
               <span className="flow-arrow">→</span>
-              <span className="flow-node">{tv("SAME-DAY DOCS")}</span>
+              <span className="flow-node">{tv("DOCUMENTS DELIVERED PROMPTLY")}</span>
             </div>
           </div>
         </div>

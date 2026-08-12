@@ -5,6 +5,7 @@ import { Link } from "@/i18n/navigation";
 import { CarrierWizard } from "@/components/onboarding/CarrierWizard";
 import { isEsignConfigured } from "@/lib/esign";
 import { getV4 } from "@/i18n/v4-server";
+import { ONBOARDING_TIMING } from "@/lib/copy/onboarding-timing";
 import { pageMetadata } from "@/lib/seo";
 
 export async function generateMetadata({
@@ -34,13 +35,18 @@ export default async function BecomeACarrierPage({
 
   return (
     <main id="main">
+      {/* Owner decision A3 (2026-08-12): the title was "On the road with us
+          in 24 hours." Headline and qualifier now both come from the shared
+          constant — this page and the homepage section made the same promise
+          and only one of them would have been remembered on the next edit. */}
       <PageHero
         eyebrow={tv("Carrier onboarding")}
-        title={tv("On the road with us in 24 hours.")}
+        title={tv(ONBOARDING_TIMING.headline)}
       >
         {tv(
-          "Four steps, about 10 minutes: your company info, your documents, a plain-English agreement and your own portal. A dispatcher calls you the same day.",
-        )}
+          "Four steps, about 10 minutes: your company info, your documents, a plain-English agreement and your own portal. A dispatcher typically calls you the same day.",
+        )}{" "}
+        {tv(ONBOARDING_TIMING.qualifier)}
       </PageHero>
       <section className="light" style={{ paddingTop: 48 }}>
         <div className="wrap">

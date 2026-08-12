@@ -28,12 +28,12 @@ describe("slugifyV4 algorithm", () => {
 
   it("truncates at 56 chars without a trailing underscore", () => {
     const long =
-      "Tell us about your operation — a dispatcher calls you back within 15 minutes during business hours.";
+      "Tell us about your operation — we respond fast, typically within the hour during business hours.";
     const key = slugifyV4(long);
     expect(key.length).toBeLessThanOrEqual(56);
     expect(key.endsWith("_")).toBe(false);
     expect(key).toBe(
-      "tell_us_about_your_operation_a_dispatcher_calls_you_back",
+      "tell_us_about_your_operation_we_respond_fast_typically_w",
     );
   });
 
@@ -50,7 +50,7 @@ describe("component strings resolve in the generated catalogs", () => {
     "One flat percentage. Nothing hidden.", // Pricing heading
     "Straight answers. No fine print.", // FAQ hero
     "Become a Carrier", // nav / login link
-    "Tell us about your operation — a dispatcher calls you back within 15 minutes during business hours.",
+    "Tell us about your operation — we respond fast, typically within the hour during business hours.",
   ];
 
   for (const source of knownStrings) {

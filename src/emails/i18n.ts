@@ -39,19 +39,19 @@ export function pick<T>(dict: EmailDict<T>, locale: EmailLocale): T {
 export const FOOTER_DICT: EmailDict<{ questions: string; hours: string }> = {
   en: {
     questions: "Questions? Call (908) 404-5373 or reply to this email.",
-    hours: "Dispatch desk: Mon–Fri 8am–6pm, Sat 9am–2pm ET · Dispatch support 24/7",
+    hours: "Dispatch desk: Mon–Fri 8am–6pm, Sat 9am–2pm ET · Dispatch support 7 days a week, after-hours emergency support",
   },
   es: {
     questions:
       "¿Preguntas? Llama al (908) 404-5373 o responde a este correo.",
     hours:
-      "Mesa de dispatch: lun–vie 8am–6pm, sáb 9am–2pm ET · Soporte de dispatch 24/7",
+      "Mesa de dispatch: lun–vie 8am–6pm, sáb 9am–2pm ET · Soporte de dispatch los 7 días, urgencias fuera de horario",
   },
   fr: {
     questions:
       "Des questions ? Appelez le (908) 404-5373 ou répondez à cet e-mail.",
     hours:
-      "Bureau dispatch : lun–ven 8h–18h, sam 9h–14h ET · Support dispatch 24/7",
+      "Bureau dispatch : lun–ven 8h–18h, sam 9h–14h ET · Support dispatch 7 jours sur 7, urgences hors horaires",
   },
 };
 

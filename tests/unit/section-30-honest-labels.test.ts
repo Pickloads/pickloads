@@ -69,11 +69,23 @@ const FORBIDDEN: readonly { label: string; pattern: RegExp }[] = [
   { label: "any · AI-powered", pattern: /\bAI[\s-]?(powered|driven)\b/i },
 ];
 
-/** Strings that must survive — the word "live" used honestly. */
-const MUST_SURVIVE = [
-  "24/7 live support, weekends included",
-  "Live dispatch support",
-];
+/**
+ * Strings that must survive — the word "live" used honestly.
+ *
+ * §30 bans "live tracking" because it implies a GPS position the platform does
+ * not have. It does NOT ban "live support", which means a human answers the
+ * phone — a true statement about a different thing. This control exists so a
+ * future sweep for the banned phrase cannot quietly take the honest use with
+ * it.
+ *
+ * Both original anchors were rewritten by the owner's 2026-08-12 availability
+ * decision: "24/7 live support, weekends included" became a seven-day claim,
+ * and the "Live dispatch support" stat tile no longer says "live" at all. The
+ * anchor is re-pointed at the surviving honest use rather than dropped —
+ * removing it would retire the control at the exact moment the copy churned,
+ * which is when it is most useful.
+ */
+const MUST_SURVIVE = ["Live support 7 days a week, weekends included"];
 
 /**
  * §30's six APPROVED labels, by message key and by the exact English wording

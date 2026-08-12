@@ -51,7 +51,7 @@ export function NewAuthorityLeadForm() {
       <h2>{tv("Start your trucking company")}</h2>
       <p>
         {tv(
-          "Tell us where you are in the process — a launch specialist calls you back within 15 minutes during business hours.",
+          "Tell us where you are in the process — we respond fast, typically within the hour during business hours.",
         )}
       </p>
       <form action={formAction} onInput={onFirstInput}>
@@ -147,7 +147,7 @@ export function NewAuthorityLeadForm() {
         role="status"
       >
         {tv(
-          "✓ RECEIVED — A launch specialist will call you back within 15 minutes during business hours. Questions now? Call (908) 404-5373.",
+          "✓ RECEIVED — We respond fast, typically within the hour during business hours. Questions now? Call (908) 404-5373.",
         )}
       </div>
       <div

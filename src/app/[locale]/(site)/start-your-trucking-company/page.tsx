@@ -73,8 +73,21 @@ export default async function StartTruckingCompanyPage({
         <div className="wrap">
           <p>
             <b>{tv("Straight talk:")}</b>{" "}
+            {/* Owner decision D4 (2026-08-12): the New Authority Program is
+                operated by PickLoads Logistics Group LLC. Naming the provider
+                on the page itself matters because this is the one service
+                where a customer could reasonably wonder whether they are
+                dealing with a filing agency, a law firm or a government
+                portal — and the answer has to be on the page, not inferred
+                from the domain. */}
+            {tv(
+              "The New Authority Program is operated by PickLoads Logistics Group LLC.",
+            )}{" "}
             {tv(
               "Document filing assistance only — we are not a law firm and do not provide legal advice.",
+            )}{" "}
+            {tv(
+              "We are not FMCSA, USDOT or any government agency, and we cannot guarantee approval of any application.",
             )}{" "}
             {tv(
               "For legal questions about your business structure, consult a licensed attorney.",

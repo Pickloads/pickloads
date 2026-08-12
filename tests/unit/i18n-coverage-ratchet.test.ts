@@ -62,7 +62,39 @@ const MAX_UNTRANSLATED: Record<string, Record<string, number>> = {
   // accounting: three more strings a Russian or Haitian Creole customer reads
   // in English. Recorded in docs/COWORK-CONTENT-REVIEW.md for the translation
   // pass rather than papered over.
-  v4: { es: 14, fr: 27, ru: 426, ht: 432 },
+  //
+  // ru/ht raised by 28 on 2026-08-12 (owner business decisions A1–A4, C, D2,
+  // D4). Twenty-six new v4 strings plus rewritten hero and FAQ entries, all
+  // authored in es and fr — which is why those two baselines did NOT move —
+  // and mirroring English in ru and ht pending native review.
+  //
+  // The trade was deliberate and it is not a good one, only the better one:
+  // the alternative was leaving "24/7 Dispatch" and a 15-minute callback
+  // guarantee live in five languages because two of them lack a translator.
+  // An unsupported promise in Russian is worse than an accurate sentence a
+  // Russian speaker reads in English. Both are defects; only one is a claim
+  // the business cannot stand behind.
+  //
+  // These 28 are the priority list for the native review — they are pricing,
+  // availability and legal-adjacent copy, which is exactly the category
+  // docs/COWORK-CONTENT-REVIEW.md §3 flags as needing a human translator
+  // rather than a mirror.
+  //
+  // ru/ht raised by 2 more on 2026-08-12, closing decision A3 properly. The
+  // first sweep corrected the FAQ prose and missed "On the road with us in 24
+  // hours." — the homepage section heading and the carrier-page hero, i.e.
+  // the same unconditional promise in the largest type on the site. The
+  // replacement headline and its qualifier are authored in es and fr (reusing
+  // the wording already approved for the FAQ answer, which is why those two
+  // baselines did not move) and mirror English in ru and ht.
+  //
+  // Worth naming precisely, because the arithmetic flatters this: the retired
+  // key HAD authored ru and ht values, so those two languages have gone from
+  // a translated false promise to an untranslated true one. That is still the
+  // right trade — an accurate sentence read in English beats an unsupported
+  // guarantee read fluently — but it is a translation regression and it is
+  // counted here rather than netted off.
+  v4: { es: 14, fr: 27, ru: 456, ht: 462 },
 };
 
 function flatten(value: unknown, path: string, out: Map<string, string>): void {

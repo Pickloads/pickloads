@@ -11,7 +11,7 @@ export default function NotFound() {
           <h1>{tv("This lane doesn't exist.")}</h1>
           <p>
             {tv(
-              "The page you're looking for moved or never got booked. Head back home, or call dispatch — a human answers 24/7.",
+              "The page you're looking for moved or never got booked. Head back home, or call dispatch — a human answers 7 days a week.",
             )}
           </p>
           <div className="hero-ctas" style={{ marginTop: 28 }}>

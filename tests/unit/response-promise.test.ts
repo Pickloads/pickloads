@@ -104,9 +104,45 @@ describe("no unapproved response-time promise anywhere in the source", () => {
 
 describe("the promise is defined once", () => {
   it("is the business-approved sentence, verbatim", () => {
+    // Owner decision A2, 2026-08-12. The previous sentence deliberately stated
+    // no time at all; the owner has since approved one, hedged.
     expect(RESPONSE_PROMISE).toBe(
-      "A PickLoads representative will review your request and follow up with you promptly.",
+      "We respond fast — typically within the hour during business hours.",
     );
+  });
+
+  it("is hedged — 'typically', never a guarantee", () => {
+    // The whole decision rests on one word. "Typically within the hour"
+    // describes what usually happens; "within one hour" is an SLA, and an SLA
+    // is what was just removed. This is the assertion that stops the sentence
+    // drifting back by a single edit.
+    expect(RESPONSE_PROMISE).toMatch(/typically/i);
+    expect(RESPONSE_PROMISE).not.toMatch(/guarantee|guaranteed|promise/i);
+    expect(RESPONSE_PROMISE_RECEIVED).toMatch(/typically/i);
+  });
+
+  it("any 'within the hour' wording on a guarded surface is hedged", () => {
+    // None of the TIMING_CLAIMS patterns match "within the hour" — "the" is
+    // not a number — so the approved sentence passes them, and so would an
+    // UNHEDGED "we reply within the hour". That is the gap the new wording
+    // opened, and this closes it: on these surfaces the phrase may appear
+    // only with "typically" attached.
+    for (const file of FILES) {
+      const code = readFileSync(file, "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\/.*$/gm, "");
+      for (const m of code.matchAll(/.{0,40}within the hour/gi)) {
+        expect(
+          m[0],
+          `${path.relative(process.cwd(), file)}: "within the hour" without "typically"`,
+        ).toMatch(/typically/i);
+      }
+    }
+  });
+
+  it("NON-VACUITY: an unhedged 'within the hour' would be caught", () => {
+    const bad = "We reply within the hour.";
+    expect(/within the hour/i.test(bad) && !/typically/i.test(bad)).toBe(true);
   });
 
   it("the confirmation state carries the same sentence, not a variant", () => {

@@ -1,12 +1,22 @@
 import { useV4 } from "@/i18n/v4";
 
+import { ONBOARDING_TIMING } from "@/lib/copy/onboarding-timing";
+
 export function HowAndCompare() {
   const tv = useV4();
   return (
     <section className="light" id="how">
       <div className="wrap">
         <span className="eyebrow">{tv("Carrier onboarding")}</span>
-        <h2 className="sec">{tv("On the road with us in 24 hours.")}</h2>
+        {/* Owner decision A3 (2026-08-12): the heading used to read "On the
+            road with us in 24 hours." — an unconditional promise, made on the
+            homepage, about an outcome PickLoads does not control. The four
+            steps below are ours; load availability, broker acceptance and the
+            carrier's own paperwork are not. Heading and qualifier both come
+            from `@/lib/copy/onboarding-timing` so the claim cannot drift
+            between here and the carrier landing page. */}
+        <h2 className="sec">{tv(ONBOARDING_TIMING.headline)}</h2>
+        <p className="sub">{tv(ONBOARDING_TIMING.qualifier)}</p>
         <div className="steps">
           <div className="step">
             <span className="n">{tv("STEP 1")}</span>
@@ -81,7 +91,7 @@ export function HowAndCompare() {
                 <tr>
                   <td className="them">{tv("Voicemail after 5pm")}</td>
                   <td className="us">
-                    {tv("24/7 live support, weekends included")}
+                    {tv("Live support 7 days a week, weekends included")}
                   </td>
                 </tr>
                 <tr>

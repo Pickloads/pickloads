@@ -1,8 +1,17 @@
 # Legal documents — status register
 
 **Owner:** founder + counsel · **Engineering owner:** none (this is not an
-engineering deliverable) · **Last verified:** 2026-08-11, against the M-84b
-consolidated baseline.
+engineering deliverable) · **Last verified:** 2026-08-12, after the owner's
+pre-launch business decisions.
+
+> **2026-08-12 — counsel is no longer blocked on business inputs.** The owner
+> has fixed the dispatch fee tiers, the availability model, the response-time
+> posture and the New Authority operating entity. See §2.4 and §2.9, and
+> `OWNER-BUSINESS-DECISIONS.md` in full.
+>
+> **Not one document's status changed as a result.** Knowing what an agreement
+> must say is not the same as having a lawyer say it. Everything below that was
+> COUNSEL REVIEW REQUIRED still is.
 
 > **This register exists so that nobody — engineer, founder or auditor — can
 > mistake a placeholder for an executed agreement.** No document in the
@@ -21,15 +30,15 @@ obviously missing.
 
 ## 1 · Summary
 
-| | Count |
-|---|---|
-| Documents identified | **10** |
-| Final approved content present | **0** |
-| Launch blockers (dispatch) | **5** |
-| Launch blockers (brokerage, additional) | **2** |
-| Non-blocking but required before the surface ships | **3** |
-| Signing workflows implemented | **2** (carrier e-sign, broker account agreement) |
-| Signing workflows with an approved template loaded | **0** |
+|                                                    | Count                                            |
+| -------------------------------------------------- | ------------------------------------------------ |
+| Documents identified                               | **10**                                           |
+| Final approved content present                     | **0**                                            |
+| Launch blockers (dispatch)                         | **5**                                            |
+| Launch blockers (brokerage, additional)            | **2**                                            |
+| Non-blocking but required before the surface ships | **3**                                            |
+| Signing workflows implemented                      | **2** (carrier e-sign, broker account agreement) |
+| Signing workflows with an approved template loaded | **0**                                            |
 
 **Nothing here is blocked on engineering.** Every surface that consumes these
 documents is built, tested and waiting for content.
@@ -88,6 +97,31 @@ documents is built, tested and waiting for content.
   the agency relationship, the dispatch fee, term and termination.
 - **Current status** — 📄 **COUNSEL REVIEW REQUIRED.** Shell at
   `/legal/dispatch-agreement`. The **signing workflow is fully built**.
+- **Business inputs — supplied by the owner 2026-08-12.** Counsel was
+  previously blocked on not knowing what the agreement had to say. It now has:
+
+  | Input                         | Value                                                                        |
+  | ----------------------------- | ---------------------------------------------------------------------------- |
+  | Owner-Operator fee            | **5% of load gross**                                                         |
+  | Small Fleet (2–10 trucks) fee | **4.5% of load gross**                                                       |
+  | Box Truck / Hot Shot fee      | **8% of load gross**                                                         |
+  | Basis                         | Percentage of gross per load, snapshotted at booking                         |
+  | Term                          | Month to month, cancel any time                                              |
+  | Declined loads                | No charge                                                                    |
+  | Forced dispatch               | None — the carrier approves every load                                       |
+  | Setup / monthly minimum       | None                                                                         |
+  | Support commitment            | Dispatch support 7 days a week + after-hours emergency. **Not** 24/7 staffed |
+  | Response-time posture         | "Typically within the hour during business hours" — expressly **not** an SLA |
+
+  Rates are single-sourced in `src/lib/pricing.ts`; the published site cannot
+  disagree with this table without failing a test.
+
+  **This does not advance the document's status.** Knowing what a contract
+  should say is not the same as having a lawyer say it. It remains COUNSEL
+  REVIEW REQUIRED, and the fee schedule in the executed agreement is counsel's
+  and the owner's to finalise — the table above is what the _website_ currently
+  publishes, which counsel needs in order to keep the two consistent.
+
 - **Where used** — `/legal/dispatch-agreement`; the carrier onboarding wizard
   and `/portal/carrier/agreements` send it for signature.
 - **Launch blocker?** — 🔴 **YES.** This is the document the dispatch business
@@ -114,7 +148,7 @@ documents is built, tested and waiting for content.
   implying a document that does not exist.
 - **Final approved content present?** — No.
 
-### 2.6 · Broker-Carrier Agreement *(brokerage pillar)*
+### 2.6 · Broker-Carrier Agreement _(brokerage pillar)_
 
 - **Purpose** — the operative agreement between PickLoads as **licensed broker**
   and each hauling carrier. Distinct from the dispatch agreement in kind, not
@@ -128,7 +162,7 @@ documents is built, tested and waiting for content.
 - **Signing workflow** — none. Would reuse the Dropbox Sign path with a second
   template id.
 
-### 2.7 · Shipper-Broker Agreement *(brokerage pillar)*
+### 2.7 · Shipper-Broker Agreement _(brokerage pillar)_
 
 - **Purpose** — the operative agreement between PickLoads and each shipper
   whose freight it brokers: rates, credit terms, liability, claims.
@@ -137,11 +171,11 @@ documents is built, tested and waiting for content.
 - **Counsel review required?** — Yes.
 - **Signing workflow** — none.
 
-### 2.8 · Broker-partner access agreement *(M-81)*
+### 2.8 · Broker-partner access agreement _(M-81)_
 
 - **Purpose** — governs a **broker partner organisation's** standing access to
   another party's shipment data. The data model is real: `broker_account_
-  agreements` records one organisation's bounded access to one shipper's
+agreements` records one organisation's bounded access to one shipper's
   freight, with a start, an optional end, and revocation that closes every
   shipment under it at once.
 - **Current status** — ⚠️ **MODEL BUILT, TEXT MISSING.** The table, RLS, grants
@@ -162,12 +196,32 @@ documents is built, tested and waiting for content.
   practice of law.
 - **Current status** — ✅ **PRESENT AND CORRECT, pending counsel sign-off on
   wording.** Rendered on `/start-your-trucking-company` and the equipment
-  dispatch pages: *"Document filing assistance only — we are not a law firm and
-  do not provide legal advice."*
+  dispatch pages: _"Document filing assistance only — we are not a law firm and
+  do not provide legal advice."_
 - **Launch blocker?** — 🟠 **No**, but counsel should confirm the wording is
   sufficient in every state the programme is marketed in.
 - **Final approved content present?** — Wording exists and is honest; not
   formally reviewed.
+- **Owner decision D4, 2026-08-12 — the operating entity is now stated.** The
+  programme is operated by **PickLoads Logistics Group LLC**, and the page says
+  so. Two sentences were added to the prominent disclaimer band:
+
+  > "The New Authority Program is operated by PickLoads Logistics Group LLC."
+  >
+  > "We are not FMCSA, USDOT or any government agency, and we cannot guarantee
+  > approval of any application."
+
+  **Why this was worth adding even though nothing was wrong.** This is the one
+  service where a customer could reasonably be confused about _who they are
+  dealing with_ — filing agencies, law firms and the FMCSA's own portal all
+  occupy the same space, and several of the paid ones are deliberately vague
+  about which they are. The disclaimer already said what PickLoads is not; it
+  did not say who PickLoads is, or that approval is the government's decision.
+
+  **For counsel:** confirm the entity name, the assistance-only framing and the
+  no-approval-guarantee language are sufficient, and whether any state in which
+  the programme is marketed requires additional disclosure for
+  business-formation assistance.
 
 ### 2.10 · Website disclaimers + document authorisation language
 
@@ -202,7 +256,7 @@ would put a placeholder agreement on a public URL as a finished document.
 
 The risk is contained today and the containment is deliberate: the flag is
 seeded `false`, `public/packet/` is empty, the runbook records that the four
-approved PDFs must be uploaded *first*, and the Downloads Center offers no
+approved PDFs must be uploaded _first_, and the Downloads Center offers no
 packet download in either flag state. A unit test asserts the seeded default is
 still false; an e2e test asserts `/packet/` never appears in the public HTML.
 
@@ -233,7 +287,7 @@ Counsel time is the longest lead item on the entire launch path — longer than
 any remaining engineering.
 
 1. **Privacy Policy, Terms of Service, Cookie Policy** — required by the data
-   the site collects *today*, regardless of which pillar launches first.
+   the site collects _today_, regardless of which pillar launches first.
 2. **Dispatch Service Agreement** (+ resolve whether Carrier Agreement is a
    separate instrument), then upload it to Dropbox Sign as a template and set
    `DROPBOX_SIGN_TEMPLATE_ID`.
@@ -244,5 +298,5 @@ any remaining engineering.
 
 ---
 
-*Engineering has no further work here. Every consuming surface is built and
-tested; each is waiting on approved text.*
+_Engineering has no further work here. Every consuming surface is built and
+tested; each is waiting on approved text._

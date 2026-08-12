@@ -96,7 +96,7 @@ export default async function CreateAccountPage({
                   <ul>
                     <li>{tv("Track your quote requests and statuses")}</li>
                     <li>{tv("See quoted rates as they come in")}</li>
-                    <li>{tv("A dispatcher calls back within one business hour")}</li>
+                    <li>{tv("A dispatcher calls back — typically within the hour during business hours")}</li>
                   </ul>
                   <Link className="btn btn-green" href="/create-account/shipper">
                     {tv("Create Shipper Account →")}

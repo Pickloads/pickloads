@@ -180,7 +180,7 @@ export default async function ShipperOverviewPage({
 
       <p className="pempty" style={{ paddingLeft: 0 }}>
         {tv(
-          "A dispatcher reviews every request and calls back with a firm rate — usually within one business hour (8am–6pm ET).",
+          "A dispatcher reviews every request and calls back with a firm rate — typically within the hour during business hours (8am–6pm ET).",
         )}
       </p>
     </main>

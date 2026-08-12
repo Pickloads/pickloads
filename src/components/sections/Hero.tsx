@@ -18,7 +18,7 @@ export function Hero() {
         </h1>
         <p className="lead">
           {tv(
-            "Dedicated dispatch for owner-operators and small fleets — load booking, rate negotiation, paperwork and 24/7 support. You drive. We keep the freight coming.",
+            "Dedicated dispatch for owner-operators and small fleets — load booking, rate negotiation, paperwork and support 7 days a week. You drive. We keep the freight coming.",
           )}
         </p>
         <div className="hero-ctas">
