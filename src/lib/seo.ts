@@ -27,6 +27,7 @@ export const PUBLIC_ROUTES = [
   "/carrier-resources",
   "/careers",
   "/partners",
+  "/login-center",
   "/contact",
   /* M-73: the /track LOOKUP FORM is a legitimate public landing page and is
    * indexable. Individual tracking RESULTS are not, and cannot be: they have

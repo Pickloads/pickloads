@@ -130,7 +130,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
  */
 export const NAV_UTILITIES: readonly NavEntry[] = [
   { label: "Track Shipment", href: "/track", ships: true },
-  { label: "Login", href: "/portal", ships: true },
+  { label: "Login", href: "/login-center", ships: true },
 ] as const;
 
 /**

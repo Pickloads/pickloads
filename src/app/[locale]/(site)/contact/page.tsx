@@ -115,7 +115,35 @@ function ContactContent() {
       {/* M-14: contact form section (audit F-08) — .bigform vocabulary */}
       <section className="light" style={{ paddingTop: 0, marginTop: -20 }}>
         <div className="wrap">
-          <ContactForm />
+          {/* §Contact routing — seven inquiry types, each routed to the
+              process that actually handles it.
+
+              The hint is a LINK, not a redirect. A visitor who wants to send a
+              message still can; the point is that a quote request is not
+              captured as a contact message somebody must then re-key into the
+              quote flow. One submission, one record, in the right system. */}
+          <ContactForm
+            inquiryTypes={[
+              "Dispatch Services",
+              "Freight / Quote",
+              "Carrier Onboarding",
+              "New Authority",
+              "Partnerships",
+              "Support",
+              "General Inquiry",
+            ]}
+            routeHints={{
+              "Dispatch Services": ["/dispatch-services", "Dispatch Services"],
+              "Freight / Quote": ["/request-a-quote", "Request a Quote"],
+              "Carrier Onboarding": ["/become-a-carrier", "Become a Carrier"],
+              "New Authority": [
+                "/start-your-trucking-company",
+                "Start Your Trucking Company",
+              ],
+              Partnerships: ["/partners", "Partner with PickLoads"],
+              Support: ["/knowledge-base", "Knowledge Base"],
+            }}
+          />
         </div>
       </section>
 

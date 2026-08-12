@@ -41,6 +41,7 @@ const PAGES = [
   "/carrier-resources",
   "/careers",
   "/partners",
+  "/login-center",
   "/shippers",
   "/become-a-carrier",
   "/start-your-trucking-company",
