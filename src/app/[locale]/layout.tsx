@@ -12,6 +12,7 @@ export const metadata: Metadata = {
   title: "PickLoads Logistics Group — Truck Dispatching & Freight Brokerage",
   description:
     "Nationwide truck dispatching for owner-operators and small fleets. Dry van, reefer, flatbed, power only and more. Carrier setup in 5 minutes. Call (908) 404-5373.",
+  manifest: "/manifest.webmanifest",
 };
 
 export function generateStaticParams() {

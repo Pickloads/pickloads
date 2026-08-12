@@ -23,6 +23,11 @@ export const config = {
   matcher: [
     // M-15: robots.txt/sitemap.xml are locale-less metadata routes — the intl
     // middleware must not rewrite them into /[locale]/… (they'd 404).
-    "/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2)$).*)",
+    //
+    // manifest.webmanifest joins them for the same reason. Without it the
+    // middleware rewrites the manifest into /en/manifest.webmanifest, which no
+    // route serves — and a 404 manifest fails silently: the page still renders,
+    // the <link> is still in the head, and only an install attempt breaks.
+    "/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2)$).*)",
   ],
 };

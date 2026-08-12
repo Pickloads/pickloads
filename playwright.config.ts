@@ -56,7 +56,24 @@ export default defineConfig({
   webServer: {
     command: `npm run start -- --port ${PORT}`,
     url: `http://127.0.0.1:${PORT}`,
-    reuseExistingServer: true,
+    /**
+     * NEVER REUSE. This was `true`, and it cost a whole session.
+     *
+     * A server left running on :4321 from an earlier build is invisible to the
+     * suite: Playwright attaches to it, every test runs against stale HTML, and
+     * the failures look like defects in the code you just wrote. During the PWA
+     * work that produced hours of false evidence and a revert of work that was
+     * probably correct.
+     *
+     * With `false`, an occupied port makes the run FAIL IMMEDIATELY with an
+     * address-in-use error instead of quietly testing yesterday's build. A loud
+     * failure you can fix in ten seconds beats a silent one you chase for an
+     * afternoon.
+     *
+     * The cost is one server start per run (~2s). That is the correct trade for
+     * a suite whose entire value is telling the truth about the current build.
+     */
+    reuseExistingServer: false,
     timeout: 60_000,
   },
 });
