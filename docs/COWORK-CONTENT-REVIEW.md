@@ -262,3 +262,45 @@ sentence and, where available, the es/fr translations. Implementation is one
 > M-80 added, because the script cannot reproduce strings authored outside the
 > V4 prototype. Add keys surgically to `messages/*.json` instead. Reconciling
 > the extractor with the catalogues is its own task and is filed as P1.
+
+---
+
+## 7 · Light/Dark theme — a DESIGN decision, not an engineering one
+
+**Status: `COWORK REVIEW REQUIRED` (design) · risk: `MARKETING` / `COMPLIANCE`**
+
+The final technical directive asks for Light / Dark / System themes and, in the
+same breath, to *"preserve the PickLoads V4 visual identity"* and *"do not
+create a second design system."* On this codebase those pull against each
+other, and engineering should not resolve it alone.
+
+**Why.** V4 is a **dark-first identity**. `body` is asphalt (`#12161a`), the nav
+is `rgba(18,22,26,.94)`, the footer is night, and `.light` sections are a
+deliberate *alternating device* within that — not a light theme waiting to be
+switched on. Roughly 120 colour declarations in `v4.css` are keyed to that
+arrangement, and each `.light` block exists to contrast with the dark blocks
+around it.
+
+A genuine "Light theme" therefore means **inverting the default surfaces on 433
+pages** and re-deriving every light/dark section pairing. That is a new visual
+system for the same brand — which is the thing the same paragraph forbids.
+
+**What engineering can build without a design decision:** the infrastructure —
+a `data-theme` attribute, a no-flash inline script, `prefers-color-scheme`
+detection, persisted preference, and a toggle. That is perhaps half a day and
+carries no risk.
+
+**What it cannot do honestly:** invent the light palette. Choosing what the
+hero, the nav, the load ticker and the boards strip look like on a light
+background is design work, and guessing it would ship a second identity that
+nobody approved and that the certified WCAG AA baseline has never been run
+against.
+
+**Recommendation.** Either (a) Cowork/design supplies an approved light palette
+and engineering implements it against the existing token layer, or (b) the site
+declares itself dark-only via `color-scheme: dark` — which is honest, is what
+the design actually is today, and still respects a user's system preference by
+telling the browser the truth rather than fighting it.
+
+**Nothing has been implemented either way.** The theme phase is stopped pending
+this decision.

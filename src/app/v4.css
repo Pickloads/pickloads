@@ -120,7 +120,7 @@ nav.sitenav .wrap{display:flex;align-items:center;justify-content:space-between;
 .field select,.field input,.field textarea{width:100%;background:#0B0E11;border:1px solid var(--line);border-radius:6px;color:var(--paper);padding:13px 12px;font-family:var(--font-sans);font-size:.94rem}
 .field select:focus,.field input:focus,.field textarea:focus{outline:2px solid var(--amber);outline-offset:0;border-color:var(--amber)}
 .light .field select,.light .field input,.light .field textarea{background:#fff;border:1px solid var(--line-dark);color:var(--ink)}
-.light .field label{color:#6a747b}
+.light .field label{color:#5f6a71}
 .form-ok{display:none;margin-top:18px;font-family:var(--font-mono);font-size:.82rem;color:#4CC492;border:1px solid rgba(76,196,146,.4);border-radius:6px;padding:12px 16px;background:rgba(27,122,84,.12)}
 .form-ok.show{display:block}
 .light .form-ok{color:var(--green);background:rgba(14,90,60,.07);border-color:rgba(14,90,60,.3)}

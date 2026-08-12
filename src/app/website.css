@@ -154,13 +154,15 @@
 .search-results h2{font-family:var(--font-display);font-size:1.05rem;margin:0 0 4px}
 .search-results p{margin:0;color:#4a545b;font-size:.94rem}
 
-/* The search form's label sits in a `.light` section as a bare `.field`,
-   where v4.css applies `.light .field label{color:#6a747b}` — about 4.3:1 on
-   paper, under AA for 0.66rem text. axe caught it.
+/* The search-form label override is GONE.
+   The shared rule `.light .field label` in v4.css was raised centrally from
+   #6a747b (about 4.3:1 on paper — under AA for 0.66rem uppercase text) to
+   #5f6a71 (5.1:1, the AA slate M-59 introduced for exactly this).
 
-   Scoped rather than fixed in v4.css: that rule is shared by every form on the
-   site and changing it under pages this phase has not re-tested would be a
-   wider change than the evidence supports. #5f6a71 is the AA-safe slate M-59
-   introduced for exactly this (5.1:1). The general case is recorded in
-   docs/COWORK-CONTENT-REVIEW.md as an engineering follow-up. */
-.kb-search .field label{color:#5f6a71}
+   Fixed at the rule rather than on the one page axe happened to catch:
+   twenty public pages put a bare `.field` inside a `.light` section, so a
+   scoped patch would have left nineteen of them failing silently. The axe
+   suite covers every form page — contact, quote, careers, partners, shippers,
+   become-a-carrier, new authority, search, login, create-account,
+   forgot-password — which is what makes the central change provable rather
+   than hopeful. */
