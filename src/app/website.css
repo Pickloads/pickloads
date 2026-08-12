@@ -90,7 +90,7 @@
    the M-74 pattern for reusing a dark-surface component on a light one. */
 .light .state{border-color:var(--line-dark);background:rgb(18 22 26 / .02)}
 .light .state h3{color:var(--ink)}
-.light .state p{color:var(--slate-body)}
+.light .state p{color:#4a545b}
 
 /* ── A dark card inside a light section ──────────────────────────────────
    `.svc` carries its own dark background (--asphalt2), so it stays a dark
@@ -131,7 +131,36 @@
   margin:0 0 18px}
 .kb-cats a{display:inline-block;padding:7px 14px;border-radius:999px;
   border:1px solid var(--line-dark);font-size:.86rem;font-weight:500;
-  color:var(--slate-body)}
-.kb-cats a:hover,.kb-cats a:focus-visible{border-color:var(--amber-aa);
-  color:var(--amber-aa)}
+  color:#4a545b}
+.kb-cats a:hover,.kb-cats a:focus-visible{border-color:#8a5a00;
+  color:#8a5a00}
 .kb-cats a.active{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+
+/* ── Site search ──────────────────────────────────────────────────────────
+   A GET form and an ordered list of real links: no client index, no widget. */
+.kb-search{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.kb-search .field{flex:1 1 260px;margin:0}
+.search-results{list-style:none;padding:0;margin:18px 0 0}
+.search-results li{padding:16px 0;border-bottom:1px solid var(--line-dark)}
+.search-results li:last-child{border-bottom:none}
+/* LITERALS, not var(--slate-aa)/var(--slate-body). v4.css defines eleven
+   :root variables and neither of those is among them — they are Tailwind
+   @theme tokens (--color-slate-aa / --color-slate-body). An undefined var
+   makes the declaration invalid, the text falls back to something with no
+   contrast guarantee, and axe reports it. Exactly the --fog mistake from the
+   Dispatch Services page; #5f6a71 is the AA-safe value M-59 introduced. */
+.search-results .rtype{display:inline-block;font-size:.68rem;letter-spacing:.12em;
+  text-transform:uppercase;color:#5f6a71;margin-bottom:4px}
+.search-results h2{font-family:var(--font-display);font-size:1.05rem;margin:0 0 4px}
+.search-results p{margin:0;color:#4a545b;font-size:.94rem}
+
+/* The search form's label sits in a `.light` section as a bare `.field`,
+   where v4.css applies `.light .field label{color:#6a747b}` — about 4.3:1 on
+   paper, under AA for 0.66rem text. axe caught it.
+
+   Scoped rather than fixed in v4.css: that rule is shared by every form on the
+   site and changing it under pages this phase has not re-tested would be a
+   wider change than the evidence supports. #5f6a71 is the AA-safe slate M-59
+   introduced for exactly this (5.1:1). The general case is recorded in
+   docs/COWORK-CONTENT-REVIEW.md as an engineering follow-up. */
+.kb-search .field label{color:#5f6a71}

@@ -86,6 +86,7 @@ const ROUTES: { path: string; slug: string; group: string; chrome?: false }[] = 
   { path: "/careers", slug: "careers", group: "public" },
   { path: "/partners", slug: "partners", group: "public" },
   { path: "/login-center", slug: "login-center", group: "public" },
+  { path: "/search", slug: "search", group: "public" },
   { path: "/shippers", slug: "shippers", group: "public" },
   { path: "/become-a-carrier", slug: "become-a-carrier", group: "public" },
   {

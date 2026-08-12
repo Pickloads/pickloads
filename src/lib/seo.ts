@@ -16,38 +16,8 @@ export const SITE_NAME = "PickLoads Logistics Group";
  * Public, indexable routes (per locale). M-16 appends /dispatch/[equipment];
  * M-35 appends /truck-dispatch/[state].
  */
-export const PUBLIC_ROUTES = [
-  "/",
-  "/about",
-  "/shippers",
-  "/faq",
-  "/blog",
-  "/knowledge-base",
-  "/downloads",
-  "/carrier-resources",
-  "/careers",
-  "/partners",
-  "/login-center",
-  "/contact",
-  /* M-73: the /track LOOKUP FORM is a legitimate public landing page and is
-   * indexable. Individual tracking RESULTS are not, and cannot be: they have
-   * no URL (the lookup is a POST server action) and `TrackingResult` renders
-   * `noindex, nofollow` while one is on screen. Adding this route therefore
-   * adds one page per locale to the sitemap and zero shipment data. */
-  "/track",
-  /* The primary acquisition page. Indexable and canonical: it is the
-     destination the site's loudest call to action points at, and a
-     conversion page missing from the sitemap is a conversion page search
-     engines have to guess at. Its own e2e suite asserts it is listed. */
-  "/request-a-quote",
-  /* The dispatch pillar's hub. The equipment and state pages remain and are
-     unchanged; this is the page they link into, and the one that ranks for
-     the service itself rather than for a lane or a trailer type. */
-  "/dispatch-services",
-  "/become-a-carrier",
-  "/start-your-trucking-company",
-  "/truck-dispatch",
-] as const;
+export { PUBLIC_ROUTES } from "@/lib/public-routes";
+import { PUBLIC_ROUTES } from "@/lib/public-routes";
 
 type Href = Parameters<typeof getPathname>[0]["href"];
 
