@@ -267,7 +267,15 @@ sentence and, where available, the es/fr translations. Implementation is one
 
 ## 7 · Light/Dark theme — a DESIGN decision, not an engineering one
 
-**Status: `COWORK REVIEW REQUIRED` (design) · risk: `MARKETING` / `COMPLIANCE`**
+**Status: DECIDED 2026-08-11 — Option (b) approved by the business.**
+
+> **DARK THEME — APPROVED / PRODUCTION READY**
+> **LIGHT THEME — DEFERRED PENDING APPROVED DESIGN SYSTEM**
+> **SYSTEM THEME — NOT APPLICABLE UNTIL LIGHT THEME EXISTS**
+
+This is **DESIGN APPROVAL REQUIRED**, not an engineering defect, and it is
+**not a technical blocker**. The reasoning below is kept because it is what the
+decision rests on.
 
 The final technical directive asks for Light / Dark / System themes and, in the
 same breath, to *"preserve the PickLoads V4 visual identity"* and *"do not
@@ -304,3 +312,23 @@ telling the browser the truth rather than fighting it.
 
 **Nothing has been implemented either way.** The theme phase is stopped pending
 this decision.
+
+### 7a · What the attempt to declare it in CSS proved
+
+Declaring the decision technically was tried and reverted, and the result is
+worth keeping because it constrains how a light theme must eventually be built:
+
+* **`:root { color-scheme: dark }` breaks the site.** It flips the user agent's
+  default text colour to white, and V4's `.light` sections set an explicit
+  light background while inheriting that default for some text. axe reported
+  **serious contrast failures across 239 tests**. The alternating light/dark
+  device that makes this design work is exactly what one global declaration
+  destroys.
+
+* **So a future light theme cannot be a global switch.** It has to be a
+  `data-theme` attribute on `<html>` plus a colour-scheme scoped per surface,
+  with the `.light`/dark pairing re-derived by design. That is the extension
+  point; it is recorded so nobody reaches for the one-line version again.
+
+The dark identity is therefore declared the way it always has been —
+explicitly, on every surface — and the site ships no theme toggle.

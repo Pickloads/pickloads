@@ -136,3 +136,23 @@ estimates a full build cycle for this work, comparable to M-50…M-62.
 This document does not pretend otherwise, and the phase table above is a
 sequence to work through, not a checklist to tick in one sitting. Phase A is
 complete and verified. Phase B begins on approval.
+
+---
+
+## 10 · Theme decision (2026-08-11)
+
+**DARK THEME — APPROVED / PRODUCTION READY.**
+**LIGHT THEME — DEFERRED PENDING APPROVED DESIGN SYSTEM.**
+**SYSTEM THEME — NOT APPLICABLE UNTIL A LIGHT THEME EXISTS.**
+
+The business approved shipping dark-only rather than inventing a light palette.
+V4 is a dark-first identity and its `.light` sections are a deliberate contrast
+device inside that identity — not an approved alternate visual system.
+
+**This is DESIGN APPROVAL REQUIRED, not a technical blocker,** and it is not
+counted as one in the readiness scoring.
+
+**Extension point, when design supplies a light palette:** a `data-theme`
+attribute on `<html>` and a colour-scheme scoped per surface. **Not** a global
+`:root { color-scheme }` — that was measured and it breaks the light sections
+(see `COWORK-CONTENT-REVIEW.md` §7a).
