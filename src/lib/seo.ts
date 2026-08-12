@@ -15,9 +15,13 @@ export const SITE_NAME = "PickLoads Logistics Group";
 /**
  * Public, indexable routes (per locale). M-16 appends /dispatch/[equipment];
  * M-35 appends /truck-dispatch/[state].
+ *
+ * The list itself moved to `@/lib/public-routes` so that pure data — which the
+ * search index and the link-QA crawl both need — no longer drags the next-intl
+ * navigation runtime in with it. Re-exported here because callers have
+ * imported it from `@/lib/seo` since M-15.
  */
 export { PUBLIC_ROUTES } from "@/lib/public-routes";
-import { PUBLIC_ROUTES } from "@/lib/public-routes";
 
 type Href = Parameters<typeof getPathname>[0]["href"];
 

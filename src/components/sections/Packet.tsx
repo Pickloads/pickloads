@@ -78,11 +78,20 @@ export function Packet({
                     {tv("DOWNLOAD ↓")}
                   </a>
                 ) : (
-                  <a
+                  /* A BUTTON, not an anchor. This was `<a href="#">`, which is
+                     wrong twice over: the link-QA crawl counts it as a dead
+                     href, and assistive technology announces it as a link that
+                     goes nowhere. It navigates to nothing — it opens a toast —
+                     so `button` is what it has always been semantically.
+
+                     The visible label, the toast and the gate are unchanged;
+                     `packet_downloads_live` still decides which branch renders,
+                     and the approved copy is untouched. */
+                  <button
+                    type="button"
                     className="dl"
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
+                    aria-label={`${tv(title)} — ${tv("DOWNLOAD ↓")}`}
+                    onClick={() => {
                       showToast({
                         title: tv("Packet downloads — available at launch."),
                         body: tv(
@@ -92,7 +101,7 @@ export function Packet({
                     }}
                   >
                     {tv("DOWNLOAD ↓")}
-                  </a>
+                  </button>
                 )}
               </div>
             ))}

@@ -23,14 +23,19 @@ verification.
 
 ## What runs
 
-Three jobs, in parallel, so a red build says *where* it broke without reading a
+Three jobs, in parallel, so a red build says _where_ it broke without reading a
 log.
 
-| Job | Lane | Assertions |
-|---|---|---|
-| **static** | `typecheck` · `lint` · `test` · `build` · `audit` | 1,638 unit · 388 pages · 0 advisories |
-| **database** | `test:rls` · `test:integration` | 806 RLS · 369 integration |
-| **browser** | `build:e2e` · `test:e2e` | 371 e2e — 12 breakpoints, WCAG 2.2 AA |
+| Job          | Lane                                              | Assertions                            |
+| ------------ | ------------------------------------------------- | ------------------------------------- |
+| **static**   | `typecheck` · `lint` · `test` · `build` · `audit` | 1,785 unit · 434 pages · 0 advisories |
+| **database** | `test:rls` · `test:integration`                   | 806 RLS · 369 integration             |
+| **browser**  | `build:e2e` · `test:e2e`                          | 546 e2e — 12 breakpoints, WCAG 2.2 AA |
+
+These counts are measured, not aspirational — they were re-run in full on
+2026-08-11. They had drifted (1,638 · 388 · 371) because the table was written
+once and the suites kept growing; a stale number in a CI document is the same
+class of problem as a stale test server.
 
 Triggers: pushes to `main` and `final-website-production`, every pull request,
 and manual dispatch. In-flight runs are superseded by newer pushes **except on
@@ -73,6 +78,25 @@ be 16, and both suites shell out to it, so the client is pinned to the server's
 major version explicitly. Auth is by password (`PGPASSWORD=postgres`) because
 the official image does not offer trust auth; it guards a database that does
 not outlive the job.
+
+**Linux is not the only place these lanes run — and it was the only place they
+worked.** Both SQL suites carried Linux assumptions that CI could never catch,
+because CI is Linux:
+
+- `PGHOST` defaulted to `/tmp/pgsock`. Windows PostgreSQL has no unix-domain
+  sockets at all, so that default cannot connect there under any configuration.
+- `20_rls_isolation.sql` silenced chatter with `\o /dev/null`. `\o` is a psql
+  meta-command, not a shell redirect, so a native Windows psql resolves it as
+  an ordinary file path and aborts the suite before its first assertion.
+- The integration lane's `hookTimeout` sat at vitest's 10s default while
+  `testTimeout` had been raised to 30s. Every query is a separate `psql`
+  process — ~2s each on Windows — so fixtures blew the hook budget, and vitest
+  reports a file whose hook failed as **skipped** tests. The lane went quiet
+  rather than red.
+
+All three are fixed by detecting the platform rather than assuming one. CI sets
+`PGHOST` explicitly and runs on Ubuntu, so none of it changes what CI does —
+which is exactly why CI could not have found any of it.
 
 **Chromium via stock `npx playwright install`.** The `browser` job deliberately
 does **not** set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` — that override exists

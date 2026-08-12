@@ -155,7 +155,30 @@ test.describe("P-6 — dead config is wired", () => {
   }) => {
     await page.goto("/#packet");
     const first = page.locator(".packet-item .dl").first();
-    await expect(first).toHaveAttribute("href", "#");
+    // It used to assert href="#". That control navigates nowhere — it opens a
+    // toast — so it is a BUTTON now: the link-QA crawl counted the dead anchor,
+    // and assistive technology announced it as a link that goes nowhere.
+    // Asserting the element is a button and carries no href is strictly
+    // stronger than asserting it had a dead one.
+    await expect(first).toHaveJSProperty("tagName", "BUTTON");
+    await expect(first).not.toHaveAttribute("href", /.*/);
+
+    // Changing the element changed what the user agent paints: a bare <button>
+    // arrives with a buttonface background, a 2px border and its own padding,
+    // none of which the <a> ever had. `.dl` resets them, and this is what
+    // proves the swap stayed invisible.
+    const chrome = await first.evaluate((el) => {
+      const s = getComputedStyle(el);
+      return {
+        background: s.backgroundColor,
+        borderWidth: s.borderTopWidth,
+        paddingLeft: s.paddingLeft,
+      };
+    });
+    expect(chrome.background).toBe("rgba(0, 0, 0, 0)");
+    expect(chrome.borderWidth).toBe("0px");
+    expect(chrome.paddingLeft).toBe("0px");
+
     await first.click();
     await expect(page.locator(".portal-toast")).toContainText(
       /available at launch|legal review/i,

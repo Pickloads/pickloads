@@ -33,7 +33,13 @@
 # ============================================================================
 set -euo pipefail
 
-export PGHOST="${PGHOST:-/tmp/pgsock}"
+# Windows PostgreSQL has no unix-domain sockets, so /tmp/pgsock can never
+# connect there. Same default, same reason, as scripts/run-rls-tests.sh.
+case "$(uname -s 2>/dev/null || echo unknown)" in
+  MINGW* | MSYS* | CYGWIN* | Windows_NT) DEFAULT_PGHOST="localhost" ;;
+  *) DEFAULT_PGHOST="/tmp/pgsock" ;;
+esac
+export PGHOST="${PGHOST:-$DEFAULT_PGHOST}"
 export PGPORT="${PGPORT:-5433}"
 export PGUSER="${PGUSER:-postgres}"
 export INTEGRATION_TEST_DB="${INTEGRATION_TEST_DB:-pickloads_integration}"

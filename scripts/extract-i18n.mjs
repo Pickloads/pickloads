@@ -8,8 +8,32 @@
  * stripped — styling lives in components, not messages).
  *
  * Usage: node scripts/extract-i18n.mjs
+ *
+ * ── WHY THIS SCRIPT REFUSES TO RUN MOST OF THE TIME ──────────────────────
+ *
+ * It REGENERATES `messages/<locale>.json` from two in-file sources (the V4
+ * dictionary scraped out of the prototype, and the SHIPMENT table below). It
+ * does not merge. So every key added to `messages/` by any later milestone —
+ * i.e. every key whose origin is not one of those two tables — is silently
+ * deleted the moment this runs.
+ *
+ * That is not hypothetical. Running it once destroyed 743 lines across the
+ * locale files and turned 45 tests red. As of this audit it would delete 95
+ * keys per locale (475 in total): the whole of `shipment.document`,
+ * `shipment.optout`, `shipment.location` and `shipment.broker`, none of which
+ * SHIPMENT below knows about.
+ *
+ * The guard at the bottom now makes that impossible: the script diffs what it
+ * is about to write against what is already on disk and ABORTS, writing
+ * nothing, if a single key would be lost. Regeneration is only safe when the
+ * tables in this file are a true superset of the catalogs, and the guard is
+ * what decides that rather than the person running it.
+ *
+ * To retire the guard properly, make this script merge into the existing
+ * catalogs instead of replacing them. Until then a refusal is the correct
+ * outcome and the fix is to add strings to `messages/` by hand.
  */
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 
 const html = readFileSync("reference/pickloadssitev4.html", "utf8");
 const LOCALES = ["es", "fr", "ru", "ht"];
@@ -1642,12 +1666,65 @@ for (const [path, tr] of Object.entries(SHIPMENT)) {
 }
 
 mkdirSync("messages", { recursive: true });
-for (const [l, cat] of Object.entries(catalogs)) {
+
+/**
+ * Every leaf path in a catalog, as dotted strings. Comparing SETS of paths —
+ * not file sizes, not key counts — is what makes the guard precise: a run that
+ * adds 200 keys and drops 1 must still fail, and only a path-level diff sees
+ * that.
+ */
+function leafPaths(node, prefix = "", out = []) {
+  for (const [k, v] of Object.entries(node ?? {})) {
+    const path = prefix ? `${prefix}.${k}` : k;
+    if (v !== null && typeof v === "object" && !Array.isArray(v)) leafPaths(v, path, out);
+    else out.push(path);
+  }
+  return out;
+}
+
+// Build every catalog in memory FIRST. Nothing is written until all five have
+// been proved non-destructive — a guard that checked file-by-file would still
+// leave en.json rewritten and fr.json abandoned when the fourth locale fails.
+const pending = Object.entries(catalogs).map(([l, cat]) => {
   const sorted = Object.fromEntries(Object.entries(cat).sort(([a], [b]) => a.localeCompare(b)));
-  writeFileSync(
-    `messages/${l}.json`,
-    JSON.stringify({ v4: sorted, shipment: shipmentCatalogs[l] }, null, 2) + "\n",
+  return [l, { v4: sorted, shipment: shipmentCatalogs[l] }];
+});
+
+const losses = [];
+for (const [l, next] of pending) {
+  const file = `messages/${l}.json`;
+  if (!existsSync(file)) continue; // first generation: nothing to lose
+  const current = JSON.parse(readFileSync(file, "utf8"));
+  const nextPaths = new Set(leafPaths(next));
+  const dropped = leafPaths(current).filter((p) => !nextPaths.has(p));
+  if (dropped.length) losses.push([l, dropped]);
+}
+
+if (losses.length) {
+  const detail = losses
+    .map(([l, dropped]) => {
+      const namespaces = [...new Set(dropped.map((p) => p.split(".").slice(0, 2).join(".")))];
+      return (
+        `  ${l}.json — ${dropped.length} keys would be deleted\n` +
+        `    namespaces: ${namespaces.join(", ")}\n` +
+        `    e.g. ${dropped.slice(0, 3).join(", ")}`
+      );
+    })
+    .join("\n");
+  console.error(
+    "\nREFUSING TO WRITE — this run would DELETE existing translations.\n\n" +
+      detail +
+      "\n\nThis script regenerates the catalogs from the V4 dictionary and the\n" +
+      "SHIPMENT table in this file; any key that came from anywhere else is not\n" +
+      "reproduced and would be lost. Nothing has been written.\n\n" +
+      "Add the missing strings to messages/<locale>.json by hand, or teach this\n" +
+      "script to merge rather than replace. Do not delete this guard.\n",
   );
+  process.exit(1);
+}
+
+for (const [l, payload] of pending) {
+  writeFileSync(`messages/${l}.json`, JSON.stringify(payload, null, 2) + "\n");
 }
 writeFileSync("messages/_key-index.json", JSON.stringify(keyIndex, null, 2) + "\n");
 console.log(`extracted ${Object.keys(catalogs.en).length} strings × ${1 + LOCALES.length} locales`);

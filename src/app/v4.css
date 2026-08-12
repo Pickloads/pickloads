@@ -252,7 +252,11 @@ nav.sitenav .wrap{display:flex;align-items:center;justify-content:space-between;
 .packet-item .doc i{font-style:normal;font-family:var(--font-mono);font-size:.62rem;letter-spacing:.1em;color:var(--ink);background:var(--amber);border-radius:3px;padding:3px 7px;font-weight:600}
 .packet-item .doc div b{display:block;font-family:var(--font-display);font-weight:800;font-size:.98rem}
 .packet-item .doc div span{font-size:.82rem;color:#9aa4ab}
-.packet-item .dl{font-family:var(--font-mono);font-size:.74rem;color:var(--amber)}
+/* The gated download is a <button> (it opens a toast, it navigates nowhere)
+   while the live one is an <a>. Both must look identical, so the button's UA
+   chrome — buttonface background, 2px border, padding, centred text, inherited
+   cursor — is reset here rather than duplicating the rule per element. */
+.packet-item .dl{font-family:var(--font-mono);font-size:.74rem;color:var(--amber);background:none;border:0;padding:0;text-align:inherit;cursor:pointer;line-height:inherit}
 .upload{border:2px dashed var(--line);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:44px 30px;gap:8px;transition:border-color .15s ease;cursor:pointer}
 .upload:hover{border-color:var(--amber)}
 .upload .big{font-size:2rem}

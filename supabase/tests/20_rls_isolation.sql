@@ -169,7 +169,12 @@ grant execute on all functions in schema rls_test to authenticated, anon, servic
 
 -- Assertions are silent on success (they RAISE on failure); discard the
 -- one-empty-row-per-select chatter so the runner output stays readable.
-\o /dev/null
+--
+-- `:discard` is supplied by run-rls-tests.sh as the platform's null device
+-- (/dev/null, or NUL under a native Windows psql). It was hard-coded to
+-- /dev/null, which psql resolves as an ordinary file path — so on Windows the
+-- entire suite aborted here, before a single assertion ran.
+\o :discard
 
 -- Identity shorthands used throughout.
 --   carrier A owner  00000000-0000-0000-0000-0000000000a1

@@ -17,7 +17,14 @@
 # ============================================================================
 set -euo pipefail
 
-export PGHOST="${PGHOST:-/tmp/pgsock}"
+# Windows PostgreSQL has no unix-domain sockets at all, so the /tmp/pgsock
+# default cannot ever connect there — the suite failed at "cannot reach
+# PostgreSQL" and looked like a missing server rather than a wrong default.
+case "$(uname -s 2>/dev/null || echo unknown)" in
+  MINGW* | MSYS* | CYGWIN* | Windows_NT) DEFAULT_PGHOST="localhost" ;;
+  *) DEFAULT_PGHOST="/tmp/pgsock" ;;
+esac
+export PGHOST="${PGHOST:-$DEFAULT_PGHOST}"
 export PGPORT="${PGPORT:-5433}"
 export PGUSER="${PGUSER:-postgres}"
 DB="${RLS_TEST_DB:-pickloads_rls}"
@@ -43,6 +50,17 @@ EOF
   exit 1
 fi
 
+# The null device, named for the platform psql itself is running on. The
+# assertion file discards its per-select chatter with `\o :discard`, and `\o`
+# is interpreted by psql — not the shell — so a hard-coded /dev/null is a
+# literal, nonexistent path to a native Windows psql and aborts the suite.
+# MSYS/Cygwin translate paths on the command line but not inside a .sql file,
+# which is why this has to be passed in rather than written there.
+case "$(uname -s 2>/dev/null || echo unknown)" in
+  MINGW* | MSYS* | CYGWIN* | Windows_NT) DISCARD="NUL" ;;
+  *) DISCARD="/dev/null" ;;
+esac
+
 echo "▸ RLS suite — PG at $PGHOST:$PGPORT, database $DB"
 psql -d postgres -q -c "drop database if exists $DB" \
                  -c "create database $DB"
@@ -57,7 +75,7 @@ run "$ROOT/supabase/seed.sql"
 run "$TESTS/10_fixtures.sql"
 
 # The assertion file prints its own PASS lines; -q keeps psql chatter out.
-psql -d "$DB" -v ON_ERROR_STOP=1 -q -f "$TESTS/20_rls_isolation.sql"
+psql -d "$DB" -v ON_ERROR_STOP=1 -v discard="$DISCARD" -q -f "$TESTS/20_rls_isolation.sql"
 
 COUNT=$(psql -d "$DB" -At -c "select count(*) from rls_test.results where ok")
 echo "✔ RLS isolation suite: $COUNT assertions passed"
