@@ -69,13 +69,23 @@ describe("login submits by POST, never GET", () => {
     expect(src).toMatch(/<form[^>]*action=\{formAction\}/);
   });
 
-  it("carries method=\"post\" as a fail-safe, not only the action", () => {
-    // Server actions already render method="POST". The attribute is here so
-    // that a regression in the action wiring degrades to a broken submit
-    // rather than to a credential in the query string.
-    expect(read("src/components/auth/LoginForm.tsx")).toMatch(
-      /<form[^>]*method="post"/,
-    );
+  it("does NOT hand-set method/encType — React owns that for a function action", () => {
+    // The first version of this fix added `method="post"` as a fail-safe and
+    // asserted it here. That was wrong on the framework contract: when
+    // `action` is a function React renders `method="POST"` and the multipart
+    // encType itself, and a hand-set attribute earns
+    //   "Cannot specify a encType or method for a form that specifies a
+    //    function as the action."
+    //
+    // The guarantee did not weaken — it moved to where it was always
+    // enforced. `tests/e2e/login-post.spec.ts` asserts the RENDERED tag says
+    // POST and that a native submit produces one.
+    const src = codeOf("src/components/auth/LoginForm.tsx");
+    const tag = src.match(/<form[^>]*>/)?.[0] ?? "";
+    expect(tag).toContain("action={formAction}");
+    expect(tag, "React warns when method is set alongside a function action")
+      .not.toMatch(/method=/);
+    expect(tag).not.toMatch(/encType=/i);
   });
 
   it("no longer authenticates in the browser", () => {
@@ -90,19 +100,32 @@ describe("login submits by POST, never GET", () => {
     // The login form was not special — it was simply the one that got
     // noticed. Reset-password carries two passwords, account settings carries
     // a new password, MFA carries a TOTP code.
+    //
+    // Two legitimate shapes, and exactly two:
+    //   * `action={fn}`  — React renders POST; setting `method` here WARNS.
+    //   * `onSubmit=`    — no function action, so `method="post"` is both
+    //                      allowed and required, otherwise the default is GET.
     for (const rel of CREDENTIAL_FORMS) {
       const src = codeOf(rel);
       for (const tag of src.match(/<form[^>]*>/g) ?? []) {
-        // Only forms that actually collect a secret are in scope; a filter
-        // form legitimately uses method="get".
         expect(
           tag,
           `${rel}: a credential form must not submit by GET`,
         ).not.toMatch(/method="get"/i);
+
+        const hasFunctionAction = /\baction=\{/.test(tag);
+        if (hasFunctionAction) {
+          expect(
+            tag,
+            `${rel}: React owns method/encType for a function action`,
+          ).not.toMatch(/method=|encType=/i);
+        } else {
+          expect(
+            tag,
+            `${rel}: a handler-only credential form must declare method="post"`,
+          ).toMatch(/method="post"/);
+        }
       }
-      expect(src, `${rel} must declare method="post"`).toMatch(
-        /<form[^>]*method="post"/,
-      );
     }
   });
 

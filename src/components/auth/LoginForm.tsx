@@ -26,10 +26,11 @@ import { initialFormState } from "@/lib/form-state";
  * JavaScript ever arrives; the credential travels in the request body and
  * cannot reach a query string, a history entry, a referrer or an access log.
  *
- * **Do not reintroduce `onSubmit` here, and do not remove `method="post"`.**
- * The attribute is redundant while server actions render their own — that is
- * the point of a fail-safe. Authentication is the one form where the no-JS
- * path has to be safe by construction rather than by handler.
+ * **Do not reintroduce `onSubmit` here, and do not add `method`/`encType`.**
+ * React owns the submission contract for a function action and renders POST
+ * itself; setting it by hand only produces a warning. Authentication is the
+ * one form where the no-JS path has to be safe by construction rather than by
+ * handler, and the server action is what makes it so.
  *
  * Role routing, session cookies and error wording all live in the action:
  * `src/app/actions/auth.ts`.
@@ -87,10 +88,22 @@ export function LoginForm() {
           {tv("Sign in to continue where you left off.")}
         </p>
       ) : null}
-      {/* `method="post"` is a FAIL-SAFE, not decoration — see the note at the
-          top of this file. A credential form must not be able to fall back to
-          GET if anything about the action wiring regresses. */}
-      <form action={formAction} method="post">
+      {/* NO `method` or `encType` here, deliberately.
+
+          The P0 fix added `method="post"` as a fail-safe. It was redundant and
+          wrong: when `action` is a function, React OWNS the submission
+          contract and renders `method="POST"` (plus the multipart encType and
+          the action reference fields) into the HTML itself — which is what
+          makes the unhydrated form POST. Setting it by hand does not add a
+          guarantee, it fights the one already there, and React says so:
+          "Cannot specify a encType or method for a form that specifies a
+          function as the action."
+
+          The no-GET guarantee is unchanged and still tested — but it is
+          asserted against the RENDERED html (tests/e2e/login-post.spec.ts),
+          which is where it actually lives, rather than against an attribute
+          in this file. */}
+      <form action={formAction}>
         <input type="hidden" name="locale" value={locale} />
         {nextParam ? (
           <input type="hidden" name="next" value={nextParam} />

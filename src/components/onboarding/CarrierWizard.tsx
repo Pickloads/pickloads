@@ -85,6 +85,21 @@ export function CarrierWizard({ esignLive }: { esignLive: boolean }) {
     if (startState.status === "success" && startState.carrierId) setStep(2);
   }, [startState]);
 
+  /**
+   * Turnstile tokens are single-use. A failed step 1 left the widget holding
+   * the token it had already spent, so the retry re-sent a dead token and
+   * Cloudflare refused it as `timeout-or-duplicate` — turning ANY first
+   * failure (a typo'd phone number was enough) into a permanent
+   * "We couldn't verify your submission" that only a page refresh cleared.
+   *
+   * Counting failures and feeding that to the widget remounts it, so each
+   * attempt carries a token that has never been used.
+   */
+  const [verifyAttempt, setVerifyAttempt] = useState(0);
+  useEffect(() => {
+    if (startState.status === "error") setVerifyAttempt((n) => n + 1);
+  }, [startState]);
+
   // M-59 (WCAG 2.4.3): advancing a step moves focus to the new panel's
   // heading so screen-reader/keyboard users land at the start of the step.
   const wizardRef = useRef<HTMLDivElement | null>(null);
@@ -194,7 +209,7 @@ export function CarrierWizard({ esignLive }: { esignLive: boolean }) {
                 <input id="ob-insurance" name="insurance_expiry" type="date" />
               </div>
             </div>
-            <TurnstileWidget theme="light" />
+            <TurnstileWidget theme="light" resetKey={verifyAttempt} />
             <button className="btn btn-amber" type="submit" aria-busy={startPending} disabled={startPending} style={{ marginTop: 4 }}>
               {startPending ? tv("Saving…") : tv("Continue to Documents →")}
             </button>
