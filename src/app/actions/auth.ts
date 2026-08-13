@@ -1,6 +1,6 @@
 "use server";
 
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getPathname } from "@/i18n/navigation";
 import { portalHomeFor } from "@/lib/auth";
@@ -167,4 +167,84 @@ export async function signInAction(
     redirect(`${getPathname({ href: "/login", locale })}?error=suspended`);
   }
   redirect(getPathname({ href: next ?? portalHomeFor(role), locale }));
+}
+
+/**
+ * Sign out — the canonical implementation. Every "Sign out" control in the
+ * application posts to this and nothing else.
+ *
+ * ── WHY THE OLD ONE DID NOT RELIABLY LOG ANYBODY OUT ─────────────────────
+ *
+ * `PortalSidebar` did this:
+ *
+ *     <a href="#signout" onClick={e => { e.preventDefault(); void signOut(); }}>
+ *
+ *     async function signOut() {
+ *       try   { if (configured) await createClient().auth.signOut(); }
+ *       finally { window.location.assign("/"); }
+ *     }
+ *
+ * Three independent ways for that to leave a live session behind, and the
+ * navigation in `finally` hides all of them:
+ *
+ *   1. **The browser client cannot be trusted to clear the server's cookies.**
+ *      `createBrowserClient` deletes through `document.cookie`, which only
+ *      works when the name, path and domain match exactly what the server
+ *      wrote — and Supabase CHUNKS a large session across `…auth-token.0`,
+ *      `…auth-token.1`. A partial delete leaves a cookie set the middleware
+ *      still reads.
+ *   2. **`signOut()`'s result was discarded.** It defaults to a global scope,
+ *      which is a network round trip; on a 401 from an already-expired access
+ *      token, or with no network, it returns an error — and `finally` then
+ *      navigated away as if it had succeeded.
+ *   3. **`configured` false meant no sign-out attempt at all**, just a
+ *      redirect. A visitor who "signed out" was one back-button away.
+ *
+ * On top of that the control was an anchor with `preventDefault`, so before
+ * hydration — or after any hydration failure — clicking "Sign out" navigated
+ * to `#signout` and did nothing whatsoever. Silently. This is the same shape
+ * as the login defect: security behaviour that only holds when JavaScript
+ * wins a race.
+ *
+ * ── WHAT THIS DOES INSTEAD ───────────────────────────────────────────────
+ *
+ * Server side, where the cookie jar is authoritative. `signOut()` through the
+ * SSR adapter, and then an explicit sweep of every `sb-*` cookie — because
+ * "the library should have removed them" is exactly the assumption that
+ * produced this bug. The sweep is belt and braces on purpose: it costs
+ * nothing and it is the only step that cannot fail quietly.
+ *
+ * The session is destroyed even if Supabase is unreachable. A sign-out that
+ * depends on a working network is not a sign-out.
+ */
+export async function signOutAction(formData?: FormData): Promise<void> {
+  const locale = String(formData?.get("locale") ?? "en");
+
+  try {
+    const supabase = await createClient();
+    // `scope: "local"` — this clears THIS browser's session. A global sign-out
+    // would revoke every device's refresh token, which is a security action a
+    // user did not ask for by clicking "Sign out" in one tab, and it fails
+    // closed on a network error, which is how the old code got stuck.
+    await supabase.auth.signOut({ scope: "local" });
+  } catch {
+    // Deliberately swallowed. Supabase being unreachable must not leave the
+    // user logged in — the cookie sweep below is what actually ends the
+    // session, and it runs either way.
+  }
+
+  const store = await cookies();
+  for (const cookie of store.getAll()) {
+    // Supabase namespaces every auth cookie `sb-<project-ref>-…`, and chunks
+    // large ones with a `.0` / `.1` suffix. Matching the prefix catches the
+    // chunks, the PKCE verifier and any future member of the family; matching
+    // exact names would not have caught the chunks, which is the failure this
+    // exists to prevent.
+    if (cookie.name.startsWith("sb-")) store.delete(cookie.name);
+  }
+
+  // To the login page, not to `/`. The old code sent people to the marketing
+  // homepage, which looks identical whether or not you are still signed in —
+  // so a failed sign-out was indistinguishable from a successful one.
+  redirect(getPathname({ href: "/login", locale }));
 }

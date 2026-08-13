@@ -14,6 +14,12 @@
 .pside .plabel{font-family:var(--font-mono);font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;color:var(--steel);margin:18px 6px 6px}
 .pside a{display:block;color:#cfd6da;font-size:.9rem;font-weight:500;padding:9px 10px;border-radius:6px;border:1px solid transparent}
 .pside a:hover{color:var(--amber)}
+/* Sign out is a <button> inside a <form> (it destroys a session, so it is a
+   POST, not a link). These rules make it render exactly as the anchor it
+   replaced — same box, same colour, same hover — without restyling the nav. */
+.pside form{margin:0}
+.pside .psignout{display:block;width:100%;text-align:left;background:none;color:#cfd6da;font:inherit;font-size:.9rem;font-weight:500;padding:9px 10px;border-radius:6px;border:1px solid transparent;cursor:pointer}
+.pside .psignout:hover{color:var(--amber)}
 .pside a.active{color:var(--amber);background:var(--asphalt2);border-color:var(--line)}
 .pside .pfoot{margin-top:auto;padding:10px 6px;font-family:var(--font-mono);font-size:.64rem;color:var(--color-steel)}
 .pmain{padding:26px 30px 60px;min-width:0}

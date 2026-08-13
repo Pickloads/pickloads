@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useLocale } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
 import { Logo } from "@/components/ui/Logo";
 import { useV4 } from "@/i18n/v4";
-import { createClient } from "@/lib/supabase/client";
+import { signOutAction } from "@/app/actions/auth";
 import type { UserRole } from "@/lib/supabase/database.types";
 
 /**
@@ -26,6 +27,7 @@ export function PortalSidebar({
   fullName: string | null;
 }) {
   const tv = useV4();
+  const locale = useLocale();
   const pathname = usePathname();
   const isStaff = role === "admin" || role === "dispatcher";
   const [open, setOpen] = useState(false);
@@ -62,19 +64,6 @@ export function PortalSidebar({
       </Link>
     );
   };
-
-  async function signOut() {
-    try {
-      if (
-        process.env.NEXT_PUBLIC_SUPABASE_URL &&
-        !process.env.NEXT_PUBLIC_SUPABASE_URL.includes("placeholder")
-      ) {
-        await createClient().auth.signOut();
-      }
-    } finally {
-      window.location.assign("/");
-    }
-  }
 
   return (
     <>
@@ -206,15 +195,18 @@ export function PortalSidebar({
         )}
         <span className="plabel">{tv("Site")}</span>
         <Link href="/">← {tv("Back to pickloads.com")}</Link>
-        <a
-          href="#signout"
-          onClick={(e) => {
-            e.preventDefault();
-            void signOut();
-          }}
-        >
-          {tv("Sign out")}
-        </a>
+        {/* Sign out is a WRITE — it destroys a session — so it is a form that
+            posts to the canonical server action, not an anchor with an
+            onClick. The old control was `<a href="#signout" onClick=…>`, which
+            before hydration navigated to a fragment and did nothing at all,
+            silently. Ending a session must not depend on JavaScript having
+            loaded. */}
+        <form action={signOutAction}>
+          <input type="hidden" name="locale" value={locale} />
+          <button type="submit" className="psignout">
+            {tv("Sign out")}
+          </button>
+        </form>
         <div className="pfoot">
           {fullName ?? "—"}
           <br />
