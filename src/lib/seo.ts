@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getPathname } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
+import { getV4 } from "@/i18n/v4-server";
 
 /**
  * M-15 SEO helpers — canonical + hreflang alternates for every public page.
@@ -39,7 +40,34 @@ export function languageAlternates(href: Href): Record<string, string> {
   return languages;
 }
 
-export function pageMetadata({
+/**
+ * M-90 — page metadata, localized.
+ *
+ * ── WHAT WAS WRONG ───────────────────────────────────────────────────────
+ *
+ * `canonical` and the hreflang set were per-locale from the start; `title`
+ * and `description` were not. Every call site passed an English literal
+ * straight through, so /fr/dispatch-services shipped a French page inside an
+ * English `<title>`, an English `<meta name="description">` and English
+ * Open Graph tags — the three fields a search engine and a shared link
+ * actually display. The page told Google it had a French alternate and then
+ * described that alternate in English.
+ *
+ * ── WHY THE BRIDGE AND NOT A NEW NAMESPACE ───────────────────────────────
+ *
+ * The strings resolve through `getV4()`, the same slug bridge the page bodies
+ * use. Two reasons. The catalogue is where translators already work, so a
+ * title lands in the same file as the H1 it echoes. And the bridge's fallback
+ * is the English literal — which means the equipment and state pages, whose
+ * `metaTitle`/`metaDescription` are long-form English from `src/content/*`
+ * and are NOT translated yet (the O-03 workstream), keep working and keep
+ * telling the truth about it. Nothing here fabricates a translation; it uses
+ * one when the catalogue has one.
+ *
+ * ASYNC because `getTranslations` is. Call sites are already inside
+ * `generateMetadata`, so this costs them an `await`.
+ */
+export async function pageMetadata({
   locale,
   href,
   title,
@@ -49,18 +77,21 @@ export function pageMetadata({
   href: Href;
   title: string;
   description: string;
-}): Metadata {
+}): Promise<Metadata> {
   const canonical = absoluteUrl(href, locale);
+  const tv = await getV4(locale);
+  const localizedTitle = tv(title);
+  const localizedDescription = tv(description);
   return {
-    title,
-    description,
+    title: localizedTitle,
+    description: localizedDescription,
     alternates: {
       canonical,
       languages: languageAlternates(href),
     },
     openGraph: {
-      title,
-      description,
+      title: localizedTitle,
+      description: localizedDescription,
       url: canonical,
       siteName: SITE_NAME,
       locale,
@@ -68,8 +99,8 @@ export function pageMetadata({
     },
     twitter: {
       card: "summary",
-      title,
-      description,
+      title: localizedTitle,
+      description: localizedDescription,
     },
   };
 }

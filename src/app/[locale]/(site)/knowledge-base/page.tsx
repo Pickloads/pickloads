@@ -54,7 +54,7 @@ export async function generateMetadata({
 
   // A filtered view is a variant, not a competitor: it canonicalises to the
   // unfiltered page so eight near-identical URLs do not compete with it.
-  const meta = pageMetadata({
+  const meta = await pageMetadata({
     locale,
     href: "/knowledge-base",
     title: "Knowledge Base — PickLoads Logistics Group",

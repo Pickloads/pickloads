@@ -105,7 +105,50 @@ const MAX_UNTRANSLATED: Record<string, Record<string, number>> = {
   // Same honest note as the A3 entry above: the three replaced keys HAD ru and
   // ht values, so those locales trade a fluent sentence that excluded shippers
   // for an accurate English one. Counted here rather than netted off.
-  v4: { es: 14, fr: 27, ru: 460, ht: 466 },
+  //
+  // ── M-90 (2026-08-13): ALL FOUR RAISED, AND THE NUMBERS GOT WORSE ON
+  //    PAPER BECAUSE THE MEASUREMENT GOT HONEST ─────────────────────────────
+  //
+  // es 14→33, fr 27→46, ru 460→521, ht 466→540.
+  //
+  // Read that as a regression and you have it backwards. 260 keys were ADDED
+  // to the catalogue in this commit, and every one of them was already on the
+  // live site — as an English literal that `useV4()` fell back to because the
+  // key did not exist. The whole main navigation, the carrier wizard, the
+  // process flow strip, the 404, the cookie banner, both equipment pickers,
+  // every page `<title>`. None of it was in this file's denominator, so this
+  // ratchet was measuring 769 strings and reporting on a site that rendered
+  // 1,029. The gap it certified was real; the gap it did NOT see was 260
+  // strings wide and applied to all four locales at once, including the two
+  // it called "essentially complete".
+  //
+  // What actually changed per locale:
+  //
+  //   es +19 / fr +19 — every added string is translated EXCEPT the equipment
+  //     loanwords and proper nouns the site keeps in English on purpose
+  //     ("Dry Van", "Hot Shot", "BOC-3 + UCR", "FAQ", "…"). Those are counted
+  //     as untranslated here because byte-equality cannot tell a deliberate
+  //     loanword from a missed string, which is the documented over-count.
+  //
+  //   ru +61 / ht +74 — the ordinary UI and marketing copy among the additions
+  //     IS translated (nav, buttons, form labels, wizard steps, metadata).
+  //     61 of the 260 are byte-identical to English in BOTH ru and ht. Six of
+  //     those are proper nouns and symbols that stay as they are in any
+  //     language ("…", "Hot Shot", "Owner-Operator", "LLC + EIN",
+  //     "BOC-3 + UCR", "Legal"). The other 55 are deliberate:
+  //     dispatch-agreement and
+  //     ESIGN wording, FMCSA/MC/USDOT/BOC-3 filing copy, insurance minimums,
+  //     surety-bond status, fee-calculation terms, the privacy and cookie
+  //     statements, and the "not a live GPS position" disclaimer. Those are
+  //     the categories docs/COWORK-CONTENT-REVIEW.md §3 reserves for a native
+  //     translator, and machine-translating a legal consent into Haitian
+  //     Creole to make a number in this file go down is the trade this repo
+  //     has refused four times already. They are listed by key in
+  //     docs/modules/M-90-i18n-repair.md so the review has a work queue.
+  //
+  // The direction that matters is unchanged: a raised baseline still has to
+  // explain itself, and these lines are that explanation.
+  v4: { es: 33, fr: 46, ru: 521, ht: 540 },
 };
 
 function flatten(value: unknown, path: string, out: Map<string, string>): void {
@@ -120,7 +163,10 @@ function flatten(value: unknown, path: string, out: Map<string, string>): void {
   }
 }
 
-function namespaceStrings(locale: string, namespace: string): Map<string, string> {
+function namespaceStrings(
+  locale: string,
+  namespace: string,
+): Map<string, string> {
   const data = JSON.parse(readFileSync(`messages/${locale}.json`, "utf8"));
   const out = new Map<string, string>();
   flatten(data[namespace] ?? {}, "", out);
@@ -146,7 +192,9 @@ describe("i18n coverage ratchet — the tracking surfaces", () => {
       for (const locale of LOCALES) {
         const local = namespaceStrings(locale, namespace);
         const missing = [...en.keys()].filter((k) => !local.has(k));
-        expect(missing, `${locale}.json is missing ${namespace} keys`).toEqual([]);
+        expect(missing, `${locale}.json is missing ${namespace} keys`).toEqual(
+          [],
+        );
       }
     }
   });
@@ -172,7 +220,8 @@ describe("i18n coverage ratchet — the tracking surfaces", () => {
       const total = namespaceStrings("en", namespace).size;
       for (const locale of LOCALES) {
         const n = untranslated(locale, namespace).length;
-        if (n > 0) lines.push(`  ${namespace}.${locale}: ${n}/${total} untranslated`);
+        if (n > 0)
+          lines.push(`  ${namespace}.${locale}: ${n}/${total} untranslated`);
       }
     }
     // Always passes. It exists so the figure is printed rather than inferred.

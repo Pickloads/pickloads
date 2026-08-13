@@ -38,12 +38,12 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   return {
-    ...pageMetadata({
+    ...(await pageMetadata({
       locale,
       href: "/search",
       title: "Search — PickLoads Logistics Group",
       description: "Search PickLoads services, resources and answers.",
-    }),
+    })),
     alternates: { canonical: absoluteUrl("/search", locale) },
     robots: { index: false, follow: true },
   };

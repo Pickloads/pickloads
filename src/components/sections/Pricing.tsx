@@ -15,11 +15,17 @@ export function Pricing() {
         <span className="eyebrow">{tv("Pricing")}</span>
         <h2 className="sec">{tv("One flat percentage. Nothing hidden.")}</h2>
         <p className="sub">
-{tv("No setup fees. No monthly minimums. No charge on loads you don't take. You only pay when you get paid.")}
+          {tv(
+            "No setup fees. No monthly minimums. No charge on loads you don't take. You only pay when you get paid.",
+          )}
         </p>
         <div className="pricing-grid">
           <div className="plan">
-            <h3>Owner-Operator</h3>
+            {/* M-90: these two plan names were the only plain-text headings
+                in the section — the middle plan already went through tv().
+                A pricing table with one translated tier name and two English
+                ones is the kind of half-state that reads as a rendering bug. */}
+            <h3>{tv("Owner-Operator")}</h3>
             <span className="for">{tv("1 truck · your authority")}</span>
             <span className="price">
               {tierRate("owner_operator")}
@@ -63,7 +69,7 @@ export function Pricing() {
             </Link>
           </div>
           <div className="plan">
-            <h3>Box Truck &amp; Hot Shot</h3>
+            <h3>{tv("Box Truck & Hot Shot")}</h3>
             <span className="for">{tv("Non-CDL & expedited")}</span>
             <span className="price">
               {tierRate("box_truck_hot_shot")}
@@ -87,8 +93,9 @@ export function Pricing() {
           </div>
         </div>
         <p className="pricing-note">
-          Percentages apply to load gross. Month to month — cancel anytime. You
-          see every rate confirmation before we book.
+          {tv(
+            "Percentages apply to load gross. Month to month — cancel anytime. You see every rate confirmation before we book.",
+          )}
         </p>
       </div>
     </section>
