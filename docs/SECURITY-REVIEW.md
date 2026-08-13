@@ -552,3 +552,53 @@ Items 1–7 of §8 stand. M-83 adds three:
     production row counts. `dispatcher_may_see()` probes `carriers` once per
     row; 0005's `assigned_dispatcher_id` index is the mitigation and 0030
     raises if it is ever dropped.
+
+---
+
+## 17. Dependency advisories
+
+The stack is locked (see `README`), so a published advisory against a
+transitive dependency is remediated through the `overrides` block in
+`package.json` rather than by upgrading the package that pulled it in. That
+mechanism already carried `postcss` and `sharp`; this is the third entry.
+
+### GHSA-2v37-7h3g-55p8 — `nanoid` < 3.3.18 (High) — REMEDIATED 2026-08-13
+
+**Dependency path.** Not a direct dependency:
+
+```
+pickloads
+└─┬ @tailwindcss/postcss@4.3.3
+  └─┬ postcss@8.5.25          ← already pinned by an existing override
+    └── nanoid@3.3.17         ← vulnerable
+```
+
+**The advisory.** `nanoid`'s custom-alphabet generator can loop indefinitely
+when called with a size of zero.
+
+**Exposure here: none at runtime.** The path is build tooling — PostCSS uses
+`nanoid` while compiling CSS, it is a `devDependency` subtree, and no
+application code calls it. Nothing in `src/` imports `nanoid`, directly or
+transitively, and it is not in the browser bundle. The remediation is
+therefore about keeping the audit gate honest rather than about closing a
+reachable hole — which is the point of holding the gate at zero: a real
+advisory should not have to be spotted among a list of accepted ones.
+
+**Remediation.** `"nanoid": "^3.3.18"` added to `overrides`. Same major, one
+patch release, and the version was confirmed published before pinning.
+
+**Blast radius, measured rather than assumed.** `npm install` regenerated the
+lockfile and the entire diff is three lines:
+
+```
+package-lock.json | 6 +++---
+-      "version": "3.3.17",
++      "version": "3.3.18",
+```
+
+No other package moved. `npm audit` → **0 vulnerabilities**; the installed tree
+resolves `nanoid@3.3.18`.
+
+**Timing worth recording.** `npm audit` returned 0 twice on 2026-08-12 and
+reported this on 2026-08-13, so the advisory published inside a day. The gate
+catching it the next morning is the mechanism working, not a lapse.

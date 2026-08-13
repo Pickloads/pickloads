@@ -213,8 +213,23 @@ nav.sitenav .wrap{display:flex;align-items:center;justify-content:space-between;
 .light .why-list li{border-bottom-color:var(--line-dark)}
 .light .why-list li span{color:#4a545b}
 .light .why-list li::before{color:var(--green-bright)}
+/* The stat tiles are a 2x2 grid down to the smallest supported width (see the
+   520px block, which deliberately KEEPS two columns — that is approved V4).
+   A grid track cannot shrink below its content's min-content width, so a
+   single long word in a tile sets a floor for the whole column, and the
+   `.why-grid` track above it inherits that floor.
+
+   That is what the owner-decision copy pass did: "Flat dispatch fee" became
+   "Owner-operator dispatch fee", and "Owner-operator" is wide enough at 320px
+   to push the pair of tiles to 284.6px against 272px of available width — a
+   ~7px document overflow, from a word.
+
+   `overflow-wrap:anywhere` rather than `break-word` on purpose: only
+   `anywhere` reduces the INTRINSIC min-content width, which is the measure
+   the grid track is sized from. `break-word` would let the word visually
+   break and leave the track just as wide, which fixes nothing. */
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.stat{border:1px solid var(--line);border-radius:8px;padding:28px 24px;background:var(--asphalt2)}
+.stat{border:1px solid var(--line);border-radius:8px;padding:28px 24px;background:var(--asphalt2);min-width:0;overflow-wrap:anywhere}
 .stat b{font-family:var(--font-mono);font-size:2rem;font-weight:600;color:var(--amber);display:block;line-height:1.1}
 .stat span{font-size:.82rem;color:var(--steel);text-transform:uppercase;letter-spacing:.1em;font-family:var(--font-mono)}
 .stat-note{grid-column:1/-1;font-family:var(--font-mono);font-size:.66rem;color:var(--steel)}

@@ -176,33 +176,80 @@ interface NavProbe {
   clusters: { name: string; rect: Rect }[];
 }
 
+/**
+ * Page-level overflow, and WHICH element actually causes it.
+ *
+ * ── WHY THE OFFENDER LIST IS FILTERED ────────────────────────────────────
+ *
+ * The first version named every element whose right edge passed the viewport.
+ * That is not the same question. `.flow` is `overflow-x:auto` BY DESIGN — the
+ * dispatch-process strip is meant to scroll sideways — so all eight of its
+ * children legitimately extend to ~1560px and none of them contributes a
+ * single pixel to `document.scrollWidth`.
+ *
+ * The consequence was a failure message that read
+ *
+ *     / @ 320x568 overflows by 7px (div.flow-track → 1560px, span.flow-node …)
+ *
+ * and sent three separate investigations at a horizontal scroller that was
+ * working correctly, while the element responsible for the 7px went unnamed.
+ *
+ * An element only contributes to page overflow if NO ancestor clips the
+ * overflow axis. That is the filter. The clipped ones are still counted, so a
+ * message that names nothing says so explicitly rather than looking like the
+ * scan failed.
+ */
 async function measureOverflow(page: Page) {
   return page.evaluate(() => {
     const de = document.documentElement;
     const overflow = de.scrollWidth - de.clientWidth;
     if (overflow <= 1) return { overflow, offenders: [] as string[] };
-    // Name the widest offenders so a failure is actionable, not a mystery.
     const limit = de.clientWidth;
+
+    const describe = (el: HTMLElement) =>
+      el.tagName.toLowerCase() +
+      (el.id ? `#${el.id}` : "") +
+      (typeof el.className === "string" && el.className
+        ? `.${el.className.trim().split(/\s+/).slice(0, 3).join(".")}`
+        : "");
+
+    /** The nearest ancestor that clips horizontally, if any. */
+    const clippedBy = (el: HTMLElement): string | null => {
+      for (let p = el.parentElement; p; p = p.parentElement) {
+        const ox = getComputedStyle(p).overflowX;
+        if (ox === "auto" || ox === "scroll" || ox === "hidden") {
+          return describe(p);
+        }
+      }
+      return null;
+    };
+
     const offenders: { sel: string; right: number }[] = [];
+    let clipped = 0;
     document.querySelectorAll<HTMLElement>("body *").forEach((el) => {
       const r = el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) return;
       const right = r.right + window.scrollX;
-      if (right > limit + 1) {
-        const sel =
-          el.tagName.toLowerCase() +
-          (el.id ? `#${el.id}` : "") +
-          (typeof el.className === "string" && el.className
-            ? `.${el.className.trim().split(/\s+/).slice(0, 3).join(".")}`
-            : "");
-        offenders.push({ sel, right: Math.round(right) });
+      if (right <= limit + 1) return;
+      if (clippedBy(el)) {
+        clipped += 1;
+        return;
       }
+      offenders.push({ sel: describe(el), right: Math.round(right) });
     });
     offenders.sort((a, b) => b.right - a.right);
-    return {
-      overflow,
-      offenders: offenders.slice(0, 8).map((o) => `${o.sel} → ${o.right}px`),
-    };
+
+    const named = offenders.slice(0, 8).map((o) => `${o.sel} → ${o.right}px`);
+    if (named.length === 0) {
+      // Real and worth saying plainly: the document scrolls, but no laid-out
+      // element sticks out. That points at a transient measurement (layout
+      // read before it settled) rather than at a CSS defect.
+      named.push(
+        `NO UNCLIPPED ELEMENT EXCEEDS THE VIEWPORT (${clipped} clipped element(s) ignored) — ` +
+          `document.scrollWidth=${de.scrollWidth} clientWidth=${limit}`,
+      );
+    }
+    return { overflow, offenders: named };
   });
 }
 

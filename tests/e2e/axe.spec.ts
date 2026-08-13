@@ -220,3 +220,83 @@ test("no horizontal overflow at 320px on key public pages", async ({
   }
   await ctx.close();
 });
+
+/**
+ * The homepage at 320px, with the intrinsic sizing measured rather than the
+ * symptom.
+ *
+ * ── WHY THIS EXISTS ALONGSIDE THE SCAN ABOVE ─────────────────────────────
+ *
+ * A `scrollWidth > clientWidth` assertion only fires once the page is ALREADY
+ * broken, and it took three separate investigations to attribute the last
+ * failure because the symptom is 7px on `<html>` and says nothing about which
+ * element caused it.
+ *
+ * The cause was a grid track that could not shrink: `.stats` is a 2x2 tile
+ * grid down to the smallest supported width, a grid track cannot go below its
+ * content's min-content width, and the owner-decision copy pass replaced
+ * "Flat dispatch fee" with "Owner-operator dispatch fee". One long word set a
+ * floor of 284.6px against 272px of available space.
+ *
+ * So this measures the thing that actually has to hold — the track fits the
+ * space — and it fails with a number that points straight at the component.
+ */
+test("homepage @320: no page overflow, and the stat grid still fits its track", async ({
+  browser,
+}) => {
+  const ctx = await browser.newContext({
+    viewport: { width: 320, height: 568 },
+    reducedMotion: "reduce",
+  });
+  const page = await ctx.newPage();
+  await page.goto("/");
+  await page.evaluate(() => document.fonts?.ready);
+
+  const m = await page.evaluate(() => {
+    const de = document.documentElement;
+    const grid = document.querySelector(".why-grid") as HTMLElement | null;
+    const stats = document.querySelector(".stats") as HTMLElement | null;
+
+    // min-content width, measured the way the grid algorithm sees it.
+    const minContent = (el: HTMLElement) => {
+      const host = document.createElement("div");
+      host.style.cssText =
+        "position:absolute;left:-99999px;top:0;width:min-content;";
+      host.appendChild(el.cloneNode(true));
+      document.body.appendChild(host);
+      const w = host.getBoundingClientRect().width;
+      host.remove();
+      return w;
+    };
+
+    const cs = grid ? getComputedStyle(grid) : null;
+    return {
+      scrollWidth: de.scrollWidth,
+      clientWidth: de.clientWidth,
+      available: cs
+        ? de.clientWidth -
+          parseFloat(cs.paddingLeft) -
+          parseFloat(cs.paddingRight)
+        : null,
+      statsMinContent: stats ? minContent(stats) : null,
+    };
+  });
+
+  // The property the directive names, stated exactly.
+  expect(
+    m.scrollWidth,
+    `homepage @320 overflows by ${m.scrollWidth - m.clientWidth}px`,
+  ).toBeLessThanOrEqual(m.clientWidth);
+
+  // And the cause, so a regression is named rather than hunted.
+  expect(m.statsMinContent, ".stats min-content not measurable").not.toBeNull();
+  expect(
+    m.statsMinContent!,
+    `.stats needs ${Math.round(m.statsMinContent!)}px but the .why-grid track ` +
+      `only has ${m.available}px at 320px — a long word in a stat tile is ` +
+      `setting the floor. Let it wrap (overflow-wrap:anywhere) rather than ` +
+      `widening the page or shortening approved copy.`,
+  ).toBeLessThanOrEqual(m.available!);
+
+  await ctx.close();
+});
