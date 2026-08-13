@@ -108,7 +108,13 @@ export function ResetPasswordForm() {
           )}
         </div>
       ) : null}
-      <form onSubmit={handleSubmit}>
+      {/* P0 fail-safe. This flow must stay client-side — `updateUser` needs the
+          recovery session Supabase establishes in the browser from the emailed
+          link, so there is no server action to post to. `method="post"` is
+          still required: without it an unhydrated submit is a GET, and this
+          form carries two passwords. A submit that fails loudly beats one that
+          puts a new password in the URL and the browser history. */}
+      <form onSubmit={handleSubmit} method="post">
         <div className="field" style={{ marginBottom: 16 }}>
           <label htmlFor="reset-password">{tv("New password")}</label>
           <input

@@ -70,7 +70,10 @@ export function ForgotPasswordForm() {
           "Enter the email you signed up with — we'll send you a secure reset link.",
         )}
       </p>
-      <form onSubmit={handleSubmit}>
+      {/* P0 fail-safe: no password here, but an unhydrated GET would still put
+          the account's email address in the URL and the access log. Same rule,
+          same one-word fix. See LoginForm. */}
+      <form onSubmit={handleSubmit} method="post">
         <div className="field" style={{ marginBottom: 20 }}>
           <label htmlFor="forgot-email">{tv("Email")}</label>
           <input

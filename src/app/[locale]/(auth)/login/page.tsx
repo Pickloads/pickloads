@@ -36,9 +36,12 @@ function LoginContent() {
   const tv = useV4();
   return (
     <main id="main">
+      {/* P0/8: the hero named carriers and staff only, so a shipper arriving
+          from their own verification email was told twice that this page was
+          not for them. */}
       <PageHero eyebrow={tv("Portal")} title={tv("Sign in to PickLoads")}>
         {tv(
-          "Carriers: track your documents and agreement. Staff: leads, dispatch and operations.",
+          "Carriers: documents and agreement. Shippers: quotes and shipments. Staff: leads, dispatch and operations.",
         )}
       </PageHero>
       <section className="light" style={{ padding: "56px 0 88px" }}>

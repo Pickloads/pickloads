@@ -215,7 +215,10 @@ export function MfaEnrollment({
       ) : null}
 
       {showCodeForm ? (
-        <form onSubmit={submitCode}>
+        // P0 fail-safe: a TOTP code is a credential. The MFA challenge is
+        // inherently browser-side, so this keeps `onSubmit` — but not the GET
+        // fallback that would log the code in the URL. See LoginForm.
+        <form onSubmit={submitCode} method="post">
           <div className="field" style={{ maxWidth: 220 }}>
             <label htmlFor="mfa-code">6-digit code</label>
             <input

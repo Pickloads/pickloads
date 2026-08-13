@@ -1,88 +1,71 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState } from "react";
+import { useLocale } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { useV4 } from "@/i18n/v4";
-import { createClient } from "@/lib/supabase/client";
+import { signInAction } from "@/app/actions/auth";
+import { initialFormState } from "@/lib/form-state";
 
 /**
- * M-02b portal sign-in. Auth flows are the one legitimate browser-client
- * surface (decision Q3 — the anon key still writes no tables). On success we
- * do a full navigation so the middleware sees the fresh session cookies.
+ * M-02b portal sign-in.
+ *
+ * ── P0: THIS FORM USED TO SUBMIT PASSWORDS BY GET ────────────────────────
+ *
+ * It was `<form onSubmit={handleSubmit}>` around a client-side
+ * `signInWithPassword`. A `<form>` with no `method` and no `action` submits
+ * **GET to its own URL**, so `preventDefault()` inside the handler was the
+ * only thing keeping the password out of the address bar — and only for as
+ * long as React had finished hydrating. When it had not:
+ *
+ *     GET /login?email=<email>&password=<password> 200
+ *
+ * Now the form posts to `signInAction`. Next renders a real
+ * `method="POST"` into the HTML, so the browser POSTs whether or not the
+ * JavaScript ever arrives; the credential travels in the request body and
+ * cannot reach a query string, a history entry, a referrer or an access log.
+ *
+ * **Do not reintroduce `onSubmit` here, and do not remove `method="post"`.**
+ * The attribute is redundant while server actions render their own — that is
+ * the point of a fail-safe. Authentication is the one form where the no-JS
+ * path has to be safe by construction rather than by handler.
+ *
+ * Role routing, session cookies and error wording all live in the action:
+ * `src/app/actions/auth.ts`.
  */
-
-/**
- * Only same-origin relative paths — prevents open-redirect via ?next=.
- * M-54: the fallback is /portal (the server-side role router), so every
- * role — carrier/shipper/dispatcher/admin — lands on its own home.
- */
-function safeNext(next: string | null): string {
-  if (next && next.startsWith("/") && !next.startsWith("//")) return next;
-  return "/portal";
-}
 
 export function LoginForm() {
   const tv = useV4();
+  const locale = useLocale();
   const searchParams = useSearchParams();
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [state, formAction, pending] = useActionState(
+    signInAction,
+    initialFormState,
+  );
+  const error = state.status === "error" ? (state.message ?? null) : null;
   // M-52: landing spot of the Supabase email-verification link.
   const verified = searchParams.get("verified") === "1";
   // M-54: clear auth states — expired session (middleware-detected stale
   // cookies), suspension (requireProfile bounce), plain auth-wall redirect.
   const expired = searchParams.get("expired") === "1";
   const suspended = searchParams.get("error") === "suspended";
-  const hasNext = searchParams.get("next") !== null;
-
-  const configured =
-    Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
-    !process.env.NEXT_PUBLIC_SUPABASE_URL?.includes("placeholder");
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!configured) {
-      setError(
-        "Portal sign-in is not configured in this environment. Call (908) 404-5373 for help.",
-      );
-      return;
-    }
-    setPending(true);
-    setError(null);
-    const form = new FormData(e.currentTarget);
-    const email = String(form.get("email") ?? "");
-    const password = String(form.get("password") ?? "");
-    try {
-      const supabase = createClient();
-      const { error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (authError) {
-        // M-54: distinguish the unverified-email state (M-52 signups are
-        // never auto-confirmed) from bad credentials.
-        setError(
-          /confirm/i.test(authError.message)
-            ? "Verify your email first — click the confirmation link we sent you, then sign in."
-            : "Invalid email or password. Please try again.",
-        );
-        setPending(false);
-        return;
-      }
-      // Full navigation: middleware + server components must see the cookies.
-      window.location.assign(safeNext(searchParams.get("next")));
-    } catch {
-      setError(
-        "We couldn't reach the sign-in service. Please try again in a moment.",
-      );
-      setPending(false);
-    }
-  }
+  const nextParam = searchParams.get("next");
+  const hasNext = nextParam !== null;
 
   return (
     <div className="bigform" style={{ maxWidth: 460, margin: "44px auto 0" }}>
-      <h2>{tv("Carrier & staff sign in")}</h2>
-      <p>{tv("Access your documents, agreement status and dispatch tools.")}</p>
+      {/* P0/8: this read "Carrier & staff sign in", and BOTH signup flows send
+          their verification link here (`?verified=1`). A shipper who had just
+          confirmed their email landed on a form that did not mention shippers
+          and appeared to be for somebody else. One login page serves every
+          role — the destination was right, the heading was wrong. */}
+      <h2>{tv("Sign in to your portal")}</h2>
+      <p>
+        {tv(
+          "Carriers, shippers and staff — one sign-in for documents, quotes and dispatch tools.",
+        )}
+      </p>
       {verified ? (
         <div className="form-ok show" role="status" style={{ marginBottom: 18 }}>
           {tv("✓ Email verified — you can sign in now.")}
@@ -104,7 +87,14 @@ export function LoginForm() {
           {tv("Sign in to continue where you left off.")}
         </p>
       ) : null}
-      <form onSubmit={handleSubmit}>
+      {/* `method="post"` is a FAIL-SAFE, not decoration — see the note at the
+          top of this file. A credential form must not be able to fall back to
+          GET if anything about the action wiring regresses. */}
+      <form action={formAction} method="post">
+        <input type="hidden" name="locale" value={locale} />
+        {nextParam ? (
+          <input type="hidden" name="next" value={nextParam} />
+        ) : null}
         <div className="field" style={{ marginBottom: 16 }}>
           <label htmlFor="login-email">{tv("Email")}</label>
           <input

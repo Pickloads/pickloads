@@ -764,7 +764,11 @@
     "your_shipper_portal_tracks_every_quote_request_and_rate": "Votre portail expéditeur suit chaque demande de devis et tarif — et les devis déjà demandés avec cet e-mail sont liés automatiquement.",
     "your_signed_agreement_appears_here_for_download_once_it": "Votre accord signé apparaîtra ici en téléchargement dès qu'il sera exécuté.",
     "your_signed_copy_hasn_t_been_filed_here_yet_it_s_in_your": "Votre exemplaire signé n'est pas encore archivé ici — il est dans l'e-mail de demande de signature, ou demandez au support et nous le téléverserons.",
-    "zip": "Code postal"
+    "zip": "Code postal",
+    "sign_in_to_your_portal": "Connectez-vous à votre portail",
+    "carriers_shippers_and_staff_one_sign_in_for_documents_qu": "Transporteurs, expéditeurs et personnel — une seule connexion pour les documents, les devis et les outils de dispatch.",
+    "carriers_documents_and_agreement_shippers_quotes_and_shi": "Transporteurs : documents et contrat. Expéditeurs : devis et expéditions. Personnel : leads, dispatch et opérations.",
+    "too_many_sign_in_attempts_from_your_network_please_wait": "Trop de tentatives de connexion depuis votre réseau. Patientez quelques minutes et réessayez, ou appelez le (908) 404-5373."
   },
   "shipment": {
     "status": {

@@ -94,7 +94,18 @@ const MAX_UNTRANSLATED: Record<string, Record<string, number>> = {
   // right trade — an accurate sentence read in English beats an unsupported
   // guarantee read fluently — but it is a translation regression and it is
   // counted here rather than netted off.
-  v4: { es: 14, fr: 27, ru: 456, ht: 462 },
+  //
+  // ru/ht raised by 4 more on 2026-08-13 (P0 login fix). Three are the login
+  // page's own copy — it read "Carrier & staff sign in" while BOTH signup
+  // flows send their verification link there, so a shipper who had just
+  // confirmed their email landed on a form addressed to somebody else. The
+  // fourth is the new rate-limit message on the sign-in action. es and fr are
+  // authored; ru and ht mirror English pending native review.
+  //
+  // Same honest note as the A3 entry above: the three replaced keys HAD ru and
+  // ht values, so those locales trade a fluent sentence that excluded shippers
+  // for an accurate English one. Counted here rather than netted off.
+  v4: { es: 14, fr: 27, ru: 460, ht: 466 },
 };
 
 function flatten(value: unknown, path: string, out: Map<string, string>): void {

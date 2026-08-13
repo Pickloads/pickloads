@@ -764,7 +764,11 @@
     "your_shipper_portal_tracks_every_quote_request_and_rate": "Your shipper portal tracks every quote request and rate — and any quotes you already requested under this email get linked automatically.",
     "your_signed_agreement_appears_here_for_download_once_it": "Your signed agreement appears here for download once it's executed.",
     "your_signed_copy_hasn_t_been_filed_here_yet_it_s_in_your": "Your signed copy hasn't been filed here yet — it's in your signature-request email, or ask support and we'll upload it.",
-    "zip": "ZIP"
+    "zip": "ZIP",
+    "sign_in_to_your_portal": "Sign in to your portal",
+    "carriers_shippers_and_staff_one_sign_in_for_documents_qu": "Carriers, shippers and staff — one sign-in for documents, quotes and dispatch tools.",
+    "carriers_documents_and_agreement_shippers_quotes_and_shi": "Carriers: documents and agreement. Shippers: quotes and shipments. Staff: leads, dispatch and operations.",
+    "too_many_sign_in_attempts_from_your_network_please_wait": "Too many sign-in attempts from your network. Please wait a few minutes and try again — or call (908) 404-5373."
   },
   "shipment": {
     "status": {

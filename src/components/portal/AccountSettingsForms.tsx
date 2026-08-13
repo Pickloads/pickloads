@@ -74,7 +74,10 @@ export function PasswordChangeForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit}>
+    // P0 fail-safe: `updateUser({password})` needs the browser's authenticated
+    // session, so this stays client-side — but an unhydrated GET would put the
+    // new password and its confirmation in the URL. See LoginForm.
+    <form onSubmit={handleSubmit} method="post">
       <div className="pform-row">
         <div className="field">
           <label htmlFor="pw-new">{tv("New password")}</label>

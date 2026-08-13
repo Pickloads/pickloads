@@ -764,7 +764,11 @@
     "your_shipper_portal_tracks_every_quote_request_and_rate": "Tu portal de shipper sigue cada solicitud de cotización y tarifa — y las cotizaciones que ya pediste con este correo se vinculan automáticamente.",
     "your_signed_agreement_appears_here_for_download_once_it": "Tu acuerdo firmado aparecerá aquí para descargar en cuanto esté ejecutado.",
     "your_signed_copy_hasn_t_been_filed_here_yet_it_s_in_your": "Tu copia firmada aún no está archivada aquí — está en el correo de la solicitud de firma, o pídela a soporte y la subimos.",
-    "zip": "Código postal"
+    "zip": "Código postal",
+    "sign_in_to_your_portal": "Inicia sesión en tu portal",
+    "carriers_shippers_and_staff_one_sign_in_for_documents_qu": "Carriers, shippers y personal: un solo inicio de sesión para documentos, cotizaciones y herramientas de dispatch.",
+    "carriers_documents_and_agreement_shippers_quotes_and_shi": "Carriers: documentos y contrato. Shippers: cotizaciones y envíos. Personal: leads, dispatch y operaciones.",
+    "too_many_sign_in_attempts_from_your_network_please_wait": "Demasiados intentos de inicio de sesión desde tu red. Espera unos minutos e inténtalo de nuevo, o llama al (908) 404-5373."
   },
   "shipment": {
     "status": {
