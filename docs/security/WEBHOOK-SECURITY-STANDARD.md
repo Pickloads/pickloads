@@ -59,9 +59,35 @@ Two consequences:
 - add rule 6 — verify `metadata.carrier_id` matches the carrier the signature
   request was created for (`src/lib/esign.ts` sets it, so it is re-derivable).
 
-## Future — Stripe (expanded) and SignWell
+### SignWell — `POST /api/signwell/webhook` ✅ (M-91)
 
-Neither is fully connected. Before either goes live:
+Meets all seven, and closes rules 5 and 6 rather than inheriting the Dropbox
+Sign shape.
+
+- **Rule 1/2/3.** HMAC-SHA256 over `${event.type}@${event.time}` compared with
+  `timingSafeEqual`, before any business logic. 503 unconfigured, 401 bad
+  signature, 400 malformed, 405 on GET.
+- **The key is a secret.** SignWell documents it as "the Webhook ID sent in the
+  webhook POST resource". Taken literally that is a total bypass — the caller
+  supplies key and hash together. It is read only from `SIGNWELL_WEBHOOK_ID`;
+  `verifySignwellEvent()` accepts no key parameter, so the mistake cannot be
+  written.
+- **Rule 5.** Idempotency is `${document.id}:${event.type}:${event.time}`, not
+  `event.hash`. SignWell's hash has the same `(type, time)` derivation that
+  makes SEC-P2-02 possible, so keying on it would have reproduced a known
+  open finding in new code.
+- **Rule 6.** The signature does not cover the payload, so
+  `metadata.carrier_id` is a claim. The route requires the carrier row to
+  exist, stamps only when `agreement_signed_at IS NULL`, and fetches the PDF
+  from SignWell by document id — a document that is not in our account 404s.
+
+Artefacts land in the private `carrier-docs` bucket after a magic-byte check,
+reachable only through 300-second signed URLs. Full detail in
+`docs/modules/M-91-signwell-webhook.md`.
+
+## Future — Stripe (expanded)
+
+Not fully connected. Before it goes live:
 
 **Stripe.** Secret key server-only; webhook signature verification;
 idempotency keys on outbound calls; **amounts computed server-side only** —
@@ -69,12 +95,13 @@ never accept a client-supplied amount; event deduplication; restricted keys
 where feasible. Invoices continue to carry the dispatch fee only, never
 freight money.
 
-**SignWell.** API key server-only; webhook authenticity verification (confirm
-whether their signature covers the payload — if it does not, rules 5 and 6
-apply from day one); event deduplication on a real event id; template-id
-allow-list; the document must be authorised against the requesting carrier;
-signed PDFs to private storage; short-lived download URLs; no cross-account
-document access.
+**SignWell's inbound webhook is now implemented (M-91, above).** What remains
+unbuilt is the SEND side — nothing creates a SignWell document yet, so the
+endpoint receives nothing. When that lands it needs: a template-id allow-list,
+`metadata.carrier_id` set at creation (the webhook already reads it), and
+authorisation that the requesting carrier owns the document. The answer to the
+question this section used to pose — does SignWell's signature cover the
+payload? — is **no**, and rules 5 and 6 were applied accordingly.
 
-Do not implement either from this document alone — it states the security
+Do not implement from this document alone — it states the security
 floor, not the integration design.

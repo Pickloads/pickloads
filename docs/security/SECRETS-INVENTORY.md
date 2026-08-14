@@ -22,6 +22,8 @@ component ever pulls it in.
 | `STRIPE_WEBHOOK_SECRET`       | `src/app/api/stripe/webhook/route.ts`             | Forge payment events                    |
 | `DROPBOX_SIGN_API_KEY`        | `src/lib/esign.ts`                                | Send/read signature requests            |
 | `DROPBOX_SIGN_WEBHOOK_SECRET` | `src/app/api/esign/webhook/route.ts`              | Forge signature events                  |
+| `SIGNWELL_API_KEY`            | `src/lib/signwell.ts`                             | Read/download signed documents          |
+| `SIGNWELL_WEBHOOK_ID`         | `src/lib/signwell.ts`                             | **Forge signature events** — see below  |
 | `SENTRY_AUTH_TOKEN`           | build only (`.env.example`)                       | Upload source maps                      |
 
 ## Public by design (`NEXT_PUBLIC_*`, inlined into browser bundles)
@@ -65,6 +67,18 @@ of the incidents in `INCIDENT-RESPONSE-PLAN.md`.
 Rotation order when the service-role key is involved: rotate in Supabase →
 update Vercel Production → redeploy → verify cron + webhooks → revoke old.
 Expect webhook and cron failures in the window; they retry.
+
+## `SIGNWELL_WEBHOOK_ID` is a secret, not an identifier
+
+It is the HMAC key for SignWell event-hash verification. SignWell's own docs
+call it "the Webhook ID sent in the webhook POST resource", which reads like
+metadata and is not — an implementation that takes the key from the request it
+is authenticating lets a caller supply key and hash together, and every forgery
+verifies.
+
+Store it, scope it and rotate it exactly as you would an API key. It never
+appears in a request body, a log line, or a client bundle
+(`tests/unit/signwell-webhook.test.ts` enforces the first).
 
 ## Standing rules
 
