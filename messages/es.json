@@ -1028,7 +1028,18 @@
     "direct_broker_network": "RED DE BROKERS DIRECTOS",
     "driver_support_7_days": "SOPORTE 7 DÍAS",
     "percentages_apply_to_load_gross_month_to_month_cancel_an": "Los porcentajes se aplican al bruto de la carga. Mes a mes — cancela cuando quieras. Ves cada confirmación de tarifa antes de que reservemos.",
-    "platform_names_are_the_property_of_their_respective_owne": "// Los nombres de las plataformas son propiedad de sus respectivos dueños. PickLoads es un servicio de despacho independiente y no está afiliado ni respaldado por estas plataformas."
+    "platform_names_are_the_property_of_their_respective_owne": "// Los nombres de las plataformas son propiedad de sus respectivos dueños. PickLoads es un servicio de despacho independiente y no está afiliado ni respaldado por estas plataformas.",
+    "awaiting_pickloads_countersignature": "Esperando la contrafirma de PickLoads",
+    "carrier_signed": "Firmada por el carrier",
+    "declined": "Rechazada",
+    "expired": "Vencida",
+    "no_signature_request_has_gone_out_yet_use_the_button_bel": "Todavía no se ha enviado ninguna solicitud de firma. Usa el botón de abajo, o llama al (908) 404-5373.",
+    "not_sent": "No enviada",
+    "sent": "Enviada",
+    "sent_by_email_check_your_inbox_and_spam_this_status_upda": "Enviada por correo — revisa tu bandeja (y la carpeta de spam). Este estado se actualiza automáticamente conforme el documento se ve y se firma.",
+    "signature_request": "Solicitud de firma",
+    "test_mode": "Modo de prueba",
+    "viewed": "Vista"
   },
   "shipment": {
     "status": {

@@ -17,11 +17,7 @@
  * asserts it.
  */
 export type UserRole =
-  | "admin"
-  | "dispatcher"
-  | "carrier"
-  | "shipper"
-  | "broker";
+  "admin" | "dispatcher" | "carrier" | "shipper" | "broker";
 
 export type LeadStatus =
   | "new"
@@ -57,12 +53,7 @@ export type DocType =
 export type DocStatus = "pending" | "approved" | "rejected" | "expired";
 export type LeadType = "dispatch" | "new_authority";
 export type LoadStatus =
-  | "booked"
-  | "in_transit"
-  | "delivered"
-  | "invoiced"
-  | "paid"
-  | "cancelled";
+  "booked" | "in_transit" | "delivered" | "invoiced" | "paid" | "cancelled";
 
 export type Locale = "en" | "es" | "fr" | "ru" | "ht";
 
@@ -70,7 +61,8 @@ export type Locale = "en" | "es" | "fr" | "ru" | "ht";
 export type MembershipRole = "owner" | "member";
 export type AccountStatus = "pending" | "active" | "suspended";
 export type SupportStatus = "open" | "answered" | "closed";
-export type InvoiceStatus = "draft" | "open" | "paid" | "void" | "uncollectible";
+export type InvoiceStatus =
+  "draft" | "open" | "paid" | "void" | "uncollectible";
 
 type ProfileRow = {
   id: string;
@@ -83,7 +75,7 @@ type ProfileRow = {
   status: AccountStatus;
   created_at: string;
   updated_at: string;
-}
+};
 
 type CarrierLeadRow = {
   id: string;
@@ -107,7 +99,7 @@ type CarrierLeadRow = {
   first_contacted_at: string | null;
   created_at: string;
   updated_at: string;
-}
+};
 
 type FreightQuoteRow = {
   id: string;
@@ -148,7 +140,7 @@ type FreightQuoteRow = {
   contact_name: string | null;
   created_at: string;
   updated_at: string;
-}
+};
 
 type ContactMessageRow = {
   id: string;
@@ -161,7 +153,7 @@ type ContactMessageRow = {
   handled: boolean;
   handled_by: string | null;
   created_at: string;
-}
+};
 
 type SubscriberRow = {
   id: string;
@@ -177,7 +169,7 @@ type SubscriberRow = {
   confirmed_at: string | null;
   unsubscribed_at: string | null;
   created_at: string;
-}
+};
 
 type CompanySettingRow = {
   key: string;
@@ -185,7 +177,7 @@ type CompanySettingRow = {
   description: string | null;
   updated_by: string | null;
   updated_at: string;
-}
+};
 
 type EmailLogRow = {
   id: string;
@@ -198,7 +190,7 @@ type EmailLogRow = {
   lead_id: string | null;
   quote_id: string | null;
   created_at: string;
-}
+};
 
 /* ---------- Phase 2 rows (M-02b — carriers/documents/CRM/webhooks) ---------- */
 
@@ -222,9 +214,22 @@ type CarrierRow = {
   home_time_notes: string | null;
   /** M-55 (0010): staff-assigned dispatcher (M-58 admin UI writes it). */
   assigned_dispatcher_id: string | null;
+  /** M-92 (0031): "doing business as" — distinct from the legal entity name. */
+  dba: string | null;
+  /** M-92 (0031): title of the signing representative ("Owner", "President"). */
+  rep_title: string | null;
+  /** M-92 (0031): mailing address for the dispatch agreement. */
+  address_line1: string | null;
+  city: string | null;
+  postal_code: string | null;
+  /**
+   * M-92 (0031): mailing-address state. NOT `home_state`, which is the
+   * operating state used for dispatch.
+   */
+  mailing_state: string | null;
   created_at: string;
   updated_at: string;
-}
+};
 
 type DocumentRow = {
   id: string;
@@ -241,7 +246,7 @@ type DocumentRow = {
   expires_at: string | null;
   created_at: string;
   updated_at: string;
-}
+};
 
 type LeadActivityRow = {
   id: string;
@@ -253,7 +258,7 @@ type LeadActivityRow = {
   new_status: LeadStatus | null;
   created_by: string | null;
   created_at: string;
-}
+};
 
 type WebhookEventRow = {
   id: string;
@@ -265,7 +270,38 @@ type WebhookEventRow = {
   error: string | null;
   processed_at: string | null;
   created_at: string;
-}
+};
+
+/** M-92 (0031). `not_sent` is the ABSENCE of a row, never a stored value. */
+export type SignatureRequestStatus =
+  | "sent"
+  | "viewed"
+  | "carrier_signed"
+  | "awaiting_countersignature"
+  | "completed"
+  | "declined"
+  | "expired";
+
+type SignatureRequestRow = {
+  id: string;
+  carrier_id: string;
+  provider: string;
+  provider_document_id: string;
+  agreement_type: string;
+  status: SignatureRequestStatus;
+  /** Whether the provider treated this as a TEST document — not executed. */
+  test_mode: boolean;
+  sent_by: string | null;
+  sent_at: string;
+  viewed_at: string | null;
+  carrier_signed_at: string | null;
+  completed_at: string | null;
+  declined_at: string | null;
+  expired_at: string | null;
+  decline_reason: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
 /* ---------- Phase 3 rows (M-30 loads, M-33 posts) ---------- */
 
@@ -306,7 +342,7 @@ type LoadRow = {
   pod_path: string | null;
   created_at: string;
   updated_at: string;
-}
+};
 
 type PostRow = {
   id: string;
@@ -323,7 +359,7 @@ type PostRow = {
   author_id: string | null;
   created_at: string;
   updated_at: string;
-}
+};
 
 /* ---------- M-50 rows (migrations 0005–0008) ---------- */
 
@@ -337,21 +373,21 @@ type ShipperRow = {
   billing_email: string | null;
   created_at: string;
   updated_at: string;
-}
+};
 
 type CarrierMembershipRow = {
   carrier_id: string;
   profile_id: string;
   role: MembershipRole;
   created_at: string;
-}
+};
 
 type ShipperMembershipRow = {
   shipper_id: string;
   profile_id: string;
   role: MembershipRole;
   created_at: string;
-}
+};
 
 type AccountStatusHistoryRow = {
   id: string;
@@ -361,7 +397,7 @@ type AccountStatusHistoryRow = {
   reason: string | null;
   changed_by: string | null;
   created_at: string;
-}
+};
 
 type AuditEventRow = {
   id: string;
@@ -373,7 +409,7 @@ type AuditEventRow = {
   detail: unknown;
   ip: string | null;
   created_at: string;
-}
+};
 
 type UserPreferencesRow = {
   profile_id: string;
@@ -386,7 +422,7 @@ type UserPreferencesRow = {
   /** M-79 (0026) — single-purpose credential for /notifications/unsubscribe. */
   notification_token: string;
   updated_at: string;
-}
+};
 
 /* ---------- M-79 (0026) — shipment notifications ---------- */
 
@@ -407,11 +443,7 @@ type ShipmentNotificationEventDb =
 type NotificationChannelDb = "email" | "in_app";
 
 type NotificationDeliveryStateDb =
-  | "pending"
-  | "sending"
-  | "sent"
-  | "suppressed"
-  | "dead";
+  "pending" | "sending" | "sent" | "suppressed" | "dead";
 
 type ShipmentNotificationRuleRow = {
   id: string;
@@ -422,7 +454,7 @@ type ShipmentNotificationRuleRow = {
   require_customer_visible: boolean;
   dedupe_scope: "per_shipment" | "per_source";
   created_at: string;
-}
+};
 
 type ShipmentNotificationQueueRow = {
   id: string;
@@ -443,7 +475,7 @@ type ShipmentNotificationQueueRow = {
   provider_message_id: string | null;
   created_at: string;
   updated_at: string;
-}
+};
 
 type ShipmentNotificationAttemptRow = {
   id: string;
@@ -453,21 +485,21 @@ type ShipmentNotificationAttemptRow = {
   provider_message_id: string | null;
   error: string | null;
   created_at: string;
-}
+};
 
 type NotificationSuppressionRow = {
   email: string;
   scope: "shipment";
   reason: string | null;
   created_at: string;
-}
+};
 
 type ShipmentNotificationWatermarkRow = {
   id: boolean;
   harvested_through: string;
   last_run_at: string | null;
   updated_at: string;
-}
+};
 
 type TruckRow = {
   id: string;
@@ -484,7 +516,7 @@ type TruckRow = {
   active: boolean;
   created_at: string;
   updated_at: string;
-}
+};
 
 type DriverRow = {
   id: string;
@@ -499,7 +531,7 @@ type DriverRow = {
   active: boolean;
   created_at: string;
   updated_at: string;
-}
+};
 
 type SupportThreadRow = {
   id: string;
@@ -510,7 +542,7 @@ type SupportThreadRow = {
   status: SupportStatus;
   created_at: string;
   updated_at: string;
-}
+};
 
 type SupportMessageRow = {
   id: string;
@@ -520,7 +552,7 @@ type SupportMessageRow = {
   body: string;
   is_staff: boolean;
   created_at: string;
-}
+};
 
 type NotificationRow = {
   id: string;
@@ -531,7 +563,7 @@ type NotificationRow = {
   href: string | null;
   read_at: string | null;
   created_at: string;
-}
+};
 
 /** M-58 (0012): in-app staff invites (S-04 made self-service). */
 type StaffInviteRow = {
@@ -544,7 +576,7 @@ type StaffInviteRow = {
   expires_at: string;
   accepted_at: string | null;
   created_at: string;
-}
+};
 
 type InvoiceRow = {
   id: string;
@@ -569,7 +601,7 @@ type InvoiceRow = {
   paid_at: string | null;
   created_at: string;
   updated_at: string;
-}
+};
 
 /* ---------- M-71 rows (migrations 0017–0018) ----------
  *
@@ -641,10 +673,7 @@ type AsRow<T> = { [K in keyof T]: T[K] };
  * "not looked at yet" from "looked at and refused" from "was fine, isn't now".
  */
 export type BrokerVerificationStatus =
-  | "pending"
-  | "verified"
-  | "rejected"
-  | "suspended";
+  "pending" | "verified" | "rejected" | "suspended";
 
 type BrokerPartnerRow = {
   id: string;
@@ -672,7 +701,7 @@ type BrokerPartnerRow = {
   bond_amount_usd: number | null;
   authority_since: string | null;
   days_to_pay: number | null;
-}
+};
 
 /**
  * M-81 (0029) — §12's *"invited by an admin"*, in M-58's idiom.
@@ -694,7 +723,7 @@ type BrokerPartnerInviteRow = {
   revoked_at: string | null;
   revoked_by: string | null;
   created_at: string;
-}
+};
 
 /** M-81 (0029) — §12 "granted access shipment by shipment". */
 type BrokerShipmentGrantRow = {
@@ -708,7 +737,7 @@ type BrokerShipmentGrantRow = {
   revoke_reason: string | null;
   note: string | null;
   created_at: string;
-}
+};
 
 /** M-81 (0029) — §12 "or account agreement", bounded by its own window. */
 type BrokerAccountAgreementRow = {
@@ -724,14 +753,14 @@ type BrokerAccountAgreementRow = {
   revoke_reason: string | null;
   created_at: string;
   updated_at: string;
-}
+};
 
 type BrokerPartnerMembershipRow = {
   broker_partner_id: string;
   profile_id: string;
   role: MembershipRole;
   created_at: string;
-}
+};
 
 type Insertable<Row, Required extends keyof Row> = Pick<Row, Required> &
   Partial<Omit<Row, Required>>;
@@ -799,6 +828,15 @@ export type Database = {
         Update: Partial<LeadActivityRow>;
         Relationships: [];
       };
+      signature_requests: {
+        Row: SignatureRequestRow;
+        Insert: Insertable<
+          SignatureRequestRow,
+          "carrier_id" | "provider_document_id"
+        >;
+        Update: Partial<SignatureRequestRow>;
+        Relationships: [];
+      };
       webhook_events: {
         Row: WebhookEventRow;
         Insert: Insertable<
@@ -842,7 +880,10 @@ export type Database = {
       };
       account_status_history: {
         Row: AccountStatusHistoryRow;
-        Insert: Insertable<AccountStatusHistoryRow, "profile_id" | "new_status">;
+        Insert: Insertable<
+          AccountStatusHistoryRow,
+          "profile_id" | "new_status"
+        >;
         Update: Partial<AccountStatusHistoryRow>;
         Relationships: [];
       };
@@ -878,7 +919,10 @@ export type Database = {
       };
       support_messages: {
         Row: SupportMessageRow;
-        Insert: Insertable<SupportMessageRow, "thread_id" | "author_id" | "body">;
+        Insert: Insertable<
+          SupportMessageRow,
+          "thread_id" | "author_id" | "body"
+        >;
         Update: Partial<SupportMessageRow>;
         Relationships: [];
       };
@@ -924,13 +968,19 @@ export type Database = {
       };
       shipment_parties: {
         Row: AsRow<ShipmentPartyRow>;
-        Insert: Insertable<AsRow<ShipmentPartyRow>, "shipment_id" | "party_role">;
+        Insert: Insertable<
+          AsRow<ShipmentPartyRow>,
+          "shipment_id" | "party_role"
+        >;
         Update: Partial<AsRow<ShipmentPartyRow>>;
         Relationships: [];
       };
       shipment_assignments: {
         Row: AsRow<ShipmentAssignmentRow>;
-        Insert: Insertable<AsRow<ShipmentAssignmentRow>, "shipment_id" | "carrier_id">;
+        Insert: Insertable<
+          AsRow<ShipmentAssignmentRow>,
+          "shipment_id" | "carrier_id"
+        >;
         Update: Partial<AsRow<ShipmentAssignmentRow>>;
         Relationships: [];
       };
@@ -985,7 +1035,11 @@ export type Database = {
         Row: AsRow<ShipmentDriverTokenRow>;
         Insert: Insertable<
           AsRow<ShipmentDriverTokenRow>,
-          "shipment_id" | "carrier_id" | "token_hash" | "issued_by_role" | "expires_at"
+          | "shipment_id"
+          | "carrier_id"
+          | "token_hash"
+          | "issued_by_role"
+          | "expires_at"
         >;
         Update: Partial<AsRow<ShipmentDriverTokenRow>>;
         Relationships: [];
@@ -1019,7 +1073,11 @@ export type Database = {
         Row: AsRow<ShipmentDocumentRow>;
         Insert: Insertable<
           AsRow<ShipmentDocumentRow>,
-          "shipment_id" | "doc_type" | "visibility" | "storage_path" | "file_name"
+          | "shipment_id"
+          | "doc_type"
+          | "visibility"
+          | "storage_path"
+          | "file_name"
         >;
         Update: Partial<AsRow<ShipmentDocumentRow>>;
         Relationships: [];
@@ -1149,7 +1207,10 @@ export type Database = {
        * `purge_expired_shipment_locations()` alone. */
       shipment_locations: {
         Row: AsRow<ShipmentLocationRow>;
-        Insert: Insertable<AsRow<ShipmentLocationRow>, "shipment_id" | "source">;
+        Insert: Insertable<
+          AsRow<ShipmentLocationRow>,
+          "shipment_id" | "source"
+        >;
         Update: Partial<AsRow<ShipmentLocationRow>>;
         Relationships: [];
       };
@@ -1189,7 +1250,11 @@ export type Database = {
         Row: BrokerPartnerInviteRow;
         Insert: Insertable<
           BrokerPartnerInviteRow,
-          "broker_partner_id" | "email" | "token_hash" | "invited_by" | "expires_at"
+          | "broker_partner_id"
+          | "email"
+          | "token_hash"
+          | "invited_by"
+          | "expires_at"
         >;
         Update: Partial<BrokerPartnerInviteRow>;
         Relationships: [];
@@ -1750,4 +1815,4 @@ export type Database = {
       };
     };
   };
-}
+};

@@ -1028,7 +1028,18 @@
     "direct_broker_network": "REZO BROKER DIRÈK",
     "driver_support_7_days": "SIPÒ 7 JOU",
     "percentages_apply_to_load_gross_month_to_month_cancel_an": "Percentages apply to load gross. Month to month — cancel anytime. You see every rate confirmation before we book.",
-    "platform_names_are_the_property_of_their_respective_owne": "// Platform names are the property of their respective owners. PickLoads is an independent dispatch service and is not affiliated with or endorsed by these platforms."
+    "platform_names_are_the_property_of_their_respective_owne": "// Platform names are the property of their respective owners. PickLoads is an independent dispatch service and is not affiliated with or endorsed by these platforms.",
+    "awaiting_pickloads_countersignature": "Ap tann kontresiyati PickLoads",
+    "carrier_signed": "Carrier la siyen",
+    "declined": "Refize",
+    "expired": "Ekspire",
+    "no_signature_request_has_gone_out_yet_use_the_button_bel": "Poko gen okenn demann siyati ki soti. Sèvi ak bouton anba a, oswa rele (908) 404-5373.",
+    "not_sent": "Pa voye",
+    "sent": "Voye",
+    "sent_by_email_check_your_inbox_and_spam_this_status_upda": "Voye pa imèl — tcheke bwatlet ou (ak dosye spam la). Estati sa a mete ajou otomatikman pandan dokiman an gade epi siyen.",
+    "signature_request": "Demann siyati",
+    "test_mode": "Mòd tès",
+    "viewed": "Gade"
   },
   "shipment": {
     "status": {

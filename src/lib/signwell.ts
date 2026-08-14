@@ -52,6 +52,160 @@ export function isSignwellConfigured(): boolean {
   );
 }
 
+/** The send side additionally needs a template. */
+export function isSignwellSendConfigured(): boolean {
+  return Boolean(
+    process.env.SIGNWELL_API_KEY && process.env.SIGNWELL_TEMPLATE_ID,
+  );
+}
+
+/**
+ * Recipient placeholder names as configured on the SignWell template.
+ *
+ * These MUST match the placeholder names in the template exactly or SignWell
+ * rejects the request. They are constants rather than env vars because a
+ * mismatch is a deploy-time bug that should be found by a failing test, not a
+ * runtime surprise on a carrier's agreement.
+ */
+export const SIGNWELL_PLACEHOLDERS = {
+  carrier: "Carrier",
+  pickloads: "PickLoads Authorized Representative",
+} as const;
+
+export type SignwellCreateResult =
+  | { ok: true; documentId: string; status: string; testMode: boolean }
+  | { ok: false; reason: string };
+
+/**
+ * Create + send a document from the configured template.
+ *
+ * Endpoint: POST /api/v1/document_templates/documents
+ * (https://developers.signwell.com/reference/createdocumentfromtemplate)
+ *
+ * ── SIGNING ORDER ────────────────────────────────────────────────────────
+ *
+ * `apply_signing_order: true` with the carrier as recipient `"1"` and the
+ * PickLoads representative as `"2"`. This is the whole reason the flag is set:
+ * without it SignWell emails both parties at once and PickLoads can
+ * countersign an agreement the carrier has not signed yet, which is not a
+ * countersignature — it is two unrelated signatures on one page.
+ *
+ * ── send_email ───────────────────────────────────────────────────────────
+ *
+ * Defaults to FALSE in the API. Set explicitly to `true`, because a signature
+ * request nobody is told about is indistinguishable from one that was never
+ * sent.
+ *
+ * ── FIELD LOCKING ────────────────────────────────────────────────────────
+ *
+ * There is none at API level. SignWell's field object has no `locked`,
+ * `readonly` or `editable` property — verified against their createDocument
+ * reference. Whether a pre-filled value can be altered by the signer is a
+ * property of the TEMPLATE: a field assigned to a recipient is editable by
+ * that recipient; a field not assigned to anyone renders as static text.
+ *
+ * So `template_fields` here pre-fills values, and the locking half of the
+ * requirement is an owner action on the template. It is recorded in
+ * docs/modules/M-92-signwell-send.md rather than silently assumed.
+ */
+export async function createAgreementFromTemplate(args: {
+  carrierName: string;
+  carrierSignerName: string;
+  carrierSignerEmail: string;
+  pickloadsName: string;
+  pickloadsEmail: string;
+  fields: Record<string, string>;
+  carrierId: string;
+}): Promise<SignwellCreateResult> {
+  const apiKey = process.env.SIGNWELL_API_KEY;
+  const templateId = process.env.SIGNWELL_TEMPLATE_ID;
+  if (!apiKey || !templateId) {
+    return { ok: false, reason: "signwell_send_not_configured" };
+  }
+
+  // Empty strings are omitted rather than sent: SignWell would stamp a blank
+  // into the field, which reads as "answered, and the answer is nothing"
+  // instead of leaving the signer a field to complete.
+  const templateFields = Object.entries(args.fields)
+    .filter(([, value]) => value.trim() !== "")
+    .map(([api_id, value]) => ({ api_id, value }));
+
+  const body = {
+    template_id: templateId,
+    // M-92: test_mode is TRUE for now, by owner instruction. A test-mode
+    // document is not legally executed, which is why signature_requests
+    // records the flag alongside the id.
+    test_mode: true,
+    draft: false,
+    name: `PickLoads Dispatch Service Agreement — ${args.carrierName}`,
+    subject: "Your PickLoads dispatch service agreement",
+    message:
+      "Please review and sign your PickLoads dispatch service agreement. Questions? Call (908) 404-5373.",
+    apply_signing_order: true,
+    embedded_signing: false,
+    recipients: [
+      {
+        id: "1",
+        placeholder_name: SIGNWELL_PLACEHOLDERS.carrier,
+        name: args.carrierSignerName,
+        email: args.carrierSignerEmail,
+        send_email: true,
+      },
+      {
+        id: "2",
+        placeholder_name: SIGNWELL_PLACEHOLDERS.pickloads,
+        name: args.pickloadsName,
+        email: args.pickloadsEmail,
+        send_email: true,
+      },
+    ],
+    template_fields: templateFields,
+    metadata: {
+      carrier_id: args.carrierId,
+      agreement_type: "dispatch_agreement",
+    },
+  };
+
+  try {
+    const res = await fetch(`${API_BASE}/document_templates/documents`, {
+      method: "POST",
+      headers: {
+        "X-Api-Key": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      // The provider's error text can echo the request. It is logged for an
+      // operator and never returned to a caller.
+      const detail = await res.text().catch(() => "");
+      console.error(
+        `[signwell] create failed HTTP ${res.status}: ${detail.slice(0, 500)}`,
+      );
+      return { ok: false, reason: `create_http_${res.status}` };
+    }
+
+    const parsed: unknown = await res.json();
+    const doc =
+      typeof parsed === "object" && parsed !== null
+        ? (parsed as { id?: unknown; status?: unknown; test_mode?: unknown })
+        : {};
+    if (typeof doc.id !== "string" || doc.id === "") {
+      return { ok: false, reason: "create_no_document_id" };
+    }
+    return {
+      ok: true,
+      documentId: doc.id,
+      status: typeof doc.status === "string" ? doc.status : "sent",
+      testMode: doc.test_mode === true,
+    };
+  } catch (err) {
+    console.error("[signwell] create request failed", err);
+    return { ok: false, reason: "create_request_failed" };
+  }
+}
+
 /**
  * Constant-time verification of a SignWell event hash.
  *

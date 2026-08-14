@@ -1028,7 +1028,18 @@
     "direct_broker_network": "ПРЯМАЯ СЕТЬ БРОКЕРОВ",
     "driver_support_7_days": "ПОДДЕРЖКА 7 ДНЕЙ",
     "percentages_apply_to_load_gross_month_to_month_cancel_an": "Percentages apply to load gross. Month to month — cancel anytime. You see every rate confirmation before we book.",
-    "platform_names_are_the_property_of_their_respective_owne": "// Platform names are the property of their respective owners. PickLoads is an independent dispatch service and is not affiliated with or endorsed by these platforms."
+    "platform_names_are_the_property_of_their_respective_owne": "// Platform names are the property of their respective owners. PickLoads is an independent dispatch service and is not affiliated with or endorsed by these platforms.",
+    "awaiting_pickloads_countersignature": "Ожидает подписи со стороны PickLoads",
+    "carrier_signed": "Подписан перевозчиком",
+    "declined": "Отклонён",
+    "expired": "Истёк",
+    "no_signature_request_has_gone_out_yet_use_the_button_bel": "Запрос на подпись ещё не отправлялся. Нажмите кнопку ниже или позвоните (908) 404-5373.",
+    "not_sent": "Не отправлен",
+    "sent": "Отправлен",
+    "sent_by_email_check_your_inbox_and_spam_this_status_upda": "Отправлено по e-mail — проверьте почту (и папку «Спам»). Статус обновляется автоматически по мере просмотра и подписания документа.",
+    "signature_request": "Запрос на подпись",
+    "test_mode": "Тестовый режим",
+    "viewed": "Просмотрен"
   },
   "shipment": {
     "status": {

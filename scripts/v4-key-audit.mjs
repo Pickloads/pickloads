@@ -124,6 +124,23 @@ export function dataModuleLabels(root = process.cwd()) {
     add(m[1].replace(/\\"/g, '"'), "src/lib/site-nav.ts");
   }
 
+  // M-92: agreement status labels. `tv(STATUS_LABEL[status])` — the string and
+  // the tv() are in different files, which is the same shape that hid the
+  // whole navigation from the extractor.
+  try {
+    const status = readFileSync(`${root}/src/lib/agreements/status.ts`, "utf8");
+    const table = status.match(
+      /STATUS_LABEL[\s\S]*?=\s*\{([\s\S]*?)\n\};/,
+    )?.[1];
+    if (table) {
+      for (const m of table.matchAll(/:\s*"((?:\\.|[^"])*)"/g)) {
+        add(m[1].replace(/\\"/g, '"'), "src/lib/agreements/status.ts");
+      }
+    }
+  } catch {
+    /* module is optional — absent in older trees */
+  }
+
   // Approved onboarding-timing wording (owner decision A3) — headline and
   // qualifier are rendered through tv() on two pages.
   try {

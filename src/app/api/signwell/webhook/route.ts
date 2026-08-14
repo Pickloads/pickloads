@@ -13,6 +13,13 @@ import { WebhookFailureEmail } from "@/emails/WebhookFailureEmail";
 import { buildAgreementSignedEmail } from "@/emails/customer-templates";
 import { getCarrierOwnerRecipient, notifyCustomer } from "@/lib/notify";
 import { sniffMime } from "@/lib/uploads";
+import {
+  EVENT_TO_STATUS,
+  isTerminal,
+  statusForSignedEvent,
+  STATUS_TIMESTAMP_COLUMN,
+  type SignatureStatus,
+} from "@/lib/agreements/status";
 
 export const dynamic = "force-dynamic";
 
@@ -96,6 +103,14 @@ const eventSchema = z.object({
     // SignWell's own sample does before hashing.
     time: z.union([z.string(), z.number()]),
     hash: z.string().min(16).max(256),
+    // Present only on document_viewed / document_signed / document_declined.
+    related_signer: z
+      .object({
+        email: z.string().max(320).optional(),
+        name: z.string().max(255).optional(),
+      })
+      .nullable()
+      .optional(),
   }),
   data: z.object({
     object: z.object({
@@ -175,6 +190,15 @@ export async function POST(request: Request) {
   }
 
   try {
+    // M-92: keep the signature_requests lifecycle current for every event we
+    // understand. Runs BEFORE the completion work so the portal reflects
+    // "completed" even if artefact storage later fails and the event retries.
+    await applyStatus(admin, {
+      documentId,
+      eventType: event.type,
+      signerEmail: parsed.data.event.related_signer?.email ?? null,
+    });
+
     if (event.type === COMPLETED_EVENT) {
       await handleCompleted(admin, documentId, data.object.metadata ?? null);
     }
@@ -212,6 +236,75 @@ export async function POST(request: Request) {
 }
 
 type AdminClient = NonNullable<ReturnType<typeof tryCreateAdminClient>>;
+
+/**
+ * M-92 — advance the signature_requests row for this document.
+ *
+ * Silent no-op when no row matches: a document created outside this
+ * application (a manual send from the SignWell dashboard) is a legitimate
+ * thing that we simply do not track, and it must not fail the webhook.
+ *
+ * ── WHY TERMINAL STATES ARE NEVER OVERWRITTEN ────────────────────────────
+ *
+ * No provider guarantees webhook ordering, and SignWell retries on non-2xx.
+ * So a `document_viewed` delivered late — after a completion — is entirely
+ * possible, and applying it blindly would move a completed agreement back to
+ * "viewed" in the carrier's portal. The status is only advanced away from a
+ * non-terminal state.
+ */
+async function applyStatus(
+  admin: AdminClient,
+  args: { documentId: string; eventType: string; signerEmail: string | null },
+): Promise<void> {
+  const { data: request } = await admin
+    .from("signature_requests")
+    .select("id, status, carrier_id")
+    .eq("provider", "signwell")
+    .eq("provider_document_id", args.documentId)
+    .maybeSingle();
+  if (!request) return;
+
+  const current = request.status as SignatureStatus;
+  if (isTerminal(current)) return;
+
+  let next: SignatureStatus | undefined = EVENT_TO_STATUS[args.eventType];
+  if (args.eventType === "document_signed") {
+    const owner = await getCarrierOwnerRecipient(admin, request.carrier_id);
+    next = statusForSignedEvent({
+      signerEmail: args.signerEmail,
+      carrierEmail: owner?.email ?? null,
+    });
+  }
+  if (!next || next === current) return;
+
+  // Every timestamp column is named explicitly rather than written through a
+  // computed key. The Supabase Update type rejects an index signature, and it
+  // is right to — a computed column name is exactly how a typo turns into a
+  // silent no-op. Spread-in rather than set-to-undefined because tsconfig has
+  // exactOptionalPropertyTypes: an absent key and an undefined one are
+  // different things, and only the absent one is legal here.
+  const now = new Date().toISOString();
+  const stampColumn = STATUS_TIMESTAMP_COLUMN[next];
+  const patch = {
+    status: next,
+    ...(stampColumn === "viewed_at" ? { viewed_at: now } : {}),
+    ...(stampColumn === "carrier_signed_at" ? { carrier_signed_at: now } : {}),
+    ...(stampColumn === "completed_at" ? { completed_at: now } : {}),
+    ...(stampColumn === "declined_at" ? { declined_at: now } : {}),
+    ...(stampColumn === "expired_at" ? { expired_at: now } : {}),
+  };
+
+  const { error } = await admin
+    .from("signature_requests")
+    .update(patch)
+    .eq("id", request.id);
+  if (error) {
+    // Not fatal to the event: the artefact work and the agreement stamp are
+    // what the business depends on. A stale status is visible and fixable;
+    // a dropped completion is neither.
+    console.error("[signwell-webhook] status update failed", error.message);
+  }
+}
 
 /** Store one artefact in the private bucket and register it in `documents`. */
 async function storeArtefact(
