@@ -11,7 +11,10 @@ import {
 } from "@/app/actions/driver-updates";
 import { driverUploadDocumentAction } from "@/app/actions/shipment-documents";
 import { initialFormState, type FormState } from "@/lib/form-state";
-import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
+import {
+  TurnstileWidget,
+  useTurnstileReset,
+} from "@/components/forms/TurnstileWidget";
 import type { CarrierUpdateAction } from "@/lib/shipments/carrier-updates";
 import {
   DRIVER_UPLOADABLE_DOC_TYPES,
@@ -100,6 +103,9 @@ function DriverForm({
 }) {
   const t = useTranslations();
   const [state, formAction, pending] = useActionState(action, initialFormState);
+  // SEC-P1-01: a spent Turnstile token is re-sent on the next submit unless
+  // the widget remounts. Counting settled submissions is what remounts it.
+  const turnstileAttempt = useTurnstileReset(state);
 
   useEffect(() => {
     if (state.status === "success") onSuccess?.(state);
@@ -117,7 +123,7 @@ function DriverForm({
         {help ? <p className="driver-help">{help}</p> : null}
         <input type="hidden" name="token" value={token} />
         {children}
-        <TurnstileWidget theme="light" />
+        <TurnstileWidget theme="light" resetKey={turnstileAttempt} />
         <button
           className="btn btn-amber driver-submit"
           type="submit"
@@ -182,7 +188,9 @@ export function DriverLinkExpired({
   const t = useTranslations();
   return (
     <div className="driver-card" role="alert">
-      <h1 className="driver-title">{t("shipment.label.tracking_link_expired")}</h1>
+      <h1 className="driver-title">
+        {t("shipment.label.tracking_link_expired")}
+      </h1>
       <p className="driver-body">{t(reasonKey)}</p>
       <a className="btn btn-amber driver-submit" href="tel:+19084045373">
         {t("shipment.driver.call")}
@@ -264,7 +272,10 @@ export function DriverUpdateView({
               <>
                 {" · "}
                 <time dateTime={shipment.pickup_appointment_at}>
-                  {formatTrackingDateTime(shipment.pickup_appointment_at, locale)}
+                  {formatTrackingDateTime(
+                    shipment.pickup_appointment_at,
+                    locale,
+                  )}
                 </time>
               </>
             ) : null}
@@ -358,9 +369,17 @@ export function DriverUpdateView({
               value={shipment.status}
             />
             {/* Radios, not a select — see the header. */}
-            <div className="driver-choices" role="group" aria-labelledby="dv-status">
+            <div
+              className="driver-choices"
+              role="group"
+              aria-labelledby="dv-status"
+            >
               {transitions.map((action) => (
-                <label className="driver-choice" key={action.id} htmlFor={`dv-a-${action.id}`}>
+                <label
+                  className="driver-choice"
+                  key={action.id}
+                  htmlFor={`dv-a-${action.id}`}
+                >
                   <input
                     id={`dv-a-${action.id}`}
                     type="radio"
@@ -375,10 +394,18 @@ export function DriverUpdateView({
 
             {sharing ? (
               <div className="driver-field-group">
-                <p className="driver-help">{t("shipment.driver.location_legend")}</p>
+                <p className="driver-help">
+                  {t("shipment.driver.location_legend")}
+                </p>
                 <div className="driver-field">
                   <label htmlFor="dv-city">{t("shipment.driver.city")}</label>
-                  <input id="dv-city" name="city" type="text" maxLength={80} autoComplete="off" />
+                  <input
+                    id="dv-city"
+                    name="city"
+                    type="text"
+                    maxLength={80}
+                    autoComplete="off"
+                  />
                 </div>
                 <div className="driver-field">
                   <label htmlFor="dv-state">{t("shipment.driver.state")}</label>
@@ -421,7 +448,9 @@ export function DriverUpdateView({
             busyLabel={t("shipment.driver.sending")}
           >
             <div className="driver-field">
-              <label htmlFor="dv-eta-kind">{t("shipment.driver.eta_kind")}</label>
+              <label htmlFor="dv-eta-kind">
+                {t("shipment.driver.eta_kind")}
+              </label>
               <select id="dv-eta-kind" name="kind" defaultValue="delivery">
                 {ETA_KINDS.map((kind) => (
                   <option key={kind} value={kind}>
@@ -437,10 +466,17 @@ export function DriverUpdateView({
               {/* §22's "no iOS date-input overflow": the control is
                   width:100% inside a one-column card, which is the shape iOS
                   cannot overflow. */}
-              <input id="dv-eta-at" name="eta_at" type="datetime-local" required />
+              <input
+                id="dv-eta-at"
+                name="eta_at"
+                type="datetime-local"
+                required
+              />
             </div>
             <div className="driver-field">
-              <label htmlFor="dv-delay">{t("shipment.driver.delay_minutes")}</label>
+              <label htmlFor="dv-delay">
+                {t("shipment.driver.delay_minutes")}
+              </label>
               <input
                 id="dv-delay"
                 name="delay_minutes"
@@ -472,8 +508,15 @@ export function DriverUpdateView({
             busyLabel={t("shipment.driver.sending")}
           >
             <div className="driver-field">
-              <label htmlFor="dv-exc-type">{t("shipment.driver.exception_type")}</label>
-              <select id="dv-exc-type" name="exception_type" required defaultValue="">
+              <label htmlFor="dv-exc-type">
+                {t("shipment.driver.exception_type")}
+              </label>
+              <select
+                id="dv-exc-type"
+                name="exception_type"
+                required
+                defaultValue=""
+              >
                 <option value="" disabled>
                   —
                 </option>
@@ -488,7 +531,13 @@ export function DriverUpdateView({
               <label htmlFor="dv-exc-desc">
                 {t("shipment.driver.exception_description")}
               </label>
-              <textarea id="dv-exc-desc" name="description" rows={3} maxLength={500} required />
+              <textarea
+                id="dv-exc-desc"
+                name="description"
+                rows={3}
+                maxLength={500}
+                required
+              />
             </div>
           </DriverForm>
         </section>
@@ -514,8 +563,15 @@ export function DriverUpdateView({
           busyLabel={t("shipment.document.uploading")}
         >
           <div className="driver-field">
-            <label htmlFor="dv-doc-type">{t("shipment.document.field_type")}</label>
-            <select id="dv-doc-type" name="doc_type" required defaultValue="pod">
+            <label htmlFor="dv-doc-type">
+              {t("shipment.document.field_type")}
+            </label>
+            <select
+              id="dv-doc-type"
+              name="doc_type"
+              required
+              defaultValue="pod"
+            >
               {DRIVER_UPLOADABLE_DOC_TYPES.map((type) => (
                 <option key={type} value={type}>
                   {t(documentTypeKey(type))}
@@ -524,7 +580,9 @@ export function DriverUpdateView({
             </select>
           </div>
           <div className="driver-field">
-            <label htmlFor="dv-doc-file">{t("shipment.document.field_file")}</label>
+            <label htmlFor="dv-doc-file">
+              {t("shipment.document.field_file")}
+            </label>
             <input
               id="dv-doc-file"
               name="file"

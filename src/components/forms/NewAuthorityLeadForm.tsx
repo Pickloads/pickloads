@@ -6,7 +6,10 @@ import { useV4 } from "@/i18n/v4";
 import { track } from "@/lib/analytics";
 import { initialFormState } from "@/lib/form-state";
 import { submitCarrierLead } from "@/app/actions/carrier-lead";
-import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
+import {
+  TurnstileWidget,
+  useTurnstileReset,
+} from "@/components/forms/TurnstileWidget";
 
 /**
  * M-26 — New Authority lead form (V4 .bigform vocabulary). Posts through the
@@ -31,10 +34,15 @@ export function NewAuthorityLeadForm() {
     submitCarrierLead,
     initialFormState,
   );
+  // SEC-P1-01: a spent Turnstile token is re-sent on the next submit unless
+  // the widget remounts. Counting settled submissions is what remounts it.
+  const turnstileAttempt = useTurnstileReset(state);
 
   useEffect(() => {
     if (state.status === "success") {
-      track("new_authority_inquiry", { surface: "start-your-trucking-company" });
+      track("new_authority_inquiry", {
+        surface: "start-your-trucking-company",
+      });
     }
   }, [state]);
 
@@ -131,7 +139,7 @@ export function NewAuthorityLeadForm() {
             </select>
           </div>
         </div>
-        <TurnstileWidget theme="light" />
+        <TurnstileWidget theme="light" resetKey={turnstileAttempt} />
         <button
           className="btn btn-amber"
           type="submit"
@@ -159,7 +167,11 @@ export function NewAuthorityLeadForm() {
       </div>
       <p
         className="mono"
-        style={{ fontSize: ".7rem", color: "var(--color-slate-aa)", marginTop: 16 }}
+        style={{
+          fontSize: ".7rem",
+          color: "var(--color-slate-aa)",
+          marginTop: 16,
+        }}
       >
         {"// "}
         {tv(

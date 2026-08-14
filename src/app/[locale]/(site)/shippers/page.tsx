@@ -6,6 +6,7 @@ import { Link } from "@/i18n/navigation";
 import { useV4 } from "@/i18n/v4";
 import { getBooleanSetting } from "@/lib/company-settings";
 import { absoluteUrl, pageMetadata } from "@/lib/seo";
+import { JsonLd } from "@/components/seo/JsonLd";
 
 /**
  * Freight Brokerage — the shipper-side service page.
@@ -131,11 +132,8 @@ function ShippersContent({
 
   return (
     <main id="main">
-      <script
-        type="application/ld+json"
-        // Structured data only — no user input reaches this string.
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      {/* SEC-P3-02: through the shared component, which escapes `<`. */}
+      <JsonLd data={jsonLd} />
       <PageHero
         eyebrow={tv("For shippers")}
         title={tv(
@@ -155,7 +153,9 @@ function ShippersContent({
           </h2>
           <div className="ship-why">
             <div className="ship-card">
-              <span className="ic" aria-hidden="true">🛡</span>
+              <span className="ic" aria-hidden="true">
+                🛡
+              </span>
               <h3>{tv("Vetted carriers only")}</h3>
               <p>
                 {tv(
@@ -164,7 +164,9 @@ function ShippersContent({
               </p>
             </div>
             <div className="ship-card">
-              <span className="ic" aria-hidden="true">📍</span>
+              <span className="ic" aria-hidden="true">
+                📍
+              </span>
               <h3>{tv("Milestone tracking")}</h3>
               <p>
                 {tv(
@@ -173,7 +175,9 @@ function ShippersContent({
               </p>
             </div>
             <div className="ship-card">
-              <span className="ic" aria-hidden="true">☎</span>
+              <span className="ic" aria-hidden="true">
+                ☎
+              </span>
               <h3>{tv("One point of contact")}</h3>
               <p>
                 {tv(
@@ -182,7 +186,9 @@ function ShippersContent({
               </p>
             </div>
             <div className="ship-card">
-              <span className="ic" aria-hidden="true">📄</span>
+              <span className="ic" aria-hidden="true">
+                📄
+              </span>
               <h3>{tv("Claims & paperwork handled")}</h3>
               <p>
                 {tv(
@@ -230,14 +236,21 @@ function ShippersContent({
 
       <section style={{ paddingTop: 0 }}>
         <div className="wrap">
-          <div className="flow" tabIndex={0} role="region" aria-label={tv("Process steps (scrollable)")}>
+          <div
+            className="flow"
+            tabIndex={0}
+            role="region"
+            aria-label={tv("Process steps (scrollable)")}
+          >
             <span className="flow-title">
               {tv("Shipper process — from quote to POD")}
             </span>
             <div className="flow-track">
               <span className="flow-node">{tv("QUOTE REQUEST")}</span>
               <span className="flow-arrow">→</span>
-              <span className="flow-node hot">{tv("FAST, TRANSPARENT QUOTES")}</span>
+              <span className="flow-node hot">
+                {tv("FAST, TRANSPARENT QUOTES")}
+              </span>
               <span className="flow-arrow">→</span>
               <span className="flow-node">{tv("CARRIER VETTING")}</span>
               <span className="flow-arrow">→</span>
@@ -247,7 +260,9 @@ function ShippersContent({
               <span className="flow-arrow">→</span>
               <span className="flow-node">{tv("DELIVERY + POD")}</span>
               <span className="flow-arrow">→</span>
-              <span className="flow-node">{tv("DOCUMENTS DELIVERED PROMPTLY")}</span>
+              <span className="flow-node">
+                {tv("DOCUMENTS DELIVERED PROMPTLY")}
+              </span>
             </div>
           </div>
         </div>

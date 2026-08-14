@@ -7,7 +7,10 @@ import { Link } from "@/i18n/navigation";
 import { useV4 } from "@/i18n/v4";
 import { createShipperAccount } from "@/app/actions/account";
 import { initialSignupState } from "@/lib/account-state";
-import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
+import {
+  TurnstileWidget,
+  useTurnstileReset,
+} from "@/components/forms/TurnstileWidget";
 
 /**
  * M-53 — shipper registration form (V4 .bigform vocabulary). Directive
@@ -49,6 +52,9 @@ export function CreateShipperForm() {
     createShipperAccount,
     initialSignupState,
   );
+  // SEC-P1-01: a spent Turnstile token is re-sent on the next submit unless
+  // the widget remounts. Counting settled submissions is what remounts it.
+  const turnstileAttempt = useTurnstileReset(state);
 
   const toggleRegion = (region: string) => {
     setRegions((prev) =>
@@ -80,7 +86,14 @@ export function CreateShipperForm() {
                 "Your shipper portal tracks every quote request and rate — and any quotes you already requested under this email get linked automatically.",
               )}
             </div>
-            <div style={{ marginTop: 22, display: "flex", gap: 14, flexWrap: "wrap" }}>
+            <div
+              style={{
+                marginTop: 22,
+                display: "flex",
+                gap: 14,
+                flexWrap: "wrap",
+              }}
+            >
               <Link className="btn btn-amber" href="/login">
                 {tv("Sign in to your portal →")}
               </Link>
@@ -108,21 +121,50 @@ export function CreateShipperForm() {
         <div className="grid2">
           <div className="field">
             <label htmlFor="sa-company">{tv("Company Name")}</label>
-            <input id="sa-company" name="company_name" type="text" required autoComplete="organization" placeholder={tv("Your company LLC")} />
+            <input
+              id="sa-company"
+              name="company_name"
+              type="text"
+              required
+              autoComplete="organization"
+              placeholder={tv("Your company LLC")}
+            />
           </div>
           <div className="field">
             <label htmlFor="sa-name">{tv("Your Full Name")}</label>
-            <input id="sa-name" name="full_name" type="text" required autoComplete="name" placeholder="Jane Miller" />
+            <input
+              id="sa-name"
+              name="full_name"
+              type="text"
+              required
+              autoComplete="name"
+              placeholder="Jane Miller"
+            />
           </div>
         </div>
         <div className="grid2">
           <div className="field">
             <label htmlFor="sa-email">{tv("Email")}</label>
-            <input id="sa-email" name="email" type="email" required autoComplete="email" placeholder="you@company.com" />
+            <input
+              id="sa-email"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              placeholder="you@company.com"
+            />
           </div>
           <div className="field">
             <label htmlFor="sa-phone">{tv("Phone")}</label>
-            <input id="sa-phone" name="phone" type="tel" required autoComplete="tel" inputMode="tel" placeholder="(___) ___-____" />
+            <input
+              id="sa-phone"
+              name="phone"
+              type="tel"
+              required
+              autoComplete="tel"
+              inputMode="tel"
+              placeholder="(___) ___-____"
+            />
           </div>
         </div>
         <div className="grid2">
@@ -150,10 +192,7 @@ export function CreateShipperForm() {
           </div>
         </div>
         <fieldset style={{ border: "none", padding: 0, margin: "0 0 16px" }}>
-          <legend
-            className="field"
-            style={{ padding: 0, marginBottom: 7 }}
-          >
+          <legend className="field" style={{ padding: 0, marginBottom: 7 }}>
             <span
               style={{
                 display: "block",
@@ -169,7 +208,11 @@ export function CreateShipperForm() {
           </legend>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 18px" }}>
             {REGIONS.map((r) => (
-              <label key={r} className="consent-row" style={{ padding: "4px 0", gap: 8 }}>
+              <label
+                key={r}
+                className="consent-row"
+                style={{ padding: "4px 0", gap: 8 }}
+              >
                 <input
                   type="checkbox"
                   checked={regions.includes(r)}
@@ -182,9 +225,17 @@ export function CreateShipperForm() {
         </fieldset>
         <div className="field" style={{ marginBottom: 16 }}>
           <label htmlFor="sa-pass">{tv("Password (8+ characters)")}</label>
-          <input id="sa-pass" name="password" type="password" required minLength={8} autoComplete="new-password" placeholder="••••••••" />
+          <input
+            id="sa-pass"
+            name="password"
+            type="password"
+            required
+            minLength={8}
+            autoComplete="new-password"
+            placeholder="••••••••"
+          />
         </div>
-        <TurnstileWidget theme="light" />
+        <TurnstileWidget theme="light" resetKey={turnstileAttempt} />
         <button
           className="btn btn-green"
           type="submit"
@@ -206,7 +257,10 @@ export function CreateShipperForm() {
         {tv("Already have an account?")}{" "}
         <Link
           href="/login"
-          style={{ color: "var(--color-amber-aa)", textDecoration: "underline" }}
+          style={{
+            color: "var(--color-amber-aa)",
+            textDecoration: "underline",
+          }}
         >
           {tv("Sign In →")}
         </Link>

@@ -5,7 +5,10 @@ import { useLocale } from "next-intl";
 import { useV4 } from "@/i18n/v4";
 import { initialFormState } from "@/lib/form-state";
 import { submitCarrierLead } from "@/app/actions/carrier-lead";
-import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
+import {
+  TurnstileWidget,
+  useTurnstileReset,
+} from "@/components/forms/TurnstileWidget";
 
 /*
  * "Need a dispatcher?" quick lead form — V4 markup, U-02 label association,
@@ -20,6 +23,9 @@ export function QuickQuote() {
     submitCarrierLead,
     initialFormState,
   );
+  // SEC-P1-01: a spent Turnstile token is re-sent on the next submit unless
+  // the widget remounts. Counting settled submissions is what remounts it.
+  const turnstileAttempt = useTurnstileReset(state);
   return (
     <div className="quote" id="quote">
       <div className="wrap">
@@ -34,7 +40,11 @@ export function QuickQuote() {
             <input type="hidden" name="locale" value={locale} />
             <div className="field">
               <label htmlFor="q-truck">{tv("Truck Type")}</label>
-              <select id="q-truck" name="truck_type" defaultValue="Semi / Tractor">
+              <select
+                id="q-truck"
+                name="truck_type"
+                defaultValue="Semi / Tractor"
+              >
                 <option value="Semi / Tractor">{tv("Semi / Tractor")}</option>
                 <option value="Box Truck 26'">{tv("Box Truck 26'")}</option>
                 <option value="Hot Shot">{tv("Hot Shot")}</option>
@@ -88,7 +98,7 @@ export function QuickQuote() {
                 aria-describedby="q-err"
               />
             </div>
-            <TurnstileWidget theme="dark" />
+            <TurnstileWidget theme="dark" resetKey={turnstileAttempt} />
             <button
               className="btn btn-amber"
               type="submit"
@@ -111,7 +121,9 @@ export function QuickQuote() {
             className={`form-err${state.status === "error" ? " show" : ""}`}
             role="alert"
           >
-            {state.status === "error" && state.message ? tv(state.message) : null}
+            {state.status === "error" && state.message
+              ? tv(state.message)
+              : null}
           </div>
         </div>
       </div>

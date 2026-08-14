@@ -40,6 +40,13 @@ yarn-error.log*
 # vercel
 .vercel
 
+# supabase CLI scratch. Holds no secret VALUE — project ref, pooler URL
+# (username, no password) and pinned service versions — but it is machine
+# state, it changes on every `supabase link`, and it is exactly the kind of
+# directory a credential later gets written into. Ignored before that
+# happens rather than after (SEC-P3-01).
+supabase/.temp/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

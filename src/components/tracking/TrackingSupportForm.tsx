@@ -4,7 +4,10 @@ import { useActionState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { initialFormState } from "@/lib/form-state";
 import { submitTrackingSupportMessage } from "@/app/actions/tracking-support";
-import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
+import {
+  TurnstileWidget,
+  useTurnstileReset,
+} from "@/components/forms/TurnstileWidget";
 
 /**
  * M-73 — §8's "support-message button" on the public tracking page.
@@ -54,6 +57,9 @@ export function TrackingSupportForm({
     submitTrackingSupportMessage,
     initialFormState,
   );
+  // SEC-P1-01: a spent Turnstile token is re-sent on the next submit unless
+  // the widget remounts. Counting settled submissions is what remounts it.
+  const turnstileAttempt = useTurnstileReset(state);
 
   return (
     <details className="track-support">
@@ -104,7 +110,7 @@ export function TrackingSupportForm({
               aria-describedby="ts-err"
             />
           </div>
-          <TurnstileWidget theme="light" />
+          <TurnstileWidget theme="light" resetKey={turnstileAttempt} />
           <button
             className="btn btn-amber"
             type="submit"

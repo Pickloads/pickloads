@@ -7,7 +7,10 @@ import { Link } from "@/i18n/navigation";
 import { useV4 } from "@/i18n/v4";
 import { createCarrierAccount } from "@/app/actions/account";
 import { initialSignupState } from "@/lib/account-state";
-import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
+import {
+  TurnstileWidget,
+  useTurnstileReset,
+} from "@/components/forms/TurnstileWidget";
 import type { AuthorityStatus } from "@/lib/validation/account";
 
 /**
@@ -35,6 +38,9 @@ export function CreateCarrierForm() {
     createCarrierAccount,
     initialSignupState,
   );
+  // SEC-P1-01: a spent Turnstile token is re-sent on the next submit unless
+  // the widget remounts. Counting settled submissions is what remounts it.
+  const turnstileAttempt = useTurnstileReset(state);
 
   if (state.status === "success") {
     return (
@@ -72,13 +78,23 @@ export function CreateCarrierForm() {
           </div>
         )}
         {state.verification !== "unconfigured" ? (
-          <div style={{ marginTop: 22, display: "flex", gap: 14, flexWrap: "wrap" }}>
+          <div
+            style={{
+              marginTop: 22,
+              display: "flex",
+              gap: 14,
+              flexWrap: "wrap",
+            }}
+          >
             {state.next === "onboarding" ? (
               <Link className="btn btn-amber" href="/become-a-carrier">
                 {tv("Continue to onboarding →")}
               </Link>
             ) : state.next === "new_authority" ? (
-              <Link className="btn btn-amber" href="/start-your-trucking-company">
+              <Link
+                className="btn btn-amber"
+                href="/start-your-trucking-company"
+              >
                 {tv("See your launch checklist →")}
               </Link>
             ) : (
@@ -106,7 +122,9 @@ export function CreateCarrierForm() {
       <form action={action}>
         <input type="hidden" name="locale" value={locale} />
         <div className="field" style={{ marginBottom: 16 }}>
-          <label htmlFor="ca-authority">{tv("Where does your authority stand?")}</label>
+          <label htmlFor="ca-authority">
+            {tv("Where does your authority stand?")}
+          </label>
           <select
             id="ca-authority"
             name="authority_status"
@@ -133,21 +151,50 @@ export function CreateCarrierForm() {
         <div className="grid2">
           <div className="field">
             <label htmlFor="ca-company">{tv("Company Name")}</label>
-            <input id="ca-company" name="company_name" type="text" required autoComplete="organization" placeholder={tv("Your company LLC")} />
+            <input
+              id="ca-company"
+              name="company_name"
+              type="text"
+              required
+              autoComplete="organization"
+              placeholder={tv("Your company LLC")}
+            />
           </div>
           <div className="field">
             <label htmlFor="ca-name">{tv("Your Full Name")}</label>
-            <input id="ca-name" name="full_name" type="text" required autoComplete="name" placeholder="John Carter" />
+            <input
+              id="ca-name"
+              name="full_name"
+              type="text"
+              required
+              autoComplete="name"
+              placeholder="John Carter"
+            />
           </div>
         </div>
         <div className="grid2">
           <div className="field">
             <label htmlFor="ca-email">{tv("Email")}</label>
-            <input id="ca-email" name="email" type="email" required autoComplete="email" placeholder="you@company.com" />
+            <input
+              id="ca-email"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              placeholder="you@company.com"
+            />
           </div>
           <div className="field">
             <label htmlFor="ca-phone">{tv("Phone")}</label>
-            <input id="ca-phone" name="phone" type="tel" required autoComplete="tel" inputMode="tel" placeholder="(___) ___-____" />
+            <input
+              id="ca-phone"
+              name="phone"
+              type="tel"
+              required
+              autoComplete="tel"
+              inputMode="tel"
+              placeholder="(___) ___-____"
+            />
           </div>
         </div>
         <div className="grid3">
@@ -165,33 +212,66 @@ export function CreateCarrierForm() {
           </div>
           <div className="field">
             <label htmlFor="ca-dot">{tv("USDOT # (optional)")}</label>
-            <input id="ca-dot" name="dot_number" type="text" placeholder="0000000" />
+            <input
+              id="ca-dot"
+              name="dot_number"
+              type="text"
+              placeholder="0000000"
+            />
           </div>
           <div className="field">
             <label htmlFor="ca-state">{tv("Home State")}</label>
-            <input id="ca-state" name="home_state" type="text" placeholder="NJ" autoComplete="address-level1" />
+            <input
+              id="ca-state"
+              name="home_state"
+              type="text"
+              placeholder="NJ"
+              autoComplete="address-level1"
+            />
           </div>
         </div>
         <div className="field" style={{ marginBottom: 16 }}>
           <label htmlFor="ca-pass">{tv("Password (8+ characters)")}</label>
-          <input id="ca-pass" name="password" type="password" required minLength={8} autoComplete="new-password" placeholder="••••••••" />
+          <input
+            id="ca-pass"
+            name="password"
+            type="password"
+            required
+            minLength={8}
+            autoComplete="new-password"
+            placeholder="••••••••"
+          />
         </div>
         {authority === "none" ? (
-          <p className="mono" style={{ fontSize: ".72rem", color: "var(--color-amber-aa)", margin: "0 0 16px" }}>
+          <p
+            className="mono"
+            style={{
+              fontSize: ".72rem",
+              color: "var(--color-amber-aa)",
+              margin: "0 0 16px",
+            }}
+          >
             {"// "}
             {tv(
               "No authority yet? You still get a full account — plus the launch checklist and a call from a dispatcher, typically the same day.",
             )}
           </p>
         ) : authority === "leased_on" ? (
-          <p className="mono" style={{ fontSize: ".72rem", color: "var(--color-amber-aa)", margin: "0 0 16px" }}>
+          <p
+            className="mono"
+            style={{
+              fontSize: ".72rem",
+              color: "var(--color-amber-aa)",
+              margin: "0 0 16px",
+            }}
+          >
             {"// "}
             {tv(
               "Leased-on setups are reviewed personally — a dispatcher confirms how your lease works before dispatch starts.",
             )}
           </p>
         ) : null}
-        <TurnstileWidget theme="light" />
+        <TurnstileWidget theme="light" resetKey={turnstileAttempt} />
         <button
           className="btn btn-amber"
           type="submit"
@@ -213,7 +293,10 @@ export function CreateCarrierForm() {
         {tv("Already have an account?")}{" "}
         <Link
           href="/login"
-          style={{ color: "var(--color-amber-aa)", textDecoration: "underline" }}
+          style={{
+            color: "var(--color-amber-aa)",
+            textDecoration: "underline",
+          }}
         >
           {tv("Sign In →")}
         </Link>

@@ -5,7 +5,10 @@ import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { lookupTracking } from "@/app/actions/public-tracking";
 import { initialTrackingState } from "@/lib/shipments/public-tracking-state";
-import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
+import {
+  TurnstileWidget,
+  useTurnstileReset,
+} from "@/components/forms/TurnstileWidget";
 import { TrackingResult } from "@/components/tracking/TrackingResult";
 
 /**
@@ -65,6 +68,9 @@ export function TrackingLookup() {
     lookupTracking,
     initialTrackingState,
   );
+  // SEC-P1-01: a spent Turnstile token is re-sent on the next submit unless
+  // the widget remounts. Counting settled submissions is what remounts it.
+  const turnstileAttempt = useTurnstileReset(state);
 
   return (
     <>
@@ -120,7 +126,7 @@ export function TrackingLookup() {
               </span>
             </div>
           </div>
-          <TurnstileWidget theme="light" />
+          <TurnstileWidget theme="light" resetKey={turnstileAttempt} />
           <button
             className="btn btn-amber"
             type="submit"

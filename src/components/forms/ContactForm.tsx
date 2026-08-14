@@ -7,7 +7,10 @@ import { useV4 } from "@/i18n/v4";
 import { track, type AnalyticsEvent } from "@/lib/analytics";
 import { initialFormState } from "@/lib/form-state";
 import { submitContactMessage } from "@/app/actions/contact-message";
-import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
+import {
+  TurnstileWidget,
+  useTurnstileReset,
+} from "@/components/forms/TurnstileWidget";
 
 /*
  * Contact form (M-14 addition — audit F-08 required a functional contact
@@ -56,6 +59,9 @@ export function ContactForm({
     submitContactMessage,
     initialFormState,
   );
+  // SEC-P1-01: a spent Turnstile token is re-sent on the next submit unless
+  // the widget remounts. Counting settled submissions is what remounts it.
+  const turnstileAttempt = useTurnstileReset(state);
   useEffect(() => {
     if (state.status === "success") track(submittedEvent, { surface });
   }, [state, submittedEvent, surface]);
@@ -165,7 +171,7 @@ export function ContactForm({
             </Link>
           </p>
         ) : null}
-        <TurnstileWidget theme="light" />
+        <TurnstileWidget theme="light" resetKey={turnstileAttempt} />
         <button
           className="btn btn-amber"
           type="submit"

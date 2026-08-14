@@ -8,6 +8,7 @@ import { Link } from "@/i18n/navigation";
 import { getV4 } from "@/i18n/v4-server";
 import { getBooleanSetting } from "@/lib/company-settings";
 import { absoluteUrl, pageMetadata } from "@/lib/seo";
+import { JsonLd } from "@/components/seo/JsonLd";
 
 /**
  * Dispatch Services — the central conversion hub for the dispatch pillar.
@@ -115,11 +116,8 @@ export default async function DispatchServicesPage({
 
   return (
     <main id="main">
-      <script
-        type="application/ld+json"
-        // Structured data only — no user input reaches this string.
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      {/* SEC-P3-02: through the shared component, which escapes `<`. */}
+      <JsonLd data={jsonLd} />
 
       <PageHero
         eyebrow={tv("For Carriers · Active Now")}

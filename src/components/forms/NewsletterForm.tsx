@@ -6,7 +6,10 @@ import { useLocale } from "next-intl";
 import { useV4 } from "@/i18n/v4";
 import { initialFormState } from "@/lib/form-state";
 import { subscribeNewsletter } from "@/app/actions/newsletter";
-import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
+import {
+  TurnstileWidget,
+  useTurnstileReset,
+} from "@/components/forms/TurnstileWidget";
 
 /*
  * Newsletter signup (double opt-in per audit S-05). M-14: wired to
@@ -22,6 +25,9 @@ export function NewsletterForm() {
     subscribeNewsletter,
     initialFormState,
   );
+  // SEC-P1-01: a spent Turnstile token is re-sent on the next submit unless
+  // the widget remounts. Counting settled submissions is what remounts it.
+  const turnstileAttempt = useTurnstileReset(state);
 
   const showOk = state.status === "success" || confirmResult === "confirmed";
   const showErr =
@@ -56,7 +62,7 @@ export function NewsletterForm() {
           aria-describedby="nl-err"
         />
       </div>
-      <TurnstileWidget theme="dark" />
+      <TurnstileWidget theme="dark" resetKey={turnstileAttempt} />
       <button
         className="btn btn-amber"
         type="submit"
