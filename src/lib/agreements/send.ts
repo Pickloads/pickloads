@@ -53,20 +53,50 @@ const AGREEMENT_TYPE = "dispatch_agreement";
 /**
  * The PickLoads countersigner.
  *
- * Env-configurable because the authorized representative is a real named
- * person who will change, and a redeploy is the wrong way to change who signs
- * a contract. Falls back to the internal ops address so a missing variable
- * degrades to "the desk countersigns" rather than to a broken send.
+ * ── WHY THIS FAILS CLOSED IN PRODUCTION ──────────────────────────────────
+ *
+ * This used to fall back to `EMAIL_INTERNAL_TO` under the name "PickLoads
+ * Logistics Group". Comfortable, and wrong: the countersignature block on an
+ * executed contract would name a mailing list instead of a person, and nobody
+ * would notice until a carrier asked who signed it. A misconfiguration that
+ * produces a plausible-looking contract is worse than one that produces none.
+ *
+ * In production BOTH variables are required and a missing one refuses the
+ * send. Outside production the fallback survives — a preview environment that
+ * cannot send a test agreement is the worse trade there.
+ *
+ * The NAME is env-driven too. Hardcoding "Emmanuel Larocque" would put a
+ * person's name in the repository and make a deploy the way to change who
+ * signs a contract, which is the wrong lever.
  */
+function isProduction(): boolean {
+  return (
+    process.env.VERCEL_ENV === "production" ||
+    (process.env.VERCEL_ENV === undefined &&
+      process.env.NODE_ENV === "production")
+  );
+}
+
 function countersigner(): { name: string; email: string } | null {
-  const email =
-    process.env.SIGNWELL_COUNTERSIGNER_EMAIL || process.env.EMAIL_INTERNAL_TO;
-  if (!email) return null;
-  return {
-    name:
-      process.env.SIGNWELL_COUNTERSIGNER_NAME || "PickLoads Logistics Group",
-    email,
-  };
+  const email = process.env.SIGNWELL_COUNTERSIGNER_EMAIL?.trim();
+  const name = process.env.SIGNWELL_COUNTERSIGNER_NAME?.trim();
+
+  if (isProduction()) {
+    if (!email || !name) {
+      // Names the variables, never the values.
+      console.error(
+        "[agreement-send] REFUSED: SIGNWELL_COUNTERSIGNER_NAME and " +
+          "SIGNWELL_COUNTERSIGNER_EMAIL are both required in production. " +
+          "Set them in the Vercel Production environment.",
+      );
+      return null;
+    }
+    return { name, email };
+  }
+
+  const fallbackEmail = email || process.env.EMAIL_INTERNAL_TO;
+  if (!fallbackEmail) return null;
+  return { name: name || "PickLoads Logistics Group", email: fallbackEmail };
 }
 
 /**
@@ -93,7 +123,7 @@ export function buildAgreementFields(input: {
   repTitle: string | null;
   addressLine1: string | null;
   city: string | null;
-  state: string | null;
+  homeState: string | null;
   postalCode: string | null;
   phone: string | null;
   email: string | null;
@@ -110,11 +140,11 @@ export function buildAgreementFields(input: {
     carrier_rep_title: s(input.repTitle),
     carrier_address: s(input.addressLine1),
     carrier_city: s(input.city),
-    carrier_state: s(input.state),
+    carrier_state: s(input.homeState),
     carrier_zip: s(input.postalCode),
     carrier_phone: s(input.phone),
     carrier_email: s(input.email),
-    dispatch_fee_pct:
+    dispatch_fee:
       input.dispatchFeePct === null || input.dispatchFeePct === undefined
         ? ""
         : `${input.dispatchFeePct}%`,
@@ -133,7 +163,7 @@ export const AGREEMENT_FIELD_API_IDS = Object.keys(
     repTitle: null,
     addressLine1: null,
     city: null,
-    state: null,
+    homeState: null,
     postalCode: null,
     phone: null,
     email: null,
@@ -161,7 +191,7 @@ export async function sendDispatchAgreement(args: {
   const { data: carrier } = await admin
     .from("carriers")
     .select(
-      "id, company_name, dba, mc_number, dot_number, rep_title, address_line1, city, mailing_state, home_state, postal_code, dispatch_fee_pct, agreement_signed_at",
+      "id, company_name, dba, mc_number, dot_number, rep_title, address_line1, city, home_state, postal_code, dispatch_fee_pct, agreement_signed_at",
     )
     .eq("id", args.carrierId)
     .maybeSingle();
@@ -210,9 +240,10 @@ export async function sendDispatchAgreement(args: {
     repTitle: carrier.rep_title,
     addressLine1: carrier.address_line1,
     city: carrier.city,
-    // Mailing state when we have one; the operating state is a usable
-    // fallback and better than an empty contract field.
-    state: carrier.mailing_state ?? carrier.home_state,
+    // home_state is the ONLY state this system collects (onboarding step 1).
+    // A separate mailing_state column would be a duplicate that is never
+    // populated, so carrier_state reads the one with data in it.
+    homeState: carrier.home_state,
     postalCode: carrier.postal_code,
     phone: ownerProfile?.phone ?? null,
     email: owner.email,

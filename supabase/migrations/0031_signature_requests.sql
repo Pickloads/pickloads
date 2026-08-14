@@ -18,26 +18,34 @@
 -- 1. Carrier fields the dispatch agreement needs
 -- ---------------------------------------------------------------------------
 --
--- `home_state` already exists and is the operating/home state. It is NOT the
--- mailing address state, and the agreement needs a real address, so `state` is
--- separate rather than overloaded. Every column is nullable: an agreement can
--- be sent with gaps (SignWell leaves the field blank for the signer to
--- complete), and forcing NOT NULL here would break existing carrier rows.
+-- THERE IS DELIBERATELY NO `mailing_state` COLUMN. An earlier draft added one
+-- on the reasoning that a mailing address is not an operating address. True in
+-- principle, wrong here: `home_state` already exists, is collected at
+-- onboarding step 1, and is the only state this system has. A second state
+-- column would be a duplicate that nothing ever writes, and the agreement's
+-- `carrier_state` field would read a permanently-null column with a fallback.
+-- It reads `home_state` directly instead.
+--
+-- Street, city and ZIP are genuinely new. Audited across every migration: the
+-- only `city`/`state` columns in the schema belong to SHIPMENT STOPS
+-- (0019 shipment_events, 0027 shipment_locations) — freight geography, not a
+-- carrier's mailing address. Mapping those would be a category error.
+--
+-- Every column is nullable. An agreement can be sent with gaps; SignWell
+-- leaves the field for the signer to complete, and NOT NULL would break every
+-- existing carrier row.
 
 alter table carriers
   add column dba text,
   add column rep_title text,
   add column address_line1 text,
   add column city text,
-  add column postal_code text,
-  add column mailing_state text;
+  add column postal_code text;
 
 comment on column carriers.dba is
   'M-92: "doing business as" name for the dispatch agreement. Distinct from company_name (the legal entity).';
 comment on column carriers.rep_title is
   'M-92: title of the authorized representative who signs (e.g. "Owner", "President"). The NAME comes from the owner membership profile, not from here — one source of truth for a person.';
-comment on column carriers.mailing_state is
-  'M-92: mailing-address state for the agreement. Deliberately NOT home_state, which is the operating state and is used for dispatch, not correspondence.';
 
 -- ---------------------------------------------------------------------------
 -- 2. Signature request lifecycle

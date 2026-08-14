@@ -222,11 +222,6 @@ type CarrierRow = {
   address_line1: string | null;
   city: string | null;
   postal_code: string | null;
-  /**
-   * M-92 (0031): mailing-address state. NOT `home_state`, which is the
-   * operating state used for dispatch.
-   */
-  mailing_state: string | null;
   created_at: string;
   updated_at: string;
 };

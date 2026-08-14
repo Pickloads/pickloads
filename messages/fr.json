@@ -1039,7 +1039,8 @@
     "sent_by_email_check_your_inbox_and_spam_this_status_upda": "Envoyée par e-mail — vérifiez votre boîte de réception (et vos spams). Ce statut se met à jour automatiquement au fur et à mesure que le document est consulté et signé.",
     "signature_request": "Demande de signature",
     "test_mode": "Mode test",
-    "viewed": "Consultée"
+    "viewed": "Consultée",
+    "send_me_the_agreement": "Envoyez-moi le contrat"
   },
   "shipment": {
     "status": {

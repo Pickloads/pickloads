@@ -1,6 +1,6 @@
 # M-92 — SignWell send side
 
-**Status:** implemented, `test_mode: true` · **Date:** 2026-08-14
+**Status:** implemented, `test_mode: true`, NOT deployed · **Date:** 2026-08-14 (final pre-deployment pass)
 
 ---
 
@@ -58,22 +58,22 @@ the request.
 IDs on the template's fields; a mismatch is **silent** (SignWell accepts and
 leaves the field blank).
 
-| `api_id`               | Source                                   | Available today    |
-| ---------------------- | ---------------------------------------- | ------------------ |
-| `carrier_legal_name`   | `carriers.company_name`                  | ✅                 |
-| `carrier_dba`          | `carriers.dba`                           | 🆕 0031            |
-| `carrier_mc_number`    | `carriers.mc_number`                     | ✅                 |
-| `carrier_usdot_number` | `carriers.dot_number`                    | ✅                 |
-| `carrier_rep_name`     | owner `profiles.full_name`               | ✅                 |
-| `carrier_rep_title`    | `carriers.rep_title`                     | 🆕 0031            |
-| `carrier_address`      | `carriers.address_line1`                 | 🆕 0031            |
-| `carrier_city`         | `carriers.city`                          | 🆕 0031            |
-| `carrier_state`        | `carriers.mailing_state` ?? `home_state` | 🆕 0031 (fallback) |
-| `carrier_zip`          | `carriers.postal_code`                   | 🆕 0031            |
-| `carrier_phone`        | owner `profiles.phone`                   | ✅                 |
-| `carrier_email`        | owner auth email                         | ✅                 |
-| `dispatch_fee_pct`     | `carriers.dispatch_fee_pct`, `"5%"`      | ✅                 |
-| `effective_date`       | send date, `YYYY-MM-DD`                  | computed           |
+| `api_id`               | Source                                 | Available today |
+| ---------------------- | -------------------------------------- | --------------- |
+| `carrier_legal_name`   | `carriers.company_name`                | ✅              |
+| `carrier_dba`          | `carriers.dba`                         | 🆕 0031         |
+| `carrier_mc_number`    | `carriers.mc_number`                   | ✅              |
+| `carrier_usdot_number` | `carriers.dot_number`                  | ✅              |
+| `carrier_rep_name`     | owner `profiles.full_name`             | ✅              |
+| `carrier_rep_title`    | `carriers.rep_title`                   | 🆕 0031         |
+| `carrier_address`      | `carriers.address_line1`               | 🆕 0031         |
+| `carrier_city`         | `carriers.city`                        | 🆕 0031         |
+| `carrier_state`        | `carriers.home_state`                  | ✅ onboarding   |
+| `carrier_zip`          | `carriers.postal_code`                 | 🆕 0031         |
+| `carrier_phone`        | owner `profiles.phone`                 | ✅              |
+| `carrier_email`        | owner auth email                       | ✅              |
+| `dispatch_fee`         | `carriers.dispatch_fee_pct`, as `"5%"` | ✅              |
+| `effective_date`       | send date, `YYYY-MM-DD`                | computed        |
 
 Empty values are **omitted**, not sent blank: a blank stamps the contract with
 "answered: nothing", where an omitted field leaves the signer something to
@@ -97,7 +97,7 @@ them UNASSIGNED (sender-filled), not assigned to the Carrier recipient:**
 - `carrier_mc_number`
 - `carrier_usdot_number`
 - `carrier_email`
-- `dispatch_fee_pct`
+- `dispatch_fee`
 
 Until that is done the values are pre-filled but a carrier can overwrite them —
 including the dispatch fee. This is the single most important item in this
@@ -125,10 +125,14 @@ agreement in the carrier's portal.
 
 ## 7. Database changes — migration 0031
 
-**`carriers`** — 6 nullable columns: `dba`, `rep_title`, `address_line1`,
-`city`, `postal_code`, `mailing_state`. `mailing_state` is separate from
-`home_state` on purpose: the latter is the operating state used for dispatch,
-not a correspondence address.
+**`carriers`** — 5 nullable columns: `dba`, `rep_title`, `address_line1`,
+`city`, `postal_code`.
+
+**No `mailing_state`.** An earlier draft added one, reasoning that a mailing
+address is not an operating address. True in principle, wrong here:
+`home_state` already exists, is collected at onboarding step 1, and is the only
+state this system has. A second column would be a duplicate nothing ever
+writes, so `carrier_state` reads `home_state` directly.
 
 **`signature_requests`** — new. `carrier_id`, `provider`,
 `provider_document_id`, `agreement_type`, `status`, `test_mode`, `sent_by`,
@@ -197,3 +201,168 @@ staff decision. Brokerage is untouched; `brokerage_active` stays false.
 | `SIGNWELL_COUNTERSIGNER_NAME` / `_EMAIL`                                                  | ⚠ not set                     |
 | Carrier address capture UI                                                                | Not built — §10.5             |
 | Confirmation that `SIGNWELL_TEMPLATE_ID` points at the countersigned 2-recipient template | ⚠ unverified from code        |
+
+---
+
+# M-92 FINAL — pre-deployment pass (2026-08-14)
+
+## F1. Endpoint — verified
+
+```
+POST https://www.signwell.com/api/v1/document_templates/documents
+```
+
+Built as `API_BASE + "/document_templates/documents"` where
+`API_BASE = "https://www.signwell.com/api/v1"`. The template is named in the
+**body** as `template_id`; it is never interpolated into the path. A test now
+fails if a path-interpolated variant appears in source or docs — one had crept
+into M-91's extension-points section and has been corrected.
+
+## F2. Dropbox Sign auto-send — DISABLED
+
+`src/app/actions/onboarding.tsx` no longer calls
+`sendAgreementSignatureRequest()`, no longer imports it, and no longer sends
+the "your agreement is on its way" email.
+
+**Not deleted, and nothing historical touched:** `src/lib/esign.ts` and
+`/api/esign/webhook` remain; the webhook still stamps `agreement_signed_at`, so
+an in-flight Dropbox request signed tomorrow still completes correctly. The
+carrier-portal re-send (`requestAgreementResend`) still uses Dropbox — it
+services an agreement that already went out through it, rather than creating a
+competing one.
+
+Guarded by `tests/unit/agreement-single-provider.test.ts`, which asserts
+onboarding calls **neither** provider, and that exactly one caller of the
+Dropbox sender remains.
+
+Onboarding does **not** auto-send SignWell either — per §8 that stays explicit
+until the workflow is owner-approved.
+
+## F3. Countersigner — fails closed in production
+
+| Variable                       | Required            | Value to set                       |
+| ------------------------------ | ------------------- | ---------------------------------- |
+| `SIGNWELL_COUNTERSIGNER_NAME`  | **Production: yes** | `Emmanuel Larocque`                |
+| `SIGNWELL_COUNTERSIGNER_EMAIL` | **Production: yes** | _(your address — not in the repo)_ |
+
+In production, a missing either refuses the send and logs the variable names
+(never values). Outside production the old `EMAIL_INTERNAL_TO` fallback
+survives so previews still work.
+
+The name is **not** hardcoded: putting a person in the repository makes a
+deploy the way to change who signs a contract.
+
+## F4. Template configuration — how to set the `api_id` values
+
+In SignWell: **Templates → the Dispatch Service Agreement → Edit**. Select each
+field, open its settings, and set **API ID** to exactly the value below
+(case-sensitive, no spaces).
+
+| API ID                 | Field on the contract          |
+| ---------------------- | ------------------------------ |
+| `carrier_legal_name`   | Carrier legal entity name      |
+| `carrier_dba`          | DBA / trade name               |
+| `carrier_mc_number`    | MC number                      |
+| `carrier_usdot_number` | USDOT number                   |
+| `carrier_rep_name`     | Authorized representative name |
+| `carrier_rep_title`    | Representative title           |
+| `carrier_address`      | Street address                 |
+| `carrier_city`         | City                           |
+| `carrier_state`        | State                          |
+| `carrier_zip`          | ZIP                            |
+| `carrier_phone`        | Phone                          |
+| `carrier_email`        | Email                          |
+| `dispatch_fee`         | Dispatch fee (sent as `"5%"`)  |
+| `effective_date`       | Effective date (`YYYY-MM-DD`)  |
+
+Recipient placeholders must be named **exactly**:
+
+| Signing order | Placeholder name                      |
+| ------------- | ------------------------------------- |
+| 1             | `Carrier`                             |
+| 2             | `PickLoads Authorized Representative` |
+
+**Verify with the diagnostic rather than by eye:**
+
+```bash
+SIGNWELL_API_KEY=… SIGNWELL_TEMPLATE_ID=… \
+  node scripts/signwell-template-check.mjs
+```
+
+It calls `GET /api/v1/document_templates/{id}` and reports missing `api_id`s,
+extra fields, placeholder mismatches, and which locked-list fields are
+recipient-editable. It prints structure only — no key, no template id, no
+values — so the output is safe to paste anywhere. Exit 0 pass · 1 problems ·
+2 not configured.
+
+## F5. Locked fields — NOT SATISFIED, and cannot be from code
+
+These five must not be Carrier-editable:
+
+`carrier_legal_name` · `carrier_mc_number` · `carrier_usdot_number` ·
+`carrier_email` · `dispatch_fee`
+
+SignWell's `template_fields` has **no** `locked` / `readonly` / `editable`
+property. No code-level lock is faked.
+
+A template field is editable by a recipient **exactly when it is assigned to
+one**. So the fix is in the template: for each of the five, set the field's
+recipient to **none / sender** so it renders as pre-filled static text rather
+than an input owned by the Carrier.
+
+**This is unverified from code — I do not have the API key.** Run the
+diagnostic; every line it prints as
+
+```
+✖ dispatch_fee — assigned to "Carrier" → EDITABLE by that recipient.
+```
+
+is a field you must change before production. Until that run comes back clean,
+**treat requirement 6 as open.** A carrier can currently edit their own
+dispatch fee if the template assigns that field to them.
+
+## F6. Address fields — audited
+
+**Not collected anywhere.** Onboarding step 1 captures `company_name`,
+`full_name`, `email`, `phone`, `mc_number`, `dot_number`, `home_state`,
+`factoring_company`, `ein`, `insurance_expiry` — no street, city or ZIP.
+
+Every `city`/`state` column elsewhere in the schema belongs to **shipment
+stops** (`0019_shipment_events`, `0027_shipment_locations`) — freight
+geography, not a carrier's mailing address. Mapping those would be a category
+error, so they are not mapped.
+
+- `carrier_state` → `carriers.home_state` (real data, collected today)
+- `carrier_address` / `carrier_city` / `carrier_zip` → new nullable columns,
+  **currently always empty**, therefore omitted from the request and left for
+  the signer to complete on the document. Correct for test mode.
+
+The duplicate `mailing_state` column from the first draft has been removed.
+
+## F7. Preserved
+
+Idempotency (two layers) · `signature_requests_one_active_per_carrier` ·
+RLS (staff ALL, member SELECT, no authenticated write) · private `carrier-docs`
+storage with 300 s signed URLs · webhook HMAC verification · activation gate
+(`.is("agreement_signed_at", null)`, never `active`) · `brokerage_active` false
+and untouched.
+
+## F8. Is it safe to push for TEST MODE only?
+
+**Yes for test mode, with two conditions.**
+
+Safe because: `test_mode: true` (documents are not legally executed and the
+portal badges them); send is explicit, never automatic; exactly one provider
+creates agreements; the endpoint is verified; production fails closed without a
+countersigner; nothing about brokerage, activation or RLS moved.
+
+**Before the first real send:**
+
+1. Run `scripts/signwell-template-check.mjs`. If it exits non-zero the
+   agreement is not ready — F5 in particular.
+2. Set `SIGNWELL_COUNTERSIGNER_NAME` / `_EMAIL` in Production, or every
+   production send refuses (by design).
+
+**Before leaving test mode:** flip `test_mode` in `src/lib/signwell.ts`, and
+only after a clean diagnostic — a test-mode document with an editable dispatch
+fee is a rehearsal; a live one is a contract.

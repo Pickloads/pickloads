@@ -16,18 +16,15 @@ import {
 } from "@/lib/validation/onboarding";
 import { firstIssueMessage } from "@/lib/validation/shared";
 import { encryptPII } from "@/lib/crypto";
-import {
-  MAX_UPLOAD_BYTES,
-  sanitizeFileName,
-  sniffMime,
-} from "@/lib/uploads";
+import { MAX_UPLOAD_BYTES, sanitizeFileName, sniffMime } from "@/lib/uploads";
 import { tryCreateAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { sendAgreementSignatureRequest } from "@/lib/esign";
 import { EMAIL_INTERNAL_TO, sendEmail } from "@/lib/email/send";
 import { OnboardingNotificationEmail } from "@/emails/OnboardingNotificationEmail";
+// M-92: `buildAgreementSentEmail` is no longer imported here. It is still used
+// by the SignWell send path; onboarding simply no longer claims an agreement
+// went out, because none does.
 import {
-  buildAgreementSentEmail,
   buildDocumentsReceivedEmail,
   buildOnboardingStartedEmail,
 } from "@/emails/customer-templates";
@@ -132,10 +129,13 @@ export async function startOnboarding(
 
   // M-60: customer confirmation in the wizard locale.
   {
-    const started = buildOnboardingStartedEmail(resolveEmailLocale(info.locale), {
-      fullName: info.full_name,
-      companyName: info.company_name,
-    });
+    const started = buildOnboardingStartedEmail(
+      resolveEmailLocale(info.locale),
+      {
+        fullName: info.full_name,
+        companyName: info.company_name,
+      },
+    );
     await sendEmail({
       to: info.email,
       subject: started.subject,
@@ -411,12 +411,34 @@ export async function completeOnboarding(
     return { status: "error", message: SERVER_ERROR_MESSAGE };
   }
 
-  // E-sign (M-22 counterpart): send the agreement when the vendor is wired.
-  const esign = await sendAgreementSignatureRequest({
-    carrierId: account.carrier_id,
-    email: account.email,
-    name: account.full_name,
-  });
+  /*
+   * ── M-92: THE DROPBOX SIGN AUTO-SEND IS DISABLED ────────────────────────
+   *
+   * This used to call `sendAgreementSignatureRequest()` — the Dropbox Sign
+   * send — on every completed onboarding. SignWell is now the single active
+   * provider for the Dispatch Service Agreement, and leaving this call here
+   * would mean a carrier who finishes onboarding and then presses "Send me
+   * the agreement" receives TWO dispatch agreements from two vendors, both
+   * legally presented as the agreement, both racing to stamp the same
+   * `carriers.agreement_signed_at`.
+   *
+   * The Dropbox Sign integration is NOT deleted: `src/lib/esign.ts` and
+   * `/api/esign/webhook` still exist, and every historical Dropbox Sign
+   * record — `webhook_events`, stamped agreements, stored PDFs — is
+   * untouched and still processed. An in-flight Dropbox request signed
+   * tomorrow still completes correctly. Only the automatic CREATION of new
+   * Dropbox agreements stops here.
+   *
+   * Nothing replaces it in this function. Per M-92 §8 the SignWell send is
+   * EXPLICIT — the carrier or a dispatcher triggers it from the agreements
+   * page — until the full workflow is owner-approved. Auto-sending a contract
+   * as a side effect of account creation is not a default worth restoring
+   * without that approval.
+   *
+   * `tests/unit/agreement-single-provider.test.ts` fails if this call comes
+   * back.
+   */
+  const agreementAutoSent = false;
 
   // Best-effort CRM journaling: advance the step-1 lead + audit the ESIGN
   // consent (checkbox is schema-enforced above).
@@ -437,17 +459,24 @@ export async function completeOnboarding(
       await admin.from("lead_activities").insert({
         lead_id: lead.id,
         type: "note",
-        body: `Onboarding wizard completed — portal account created; ESIGN consent recorded; agreement ${esign.sent ? "sent via Dropbox Sign" : "pending (e-sign not yet live)"}.`,
+        body:
+          "Onboarding wizard completed — portal account created; ESIGN " +
+          "consent recorded; dispatch agreement NOT auto-sent (M-92: SignWell " +
+          "is the single provider and its send is explicit from the " +
+          "agreements page).",
       });
     }
   } catch (err) {
     console.error("[onboarding] CRM journaling failed", err);
   }
 
-  // M-60: customer-facing wrap-up — the batch documents-received note
-  // (per-file emails during the anonymous wizard would be spam; the portal
-  // replacement flow emails per document instead) and, when Dropbox Sign
-  // actually sent, the agreement-sent note.
+  // M-60: customer-facing wrap-up — the batch documents-received note.
+  // (Per-file emails during the anonymous wizard would be spam; the portal
+  // replacement flow emails per document instead.)
+  //
+  // M-92: the "agreement sent" note is gone from here. No agreement is sent
+  // at onboarding any more, and telling a carrier one is on its way when
+  // nothing was sent is the failure this module is meant to prevent.
   {
     const locale = resolveEmailLocale(account.locale);
     const docs = buildDocumentsReceivedEmail(locale, { docType: null });
@@ -457,17 +486,6 @@ export async function completeOnboarding(
       template: docs.template,
       react: docs.react,
     });
-    if (esign.sent) {
-      const sent = buildAgreementSentEmail(locale, {
-        companyName: account.company_name,
-      });
-      await sendEmail({
-        to: account.email,
-        subject: sent.subject,
-        template: sent.template,
-        react: sent.react,
-      });
-    }
   }
 
   await sendEmail({
@@ -482,10 +500,10 @@ export async function completeOnboarding(
         email={account.email}
         phone={account.phone}
         mcNumber={null}
-        esignSent={esign.sent}
+        esignSent={agreementAutoSent}
       />
     ),
   });
 
-  return { status: "success", esign: esign.sent ? "sent" : "pending" };
+  return { status: "success", esign: agreementAutoSent ? "sent" : "pending" };
 }

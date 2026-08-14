@@ -83,7 +83,7 @@ describe("M-92 · the request we send to SignWell", () => {
       repTitle: null,
       addressLine1: null,
       city: null,
-      state: null,
+      homeState: null,
       postalCode: null,
       phone: null,
       email: null,
@@ -92,7 +92,7 @@ describe("M-92 · the request we send to SignWell", () => {
     });
     expect(fields.carrier_legal_name).toBe("Acme Trucking LLC");
     expect(fields.carrier_dba).toBe("");
-    expect(fields.dispatch_fee_pct).toBe("");
+    expect(fields.dispatch_fee).toBe("");
     expect(code(CLIENT)).toMatch(
       /\.filter\(\(\[, value\]\) => value\.trim\(\) !== ""\)/,
     );
@@ -108,14 +108,14 @@ describe("M-92 · the request we send to SignWell", () => {
       repTitle: "Owner",
       addressLine1: "1 Main St",
       city: "Newark",
-      state: "NJ",
+      homeState: "NJ",
       postalCode: "07111",
       phone: "555",
       email: "a@b.c",
       dispatchFeePct: 5,
       effectiveDate: "2026-08-14",
     });
-    expect(fields.dispatch_fee_pct).toBe("5%");
+    expect(fields.dispatch_fee).toBe("5%");
     expect(fields.carrier_mc_number).toBe("MC-123");
     expect(fields.carrier_usdot_number).toBe("DOT-9");
     expect(fields.carrier_email).toBe("a@b.c");
@@ -137,7 +137,7 @@ describe("M-92 · the request we send to SignWell", () => {
       "carrier_zip",
       "carrier_phone",
       "carrier_email",
-      "dispatch_fee_pct",
+      "dispatch_fee",
       "effective_date",
     ]);
   });

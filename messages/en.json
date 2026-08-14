@@ -1039,7 +1039,8 @@
     "sent_by_email_check_your_inbox_and_spam_this_status_upda": "Sent by email — check your inbox (and spam). This status updates automatically as the document is viewed and signed.",
     "signature_request": "Signature request",
     "test_mode": "Test mode",
-    "viewed": "Viewed"
+    "viewed": "Viewed",
+    "send_me_the_agreement": "Send me the agreement"
   },
   "shipment": {
     "status": {

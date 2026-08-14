@@ -1039,7 +1039,8 @@
     "sent_by_email_check_your_inbox_and_spam_this_status_upda": "Enviada por correo — revisa tu bandeja (y la carpeta de spam). Este estado se actualiza automáticamente conforme el documento se ve y se firma.",
     "signature_request": "Solicitud de firma",
     "test_mode": "Modo de prueba",
-    "viewed": "Vista"
+    "viewed": "Vista",
+    "send_me_the_agreement": "Envíame el acuerdo"
   },
   "shipment": {
     "status": {

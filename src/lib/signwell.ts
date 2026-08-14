@@ -72,6 +72,129 @@ export const SIGNWELL_PLACEHOLDERS = {
   pickloads: "PickLoads Authorized Representative",
 } as const;
 
+/**
+ * Fields whose value the Carrier must NOT be able to change.
+ *
+ * SignWell exposes no `locked` / `readonly` / `editable` property on
+ * `template_fields` — verified against their createDocument reference. So this
+ * cannot be enforced from code, and pretending otherwise would be worse than
+ * not trying: a fake lock reads as a real one.
+ *
+ * What CAN be done is detect the violation. A template field is editable by a
+ * recipient exactly when it is assigned to one (`recipient_id` /
+ * `placeholder_name`). `inspectTemplate()` reports which of these five are
+ * assigned to the Carrier placeholder, which is the precise list of fields to
+ * change in the SignWell dashboard.
+ */
+export const MUST_NOT_BE_CARRIER_EDITABLE = [
+  "carrier_legal_name",
+  "carrier_mc_number",
+  "carrier_usdot_number",
+  "carrier_email",
+  "dispatch_fee",
+] as const;
+
+export interface TemplateFieldInfo {
+  apiId: string;
+  type: string | null;
+  /** The placeholder this field is assigned to; null = sender-filled, static. */
+  assignedTo: string | null;
+}
+
+export interface TemplateInspection {
+  ok: true;
+  placeholders: Array<{ name: string; signingOrder: number | null }>;
+  fields: TemplateFieldInfo[];
+}
+
+export type TemplateInspectResult =
+  TemplateInspection | { ok: false; reason: string };
+
+/**
+ * Read the configured template so its `api_id`s and field assignments can be
+ * checked against what the code sends.
+ *
+ * GET /api/v1/document_templates/{id}
+ * (https://developers.signwell.com/reference/gettemplate)
+ *
+ * Exists because both failure modes here are SILENT. A mismatched `api_id`
+ * means SignWell accepts the request and leaves the field blank; a field
+ * assigned to the Carrier means a pre-filled MC number or dispatch fee is
+ * quietly editable by the person it binds. Neither raises anything at runtime,
+ * so the only way to know is to look.
+ *
+ * Returns structure only — never the API key, never the template id.
+ */
+export async function inspectTemplate(): Promise<TemplateInspectResult> {
+  const apiKey = process.env.SIGNWELL_API_KEY;
+  const templateId = process.env.SIGNWELL_TEMPLATE_ID;
+  if (!apiKey || !templateId) {
+    return { ok: false, reason: "signwell_send_not_configured" };
+  }
+
+  try {
+    const res = await fetch(
+      `${API_BASE}/document_templates/${encodeURIComponent(templateId)}`,
+      { headers: { "X-Api-Key": apiKey } },
+    );
+    if (!res.ok) return { ok: false, reason: `template_http_${res.status}` };
+
+    const body: unknown = await res.json();
+    const obj = (body ?? {}) as {
+      fields?: unknown;
+      placeholders?: unknown;
+    };
+
+    // `fields` is an array of arrays, one per page.
+    const fields: TemplateFieldInfo[] = [];
+    const pages = Array.isArray(obj.fields) ? obj.fields : [];
+    for (const page of pages) {
+      const list = Array.isArray(page) ? page : [page];
+      for (const raw of list) {
+        if (typeof raw !== "object" || raw === null) continue;
+        const f = raw as {
+          api_id?: unknown;
+          type?: unknown;
+          recipient_id?: unknown;
+          placeholder_name?: unknown;
+        };
+        if (typeof f.api_id !== "string") continue;
+        const assigned =
+          typeof f.placeholder_name === "string" && f.placeholder_name !== ""
+            ? f.placeholder_name
+            : typeof f.recipient_id === "string" && f.recipient_id !== ""
+              ? f.recipient_id
+              : null;
+        fields.push({
+          apiId: f.api_id,
+          type: typeof f.type === "string" ? f.type : null,
+          assignedTo: assigned,
+        });
+      }
+    }
+
+    const placeholders = (
+      Array.isArray(obj.placeholders) ? obj.placeholders : []
+    ).flatMap((raw) => {
+      if (typeof raw !== "object" || raw === null) return [];
+      const p = raw as { name?: unknown; signing_order?: unknown };
+      if (typeof p.name !== "string") return [];
+      return [
+        {
+          name: p.name,
+          signingOrder:
+            typeof p.signing_order === "number" ? p.signing_order : null,
+        },
+      ];
+    });
+
+    return { ok: true, placeholders, fields };
+  } catch (err) {
+    console.error("[signwell] template inspect failed", err);
+    return { ok: false, reason: "template_request_failed" };
+  }
+}
+
 export type SignwellCreateResult =
   | { ok: true; documentId: string; status: string; testMode: boolean }
   | { ok: false; reason: string };

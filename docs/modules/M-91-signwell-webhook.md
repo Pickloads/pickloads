@@ -176,9 +176,12 @@ module should have made on its own.
 
 ## 11. Extension points
 
-- **Send side:** mirror `src/lib/esign.ts` with
-  `POST /api/v1/document_templates/{id}/documents`, setting
-  `metadata.carrier_id` — the webhook already reads it.
+- **Send side:** built in M-92. The endpoint is
+  `POST https://www.signwell.com/api/v1/document_templates/documents` — the
+  template is named in the BODY as `template_id`, **not** interpolated into the
+  path. An earlier draft of this line guessed a path-interpolated form that
+  SignWell does not expose; `tests/unit/agreement-single-provider.test.ts` now
+  fails if that shape reappears anywhere in source or docs.
 - **Retiring Dropbox Sign:** remove `DROPBOX_SIGN_*`, delete
   `/api/esign/webhook` and `src/lib/esign.ts`. SEC-P2-02 disappears with it.
 - **Other events:** add a branch beside `COMPLETED_EVENT`. Archive-only is the

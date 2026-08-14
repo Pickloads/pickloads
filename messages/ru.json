@@ -1039,7 +1039,8 @@
     "sent_by_email_check_your_inbox_and_spam_this_status_upda": "Отправлено по e-mail — проверьте почту (и папку «Спам»). Статус обновляется автоматически по мере просмотра и подписания документа.",
     "signature_request": "Запрос на подпись",
     "test_mode": "Тестовый режим",
-    "viewed": "Просмотрен"
+    "viewed": "Просмотрен",
+    "send_me_the_agreement": "Отправьте мне договор"
   },
   "shipment": {
     "status": {
