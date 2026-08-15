@@ -41,11 +41,22 @@ import { assessCarrierRisk } from "@/lib/carrier-authority/risk-engine";
 const WEBKEY_PRESENT = Boolean(process.env.FMCSA_WEBKEY);
 
 /**
- * A large, long-established interstate carrier is the right subject: it
- * exercises the populated path (MC present, authority active) rather than the
- * sparse one. Overridable because carrier records are third-party data.
+ * LIVE FIXTURE — USDOT 21800.
+ *
+ * The previous value, 76830, was never a real carrier. It was picked as a
+ * throwaway probe URL when checking that the QCMobile host answered at all,
+ * and then reused here as a fixture without anyone verifying it identified
+ * anything. FMCSA's own public SAFER lookup returns RECORD NOT FOUND for it.
+ *
+ * 21800 was verified against SAFER before being pinned: a real, long-
+ * established interstate carrier that also carries a DBA, so it exercises the
+ * populated path rather than the sparse one.
+ *
+ * Only the NUMBER is pinned. The company name, its operating status and its MC
+ * number are third-party facts that can change without notice, and this repo
+ * has no business asserting them — see the shape-only assertions below.
  */
-const TEST_USDOT = process.env.FMCSA_TEST_USDOT ?? "76830";
+const TEST_USDOT = process.env.FMCSA_TEST_USDOT ?? "21800";
 
 describe("M-93 · FMCSA live validation", () => {
   it("reports whether the credential is available to this runtime", () => {
@@ -142,7 +153,16 @@ describe("M-93 · FMCSA live validation", () => {
     "identity matching runs against the live record",
     async () => {
       const result = await fmcsaQcMobileProvider.lookupByUsdot(TEST_USDOT);
-      if (result.status !== "found") return; // covered by the case above
+      // NO early return. The previous version did `if (status !== "found")
+      // return;`, so when the fixture USDOT turned out not to exist this test
+      // reported PASS while asserting nothing at all — 5 of 6 green, and one
+      // of the five was hollow. A live check that silently succeeds when the
+      // lookup failed is worse than no live check.
+      if (result.status !== "found") {
+        throw new Error(
+          `identity matching needs a live record; lookup returned '${result.status}'`,
+        );
+      }
 
       const authoritativeName = result.record.legalName ?? "";
 

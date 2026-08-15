@@ -67,27 +67,64 @@ function sha256(text: string): string {
  * two different shapes. Both are handled explicitly; anything else is treated
  * as unavailable rather than guessed at.
  */
+function looksLikeCarrier(v: unknown): v is Record<string, unknown> {
+  if (typeof v !== "object" || v === null || Array.isArray(v)) return false;
+  const o = v as Record<string, unknown>;
+  return "dotNumber" in o || "legalName" in o;
+}
+
+/**
+ * Locate the carrier object in a QCMobile response.
+ *
+ * ── WHY THIS IS DEFENSIVE RATHER THAN EXACT ──────────────────────────────
+ *
+ * FMCSA's developer documentation lists the response ELEMENTS but publishes no
+ * example ENVELOPE for `/carriers/{dotNumber}`. The first version of this
+ * function was therefore written against an assumed shape
+ * (`content.carrier`), and an assumed shape has a nasty property: when it is
+ * wrong it returns `not_found`, which is indistinguishable from correctly
+ * parsing a carrier that genuinely does not exist. That ambiguity is exactly
+ * what made the first live failure hard to read — the fixture USDOT turned out
+ * not to exist, but nothing in the result could have told us that.
+ *
+ * So every plausible nesting is tried, and `looksLikeCarrier` is the test
+ * rather than the position: a carrier is an object carrying `dotNumber` or
+ * `legalName`. Guessing the position wrongly now costs a lookup that finds the
+ * record anyway, instead of a silent false negative.
+ *
+ * `scripts/fmcsa-shape-check.mjs` reports which branch a live response
+ * actually takes.
+ */
 function extractCarrier(body: unknown): Record<string, unknown> | null {
   if (typeof body !== "object" || body === null) return null;
   const content = (body as { content?: unknown }).content;
-  if (typeof content !== "object" || content === null) return null;
 
-  // Single lookup: { content: { carrier: {...} } }
-  const carrier = (content as { carrier?: unknown }).carrier;
-  if (typeof carrier === "object" && carrier !== null) {
-    return carrier as Record<string, unknown>;
-  }
-  // Docket lookup returns a list; take the first entry.
-  if (Array.isArray(content) && content.length > 0) {
-    const first = content[0];
-    if (typeof first === "object" && first !== null) {
-      const nested = (first as { carrier?: unknown }).carrier;
-      if (typeof nested === "object" && nested !== null) {
-        return nested as Record<string, unknown>;
-      }
-      return first as Record<string, unknown>;
+  // `{"content": "Webkey not found"}` and `{"content": null}` — handled by the
+  // caller before this point, but never mistaken for a carrier here either.
+  if (content === null || content === undefined) return null;
+  if (typeof content === "string") return null;
+
+  // { content: [ … ] } — the docket lookup, and possibly the DOT lookup.
+  if (Array.isArray(content)) {
+    for (const entry of content) {
+      if (typeof entry !== "object" || entry === null) continue;
+      const nested = (entry as { carrier?: unknown }).carrier;
+      if (looksLikeCarrier(nested)) return nested;
+      if (looksLikeCarrier(entry)) return entry;
     }
+    return null;
   }
+
+  if (typeof content !== "object") return null;
+
+  // { content: { carrier: {...} } }
+  const carrier = (content as { carrier?: unknown }).carrier;
+  if (looksLikeCarrier(carrier)) return carrier;
+
+  // { content: {...carrier fields inline...} } — the shape the original
+  // implementation did not handle.
+  if (looksLikeCarrier(content)) return content as Record<string, unknown>;
+
   return null;
 }
 
