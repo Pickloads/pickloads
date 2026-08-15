@@ -44,7 +44,7 @@ const RECORD: NormalizedAuthorityRecord = {
   usdotNumber: "76830",
   mcNumber: "123456",
   // The submitted MC is in the docket set, so the relationship is confirmed.
-  docketNumbers: ["123456"],
+  dockets: [{ prefix: "MC", number: "123456" }],
   allowedToOperate: true,
   statusCode: "A",
   outOfService: false,

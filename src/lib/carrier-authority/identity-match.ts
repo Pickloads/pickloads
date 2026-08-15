@@ -1,5 +1,6 @@
 import {
   normalizeRegistrationNumber,
+  type CarrierDocket,
   type NormalizedAuthorityRecord,
 } from "./provider";
 
@@ -125,17 +126,39 @@ export function matchRegistrationNumber(
  */
 export function matchDocketRelationship(
   enteredMc: string | null,
-  docketNumbers: string[] | null,
+  dockets: CarrierDocket[] | null,
 ): MatchResult {
   const mc = normalizeRegistrationNumber(enteredMc);
   // No MC submitted — nothing to relate. Legitimate for intrastate/exempt.
   if (!mc) return "unavailable";
   // Never retrieved. The docket call failed or was not made.
-  if (docketNumbers === null) return "unavailable";
+  if (dockets === null) return "unavailable";
   // Retrieved, and FMCSA associates no docket with this USDOT — so an MC was
   // claimed that this registration does not hold. That IS a finding.
-  if (docketNumbers.length === 0) return "mismatch";
-  return docketNumbers.includes(mc) ? "exact" : "mismatch";
+  if (dockets.length === 0) return "mismatch";
+
+  // ── ONLY AN MC DOCKET CAN SATISFY A SUBMITTED MC ───────────────────────
+  //
+  // FF (freight forwarder) and MX (Mexican carrier) numbers live in separate
+  // series and collide with MC numbers freely. Matching on digits alone would
+  // let a freight forwarder holding FF-777777 verify as motor carrier
+  // MC-777777 — a different registration, and in many cases a different
+  // company with different authority to haul.
+  if (dockets.some((d) => d.prefix === "MC" && d.number === mc)) {
+    return "exact";
+  }
+
+  // A number matched but we do not know its series. Refuse to call it
+  // verified, and refuse to call it a mismatch either — the ambiguity is in
+  // our data, not in their registration. Defensive: the live response always
+  // carries `prefix`.
+  if (dockets.some((d) => d.prefix === null && d.number === mc)) {
+    return "unavailable";
+  }
+
+  // Dockets exist and none is an MC bearing this number. Includes the case
+  // this function was rewritten for: the digits match an FF or MX entry.
+  return "mismatch";
 }
 
 export interface IdentityComparison {
@@ -166,9 +189,6 @@ export function compareIdentity(
     // An applicant with no MC is common (intrastate, or exempt). That is
     // `unavailable` — nothing to disagree about — never a mismatch.
     mcMatch: matchRegistrationNumber(entered.mcNumber, record.mcNumber),
-    docketMatch: matchDocketRelationship(
-      entered.mcNumber,
-      record.docketNumbers,
-    ),
+    docketMatch: matchDocketRelationship(entered.mcNumber, record.dockets),
   };
 }

@@ -10,6 +10,7 @@ import {
   yesNoToBoolean,
   type AuthorityLookupResult,
   type CarrierAuthorityProvider,
+  type CarrierDocket,
   type DocketLookupResult,
   type FmcsaInsuranceIndicators,
   type FmcsaSafetyIndicators,
@@ -269,7 +270,7 @@ function normalize(
     ),
     // Not retrieved by this call. `lookupDocketNumbers` fills it, and null
     // keeps "we did not ask" distinct from "there are none".
-    docketNumbers: null,
+    dockets: null,
     // Both spellings observed across endpoints.
     allowedToOperate: yesNoToBoolean(
       firstPresent(carrier, "allowToOperate", "allowedToOperate"),
@@ -464,32 +465,57 @@ async function fetchDocketNumbers(usdot: string): Promise<DocketLookupResult> {
   // Affirmatively nothing. A carrier can legitimately hold no docket (an
   // intrastate or exempt operation), so this is a real answer, not a failure.
   if (content === null || content === undefined) {
-    return { status: "found", docketNumbers: [] };
+    return { status: "found", dockets: [] };
   }
   if (!Array.isArray(content)) {
     // Populated and unreadable — same doctrine as the carrier envelope.
     return { status: "provider_unavailable", reason: "unrecognized_envelope" };
   }
 
-  const numbers: string[] = [];
+  // Live entry shape, confirmed 2026-08-15 against USDOT 21800:
+  //   { docketNumber, docketNumberId, dotNumber, prefix }
+  //
+  // `prefix` is the whole point. Without it, digits-only matching lets an
+  // FF or MX docket satisfy a submitted MC on a numeric collision.
+  const dockets: CarrierDocket[] = [];
   for (const entry of content) {
     if (typeof entry === "string" || typeof entry === "number") {
-      const v = normalizeRegistrationNumber(String(entry));
-      if (v) numbers.push(v);
+      // A bare number with no prefix. Kept with `prefix: null` so the matcher
+      // can refuse to treat it as an MC rather than guessing that it is one.
+      const number = normalizeRegistrationNumber(String(entry));
+      if (number) dockets.push({ prefix: null, number });
       continue;
     }
     if (typeof entry !== "object" || entry === null) continue;
     const o = entry as Record<string, unknown>;
-    // Observed spellings; also handles a nested { docketNumber: … } wrapper.
-    const raw =
+
+    const rawNumber =
       o.docketNumber ?? o.docket_number ?? o.docket ?? o.mcNumber ?? null;
-    const v = normalizeRegistrationNumber(
-      raw === null || raw === undefined ? null : String(raw),
+    const number = normalizeRegistrationNumber(
+      rawNumber === null || rawNumber === undefined ? null : String(rawNumber),
     );
-    if (v) numbers.push(v);
+    if (!number) continue;
+
+    const rawPrefix = o.prefix ?? o.docketPrefix ?? null;
+    const prefix =
+      typeof rawPrefix === "string" && rawPrefix.trim() !== ""
+        ? rawPrefix.trim().toUpperCase()
+        : null;
+
+    dockets.push({ prefix, number });
   }
 
-  return { status: "found", docketNumbers: [...new Set(numbers)] };
+  // Dedupe on the PAIR. MC-123 and FF-123 are two different registrations and
+  // collapsing them on the number would reintroduce the bug this fixes.
+  const seen = new Set<string>();
+  const unique = dockets.filter((d) => {
+    const key = `${d.prefix ?? "?"}:${d.number}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  return { status: "found", dockets: unique };
 }
 
 export const fmcsaQcMobileProvider: CarrierAuthorityProvider = {

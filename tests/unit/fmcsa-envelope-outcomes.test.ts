@@ -255,3 +255,57 @@ describe("M-93 · the adapter wires the outcomes correctly", () => {
     expect(code).not.toMatch(/console\.[a-z]+\([^)]*\burl\b/);
   });
 });
+
+describe("M-93 closure · the docket endpoint fails closed too", () => {
+  const SRC = readFileSync(
+    "src/lib/carrier-authority/fmcsa-qcmobile.ts",
+    "utf8",
+  );
+  const code = SRC.replace(/\/\*[\s\S]*?\*\//g, " ").replace(
+    /^[ \t]*\/\/.*$/gm,
+    " ",
+  );
+  const docketFn = code.slice(
+    code.indexOf("async function fetchDocketNumbers"),
+    code.indexOf("export const fmcsaQcMobileProvider"),
+  );
+
+  it("a MALFORMED docket response is provider_unavailable, not an empty set", () => {
+    // Non-array content means we did not understand the response. Returning
+    // an empty docket list instead would read as "this carrier holds no
+    // dockets" and turn every submitted MC into a MISMATCH — manufacturing a
+    // finding against the carrier out of our own parse failure.
+    expect(docketFn).toMatch(
+      /if \(!Array\.isArray\(content\)\)[\s\S]{0,200}unrecognized_envelope/,
+    );
+  });
+
+  it("timeout, 429, 5xx and bad JSON are all provider_unavailable", () => {
+    for (const marker of [
+      "network_error",
+      "rate_limited",
+      "malformed_json",
+      "credential_rejected",
+    ]) {
+      expect(docketFn, marker).toContain(marker);
+    }
+  });
+
+  it("only an AFFIRMATIVE null/absent content yields an empty docket set", () => {
+    // A carrier can legitimately hold no docket (intrastate, exempt), so this
+    // is a real answer — but it must come from FMCSA saying so.
+    expect(docketFn).toMatch(
+      /content === null \|\| content === undefined[\s\S]{0,160}dockets: \[\]/,
+    );
+  });
+
+  it("dedupes on the PREFIX+NUMBER pair, never the number alone", () => {
+    // MC-123 and FF-123 are two registrations. Collapsing them on the number
+    // would reintroduce the collision this closure fixed.
+    expect(docketFn).toMatch(/\$\{d\.prefix \?\? "\?"\}:\$\{d\.number\}/);
+  });
+
+  it("uppercases the prefix at parse time", () => {
+    expect(docketFn).toMatch(/\.toUpperCase\(\)/);
+  });
+});

@@ -41,6 +41,29 @@ export type AuthorityLookupStatus =
 export type AuthorityStatus = "active" | "inactive" | "none" | null;
 
 /**
+ * One docket registration, WITH ITS PREFIX.
+ *
+ * ── WHY THE PREFIX IS NOT OPTIONAL DETAIL ────────────────────────────────
+ *
+ * FMCSA issues several docket series against one USDOT — `MC` (motor
+ * carrier), `FF` (freight forwarder), `MX` (Mexican carrier) — and the NUMBERS
+ * are not unique across series. A carrier can hold `FF-777777` while some
+ * unrelated entity holds `MC-777777`.
+ *
+ * The live `/docket-numbers` response confirms this: entries carry
+ * `docketNumber` and `prefix` as separate fields. An earlier version of this
+ * model stored digits only, so a carrier holding FF-777777 would have
+ * "verified" a submitted MC-777777 — a freight forwarder passing as a motor
+ * carrier on a digit collision.
+ */
+export interface CarrierDocket {
+  /** "MC" | "FF" | "MX" | other, as reported. Null when the field was absent. */
+  prefix: string | null;
+  /** Digits only, leading zeros stripped. */
+  number: string;
+}
+
+/**
  * FMCSA FILING indicators. **Not** PickLoads insurance compliance.
  *
  * These say what is on file with the federal government. They say nothing
@@ -90,14 +113,14 @@ export interface NormalizedAuthorityRecord {
    */
   mcNumber: string | null;
   /**
-   * Every docket (MC/FF/MX) number FMCSA associates with this USDOT.
+   * Every docket FMCSA associates with this USDOT, WITH ITS PREFIX.
    *
    * `null` means "not retrieved" — the docket endpoint was not called or
    * failed. An empty ARRAY means "retrieved, and there are none". The
    * difference decides between MANUAL_REVIEW and a real finding, so the two
    * are never collapsed.
    */
-  docketNumbers: string[] | null;
+  dockets: CarrierDocket[] | null;
   /** FMCSA `allowToOperate` — Y/N mapped to boolean, null when absent. */
   allowedToOperate: boolean | null;
   /**
@@ -154,7 +177,7 @@ export type AuthorityLookupResult =
  * against the carrier.
  */
 export type DocketLookupResult =
-  | { status: "found"; docketNumbers: string[] }
+  | { status: "found"; dockets: CarrierDocket[] }
   | { status: "not_found" }
   | { status: "provider_unavailable"; reason: string }
   | { status: "not_configured" };
