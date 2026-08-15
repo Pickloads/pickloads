@@ -106,10 +106,48 @@ export function matchRegistrationNumber(
   return a === b ? "normalized" : "mismatch";
 }
 
+/**
+ * Does the submitted MC actually belong to the submitted USDOT?
+ *
+ * ── WHY THIS IS NOT `matchRegistrationNumber` ────────────────────────────
+ *
+ * The carrier record carries at most one `mcNumber`, and a carrier may hold
+ * several dockets. Comparing against that single field gets it wrong in both
+ * directions: it rejects a legitimate carrier whose *other* docket is the one
+ * they gave us, and — the dangerous direction — a submitted MC that happens to
+ * equal that one field passes without anyone checking the relationship.
+ *
+ * So the comparison is against the SET from `/carriers/{dot}/docket-numbers`.
+ *
+ * `unavailable` when the set was never retrieved: not knowing the relationship
+ * is not the same as knowing it is wrong, and only one of those is a finding
+ * against the carrier.
+ */
+export function matchDocketRelationship(
+  enteredMc: string | null,
+  docketNumbers: string[] | null,
+): MatchResult {
+  const mc = normalizeRegistrationNumber(enteredMc);
+  // No MC submitted — nothing to relate. Legitimate for intrastate/exempt.
+  if (!mc) return "unavailable";
+  // Never retrieved. The docket call failed or was not made.
+  if (docketNumbers === null) return "unavailable";
+  // Retrieved, and FMCSA associates no docket with this USDOT — so an MC was
+  // claimed that this registration does not hold. That IS a finding.
+  if (docketNumbers.length === 0) return "mismatch";
+  return docketNumbers.includes(mc) ? "exact" : "mismatch";
+}
+
 export interface IdentityComparison {
   nameMatch: MatchResult;
   dotMatch: MatchResult;
   mcMatch: MatchResult;
+  /**
+   * The MC↔USDOT relationship as FMCSA records it. Distinct from `mcMatch`,
+   * which only compares the entered MC with the single field on the carrier
+   * record.
+   */
+  docketMatch: MatchResult;
 }
 
 export interface EnteredIdentity {
@@ -128,5 +166,9 @@ export function compareIdentity(
     // An applicant with no MC is common (intrastate, or exempt). That is
     // `unavailable` — nothing to disagree about — never a mismatch.
     mcMatch: matchRegistrationNumber(entered.mcNumber, record.mcNumber),
+    docketMatch: matchDocketRelationship(
+      entered.mcNumber,
+      record.docketNumbers,
+    ),
   };
 }

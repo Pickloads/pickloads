@@ -48,6 +48,13 @@ export type ReasonCode =
   | "MC_MATCH"
   | "MC_MISMATCH"
   | "MC_NOT_PROVIDED"
+  | "MC_DOT_RELATIONSHIP_CONFIRMED"
+  | "MC_DOT_RELATIONSHIP_MISMATCH"
+  | "MC_DOT_RELATIONSHIP_UNVERIFIED"
+  | "CARRIER_AUTHORITY_ACTIVE"
+  | "CARRIER_AUTHORITY_INACTIVE"
+  | "CARRIER_AUTHORITY_UNKNOWN"
+  | "BROKER_AUTHORITY_ONLY"
   | "INSURANCE_REVIEW_REQUIRED"
   | "CREDIT_CHECK_NOT_CONFIGURED"
   | "PROVIDER_UNAVAILABLE"
@@ -148,9 +155,40 @@ export function assessCarrierRisk(input: {
     };
   }
 
-  /* ── Identity ────────────────────────────────────────────────────────── */
+  /* ── Operating authority, by TYPE ─────────────────────────────────────── */
+  //
+  // Broker authority is not carrier authority. A broker-only entity holds
+  // `brokerAuthority: "active"` with no common or contract grant, and reading
+  // that as permission to haul would onboard a company that cannot legally
+  // carry a load. The grants are therefore evaluated separately and only the
+  // carrier-side ones can satisfy the check.
+
+  const carrierAuthorityActive =
+    record.commonAuthority === "active" ||
+    record.contractAuthority === "active";
+  const carrierAuthorityKnown =
+    record.commonAuthority !== null || record.contractAuthority !== null;
 
   let needsReview = record.allowedToOperate === null;
+
+  if (carrierAuthorityActive) {
+    codes.push("CARRIER_AUTHORITY_ACTIVE");
+  } else if (carrierAuthorityKnown) {
+    // FMCSA told us about the carrier grants and none is active.
+    codes.push("CARRIER_AUTHORITY_INACTIVE");
+    needsReview = true;
+    if (record.brokerAuthority === "active") {
+      // Worth its own code: this applicant is a broker asking to be onboarded
+      // as a carrier, which is a different conversation, not a data problem.
+      codes.push("BROKER_AUTHORITY_ONLY");
+    }
+  } else {
+    // The authority fields were absent. Not a finding — an unknown.
+    codes.push("CARRIER_AUTHORITY_UNKNOWN");
+    needsReview = true;
+  }
+
+  /* ── Identity ────────────────────────────────────────────────────────── */
 
   if (identity) {
     switch (identity.nameMatch) {
@@ -182,14 +220,38 @@ export function assessCarrierRisk(input: {
         needsReview = true;
         break;
       case "unavailable":
-        // No MC entered, or none on file. Common and legitimate; it means the
-        // MC could not be cross-checked, so a human confirms the authority
-        // type rather than us assuming interstate for-hire.
+        // No MC entered, or none on the carrier record. Common and legitimate;
+        // it means the MC could not be cross-checked against that field.
         codes.push("MC_NOT_PROVIDED");
         needsReview = true;
         break;
       default:
         codes.push("MC_MATCH");
+    }
+
+    // ── THE MC↔USDOT RELATIONSHIP ──────────────────────────────────────────
+    //
+    // "A valid USDOT with the wrong MC must NOT pass." This is the check that
+    // enforces it: the submitted MC is compared against the docket SET FMCSA
+    // associates with the submitted USDOT, not against a single field.
+    switch (identity.docketMatch) {
+      case "exact":
+      case "normalized":
+        codes.push("MC_DOT_RELATIONSHIP_CONFIRMED");
+        break;
+      case "mismatch":
+        // Either FMCSA holds dockets for this USDOT and the submitted MC is
+        // not among them, or it holds none at all. Either way the applicant
+        // claimed a docket this registration does not have. Never automatic.
+        codes.push("MC_DOT_RELATIONSHIP_MISMATCH");
+        needsReview = true;
+        break;
+      case "unavailable":
+        // No MC submitted, or the docket endpoint was never reached. We do not
+        // know the relationship, so we do not assert one.
+        codes.push("MC_DOT_RELATIONSHIP_UNVERIFIED");
+        needsReview = true;
+        break;
     }
   } else {
     codes.push("LEGAL_NAME_UNVERIFIED");
@@ -198,9 +260,20 @@ export function assessCarrierRisk(input: {
 
   /* ── Always-on requirements ──────────────────────────────────────────── */
 
-  // FMCSA QCMobile does not expose insurance or filing status (M-93 §3), so
-  // insurance is ALWAYS a document review against the COI. This code is not a
-  // finding against the carrier — it is a statement that a human must look.
+  // ── INSURANCE IS ALWAYS A DOCUMENT REVIEW ──────────────────────────────
+  //
+  // FMCSA DOES return filing indicators (bipd/cargo/bond on-file and
+  // required) — an earlier note in this file wrongly said it did not. They are
+  // normalized and shown to staff, and they are deliberately NOT read here.
+  //
+  // A federal filing says a policy was filed with the government. It does not
+  // say the policy is current, that it meets PickLoads' limits, or that the
+  // certificate we hold matches it. Letting `bipdOnFile` satisfy this code
+  // would turn "on file with FMCSA" into "approved by PickLoads", which is the
+  // exact conflation Phase 14 forbids.
+  //
+  // This code is not a finding against the carrier. It states that a human
+  // must look at the COI.
   codes.push("INSURANCE_REVIEW_REQUIRED");
 
   if (!input.creditConfigured) {

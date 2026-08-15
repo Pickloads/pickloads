@@ -38,6 +38,25 @@ if (!webKey) {
 const targets = process.argv.slice(2).filter(Boolean);
 if (targets.length === 0) targets.push("21800", "999999999");
 
+/**
+ * Names whose VALUE is never printed, not even its type.
+ *
+ * The live QCMobile response carries a tax identifier and a full street
+ * address. This output is meant to be safe to paste into an issue, so these
+ * are reported as present and redacted. None of them is normalized or
+ * persisted either — see the boundary note in fmcsa-qcmobile.ts.
+ */
+const SENSITIVE_FIELDS = new Set([
+  "ein",
+  "phyStreet",
+  "phyCity",
+  "phyZip",
+  "phyCountry",
+  "telephone",
+  "faxNumber",
+  "emailAddress",
+]);
+
 /** Where a carrier object might live, in the order the adapter tries. */
 function locateCarrier(body) {
   if (typeof body !== "object" || body === null) return null;
@@ -125,6 +144,20 @@ for (const usdot of targets) {
     for (const k of Object.keys(c).sort()) {
       const v = c[k];
       const t = v === null ? "null" : Array.isArray(v) ? "array" : typeof v;
+
+      // ── SENSITIVE FIELDS ARE REPORTED AS PRESENT AND NOTHING MORE ────────
+      //
+      // The live response carries `ein` and a full physical address. Their
+      // PRESENCE is useful shape information; their contents are a tax
+      // identifier and a street address, and this output is meant to be safe
+      // to paste into an issue. Neither is normalized, neither is persisted,
+      // and neither is printed — not even as a type, which for a fixed-format
+      // value like an EIN already narrows it.
+      if (SENSITIVE_FIELDS.has(k)) {
+        console.log(`    ${k.padEnd(24)} [present — REDACTED]`);
+        continue;
+      }
+
       // Only dotNumber's value is echoed — it is the number you typed.
       const shown = k === "dotNumber" ? ` = ${JSON.stringify(v)}` : "";
       console.log(`    ${k.padEnd(24)} ${t}${shown}`);
@@ -145,6 +178,54 @@ for (const usdot of targets) {
     // mcNumber is documented but frequently absent — reported, not required.
     console.log(`  mcNumber present : ${"mcNumber" in c ? "yes" : "no"}`);
   }
+
+  // ── MC ↔ USDOT ─────────────────────────────────────────────────────────
+  //
+  // The docket SET is what proves the relationship. The carrier record shows
+  // at most one MC, so a submitted MC checked against that field alone can
+  // pass while belonging to a different registration.
+  const dres = await fetch(
+    `${BASE_URL}/carriers/${encodeURIComponent(n)}/docket-numbers?webKey=${encodeURIComponent(webKey)}`,
+    {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(20_000),
+    },
+  ).catch(() => null);
+
+  if (!dres) {
+    console.log("  dockets          : request failed");
+  } else {
+    const draw = await dres.text();
+    let dbody = null;
+    try {
+      dbody = JSON.parse(draw);
+    } catch {
+      /* reported as unparseable below */
+    }
+    const dcontent =
+      dbody && typeof dbody === "object" ? dbody.content : undefined;
+    const shape =
+      dcontent === null || dcontent === undefined
+        ? "null/absent"
+        : Array.isArray(dcontent)
+          ? `array(${dcontent.length})`
+          : typeof dcontent;
+    console.log(`  dockets          : http=${dres.status} content=${shape}`);
+    if (Array.isArray(dcontent) && dcontent.length > 0) {
+      const first = dcontent[0];
+      // Entry KEYS only — the docket numbers themselves are public, but the
+      // shape is what this diagnostic is for.
+      console.log(
+        `  docket entry keys: ${
+          first && typeof first === "object"
+            ? Object.keys(first).join(", ")
+            : typeof first
+        }`,
+      );
+    }
+  }
 }
 
-console.log("\nDone. No credential, URL or field value was printed.");
+console.log(
+  "\nDone. No credential, URL, EIN, address or field value was printed.",
+);

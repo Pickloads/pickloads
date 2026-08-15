@@ -194,3 +194,100 @@ Independent of every blocker above:
 - Adversarial test suite (Phase 28)
 
 Blocked: live FMCSA calls, live payment, production signing, actual activation.
+
+---
+
+# M-93 — NORMALIZATION HARDENING (2026-08-15)
+
+## C1. CORRECTION — FMCSA _does_ return insurance indicators
+
+§3 of this document stated that QCMobile exposes no insurance or filing data,
+and that Phase 14's FMCSA row should therefore read NOT AVAILABLE. **That was
+wrong.** It was taken from FMCSA's published element list, which is incomplete.
+
+The live response carries:
+
+`bipdInsuranceOnFile` · `bipdInsuranceRequired` · `bipdRequiredAmount` ·
+`cargoInsuranceOnFile` · `cargoInsuranceRequired` · `bondInsuranceOnFile` ·
+`bondInsuranceRequired`
+
+**The owner decision of 2026-08-15 was made on that wrong premise**, so it is
+restated here on the correct one. The conclusion does not change, and now rests
+on something firmer than "there is no data":
+
+- FMCSA indicators are **normalized** as `FmcsaInsuranceIndicators` and shown
+  to staff as a _federal filing_ status.
+- PickLoads insurance compliance is still judged **only** from the uploaded COI
+  and `carriers.insurance_expiry`.
+- The risk engine reads **no** insurance indicator. `INSURANCE_REVIEW_REQUIRED`
+  is unconditional.
+
+A filing says a policy was filed with the government. It does not say the policy
+is current, meets our limits, or matches the certificate we hold.
+
+## C2. Operating status
+
+| Field                                 | Handling                                                     |
+| ------------------------------------- | ------------------------------------------------------------ |
+| `allowToOperate` / `allowedToOperate` | Y→true, N→false, anything else→**null**                      |
+| `statusCode`                          | verbatim string; **not** interpreted (code set undocumented) |
+| `outOfService`                        | Y/N/null                                                     |
+| `outOfServiceDate` / `oosDate`        | ISO `YYYY-MM-DD`, else null                                  |
+
+`null` means "FMCSA did not say" and never "no". Collapsing them would refuse
+carriers for gaps in the data.
+
+## C3. MC ↔ USDOT — a valid USDOT with the wrong MC does not pass
+
+The carrier record carries at most **one** `mcNumber`; a carrier may hold
+several dockets. So the relationship is checked against the SET from
+`GET /carriers/{dot}/docket-numbers`.
+
+| Situation                                 | Result                                           |
+| ----------------------------------------- | ------------------------------------------------ |
+| Submitted MC in the docket set            | `MC_DOT_RELATIONSHIP_CONFIRMED`                  |
+| Submitted MC absent from a populated set  | `MC_DOT_RELATIONSHIP_MISMATCH` → MANUAL_REVIEW   |
+| Set retrieved and **empty**, MC submitted | `MC_DOT_RELATIONSHIP_MISMATCH` → MANUAL_REVIEW   |
+| Docket call failed / not made             | `MC_DOT_RELATIONSHIP_UNVERIFIED` → MANUAL_REVIEW |
+| No MC submitted                           | `MC_DOT_RELATIONSHIP_UNVERIFIED` → MANUAL_REVIEW |
+
+`docketNumbers: null` (not retrieved) is deliberately distinct from `[]`
+(retrieved, none exist). One is our gap; the other is a finding.
+
+## C4. Authority — broker is not carrier
+
+`commonAuthority`, `contractAuthority` and `brokerAuthority` are normalized
+**separately** to `active | inactive | none | null`.
+
+Only **common or contract** satisfies the carrier check. A broker-only entity
+yields `CARRIER_AUTHORITY_INACTIVE` + `BROKER_AUTHORITY_ONLY` → MANUAL_REVIEW.
+Treating broker authority as carrier authority would onboard a company that
+cannot legally haul a load.
+
+An unrecognised status token normalizes to `null`, never `none` — an unknown
+token is a gap in our mapping and must not be charged to the carrier.
+
+## C5. Safety
+
+`safetyRating` · `safetyRatingDate` · `crashTotal` · `vehicleOosRate` ·
+`driverOosRate`, all nullable and typed. **No proprietary score.** The risk
+engine does not read them; they exist for the staff compliance view. `0` is
+preserved — zero crashes is a fact, and coercing it to null would erase it.
+
+## C6. Data minimization
+
+`ein` and the full physical address are in the live response and are **dropped
+at the adapter boundary**. They are not in the normalized model, so no
+downstream code can persist or log what it never receives. We already encrypt
+the EIN the carrier gives us; accumulating a second plaintext copy nobody asked
+for and no rule uses only makes a breach worse.
+
+Raw payload is still not stored — SHA-256 digest only.
+
+## C7. Live diagnostic
+
+`scripts/fmcsa-shape-check.mjs` now also probes `/docket-numbers` and reports
+its content shape and entry keys. Sensitive field names (`ein`, `phy*`,
+`telephone`, …) print as `[present — REDACTED]` — presence is useful shape
+information, the value is not printable, and even a _type_ narrows a
+fixed-format value like an EIN.

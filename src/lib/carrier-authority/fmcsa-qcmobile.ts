@@ -2,11 +2,17 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 import {
+  normalizeAuthorityStatus,
   normalizeRegistrationNumber,
   toIsoDate,
+  toNumberOrNull,
+  toStringOrNull,
   yesNoToBoolean,
   type AuthorityLookupResult,
   type CarrierAuthorityProvider,
+  type DocketLookupResult,
+  type FmcsaInsuranceIndicators,
+  type FmcsaSafetyIndicators,
   type NormalizedAuthorityRecord,
 } from "./provider";
 
@@ -25,15 +31,30 @@ import {
  * current `retrievalDate`, which proves the host, the path shape and that
  * auth is enforced.
  *
- * ── WHAT THIS SOURCE DOES NOT PROVIDE ────────────────────────────────────
+ * ── CORRECTION (2026-08-15, from the live response) ──────────────────────
  *
- * Insurance and filing status. Those live in FMCSA's separate L&I system,
- * which has no equivalent public JSON API. There is deliberately no insurance
- * field in the normalized model: owner decision (2026-08-15) is that FMCSA
- * insurance status reads NOT AVAILABLE and PickLoads insurance requirements
- * are judged from the uploaded COI and `carriers.insurance_expiry` alone.
- * Phase 14 requires the two be shown independently; the cleanest way to
- * guarantee that is for this adapter to have nothing to say about insurance.
+ * This file previously stated that QCMobile exposes no insurance data, on the
+ * strength of FMCSA's published element list. **That was wrong.** The live
+ * response carries `bipdInsuranceOnFile`, `bipdInsuranceRequired`,
+ * `bipdRequiredAmount`, `cargoInsuranceOnFile`, `cargoInsuranceRequired`,
+ * `bondInsuranceOnFile` and `bondInsuranceRequired`. The documented element
+ * list is incomplete; the API returns more than it advertises.
+ *
+ * They are normalized, and they are labelled `insurance` under a type whose
+ * name says FMCSA — because what they describe is a FEDERAL FILING, not
+ * PickLoads compliance. Phase 14's separation is unchanged and now has to be
+ * held deliberately rather than by the accident of having no data:
+ *
+ *   FMCSA filing on file   ≠   PickLoads insurance requirements met
+ *
+ * PickLoads compliance is still judged from the uploaded COI and
+ * `carriers.insurance_expiry`. Nothing in the risk engine reads an FMCSA
+ * insurance indicator as a PASS.
+ *
+ * ── WHAT IS DROPPED AT THIS BOUNDARY ─────────────────────────────────────
+ *
+ * `ein` and the full physical address. Both are in the live response; neither
+ * is in the normalized model, so nothing downstream can persist or log them.
  *
  * ── FAILURE IS NEVER A VERDICT ───────────────────────────────────────────
  *
@@ -165,6 +186,26 @@ export function extractCarrier(body: unknown): CarrierExtraction {
   return { kind: "unrecognized" };
 }
 
+/**
+ * Read a field under any of its observed spellings.
+ *
+ * QCMobile is not consistent across endpoints — the same fact appears as
+ * `allowToOperate` on the carrier record and `allowedToOperate` elsewhere.
+ * Checking one spelling and getting `undefined` would normalise to `null`,
+ * which reads as "FMCSA did not say" when in fact it did.
+ */
+function firstPresent(
+  source: Record<string, unknown>,
+  ...names: string[]
+): unknown {
+  for (const n of names) {
+    if (n in source && source[n] !== null && source[n] !== undefined) {
+      return source[n];
+    }
+  }
+  return undefined;
+}
+
 function normalize(
   carrier: Record<string, unknown>,
   rawBody: string,
@@ -177,6 +218,47 @@ function normalize(
     str(carrier.dotNumber) ?? String(carrier.dotNumber ?? ""),
   );
 
+  // ── FIELDS DELIBERATELY NOT CARRIED ACROSS ─────────────────────────────
+  //
+  // The live response contains `ein` and the full physical address
+  // (`phyStreet`, `phyCity`, `phyState`, `phyZip`) plus `telephone`. None of
+  // them appears in the normalized model and none is persisted.
+  //
+  // EIN is a tax identifier. We already encrypt the one the carrier gives us
+  // (`carriers.ein`, AES-256-GCM); silently accumulating a second plaintext
+  // copy from a lookup — one nobody asked for and no decision uses — is how a
+  // breach gets worse for no benefit. The address is not needed for any rule
+  // in the risk engine either. Both are dropped here, at the boundary, so no
+  // downstream code can persist what it never receives.
+
+  const insurance: FmcsaInsuranceIndicators = {
+    bipdOnFile: toStringOrNull(firstPresent(carrier, "bipdInsuranceOnFile")),
+    bipdRequired: toStringOrNull(
+      firstPresent(carrier, "bipdInsuranceRequired"),
+    ),
+    bipdRequiredAmount: toStringOrNull(
+      firstPresent(carrier, "bipdRequiredAmount"),
+    ),
+    cargoOnFile: toStringOrNull(firstPresent(carrier, "cargoInsuranceOnFile")),
+    cargoRequired: toStringOrNull(
+      firstPresent(carrier, "cargoInsuranceRequired"),
+    ),
+    bondOnFile: toStringOrNull(firstPresent(carrier, "bondInsuranceOnFile")),
+    bondRequired: toStringOrNull(
+      firstPresent(carrier, "bondInsuranceRequired"),
+    ),
+  };
+  const hasInsurance = Object.values(insurance).some((v) => v !== null);
+
+  const safety: FmcsaSafetyIndicators = {
+    rating: toStringOrNull(firstPresent(carrier, "safetyRating")),
+    ratingDate: toIsoDate(firstPresent(carrier, "safetyRatingDate")),
+    crashTotal: toNumberOrNull(firstPresent(carrier, "crashTotal")),
+    vehicleOosRate: toNumberOrNull(firstPresent(carrier, "vehicleOosRate")),
+    driverOosRate: toNumberOrNull(firstPresent(carrier, "driverOosRate")),
+  };
+  const hasSafety = Object.values(safety).some((v) => v !== null);
+
   return {
     providerRecordId: dot,
     legalName: str(carrier.legalName),
@@ -185,9 +267,31 @@ function normalize(
     mcNumber: normalizeRegistrationNumber(
       str(carrier.mcNumber) ?? String(carrier.mcNumber ?? ""),
     ),
-    allowedToOperate: yesNoToBoolean(carrier.allowToOperate),
-    outOfService: yesNoToBoolean(carrier.outOfService),
-    outOfServiceDate: toIsoDate(carrier.outOfServiceDate),
+    // Not retrieved by this call. `lookupDocketNumbers` fills it, and null
+    // keeps "we did not ask" distinct from "there are none".
+    docketNumbers: null,
+    // Both spellings observed across endpoints.
+    allowedToOperate: yesNoToBoolean(
+      firstPresent(carrier, "allowToOperate", "allowedToOperate"),
+    ),
+    statusCode: toStringOrNull(firstPresent(carrier, "statusCode")),
+    outOfService: yesNoToBoolean(firstPresent(carrier, "outOfService")),
+    outOfServiceDate: toIsoDate(
+      firstPresent(carrier, "outOfServiceDate", "oosDate"),
+    ),
+    commonAuthority: normalizeAuthorityStatus(
+      firstPresent(carrier, "commonAuthorityStatus"),
+    ),
+    contractAuthority: normalizeAuthorityStatus(
+      firstPresent(carrier, "contractAuthorityStatus"),
+    ),
+    brokerAuthority: normalizeAuthorityStatus(
+      firstPresent(carrier, "brokerAuthorityStatus"),
+    ),
+    // null rather than an all-null object: "the response carried none of
+    // these fields" is different from "it carried them and they were empty".
+    insurance: hasInsurance ? insurance : null,
+    safety: hasSafety ? safety : null,
     sourceRetrievedAt: typeof retrievalDate === "string" ? retrievalDate : null,
     rawResponseSha256: sha256(rawBody),
   };
@@ -291,11 +395,112 @@ async function request(path: string): Promise<AuthorityLookupResult> {
   };
 }
 
+/**
+ * Every docket number FMCSA associates with a USDOT.
+ *
+ * GET /carriers/{dotNumber}/docket-numbers
+ *
+ * ── WHY THIS IS A SEPARATE CALL ──────────────────────────────────────────
+ *
+ * The carrier record carries at most ONE `mcNumber`, and a carrier may hold
+ * several dockets. Verifying a submitted MC against that single field would
+ * reject a legitimate carrier whose second docket is the one they gave us —
+ * and, worse, would pass a submitted MC that happens to equal the one field
+ * while belonging to a different registration.
+ *
+ * A failure here is `provider_unavailable`, never an empty list. "We could not
+ * check" and "they have no dockets" are different findings and only one of
+ * them is about the carrier.
+ */
+async function fetchDocketNumbers(usdot: string): Promise<DocketLookupResult> {
+  const webKey = process.env.FMCSA_WEBKEY;
+  if (!webKey) return { status: "not_configured" };
+
+  const n = normalizeRegistrationNumber(usdot);
+  if (!n) return { status: "not_found" };
+
+  let res: Response;
+  try {
+    res = await fetch(
+      `${BASE_URL}/carriers/${encodeURIComponent(n)}/docket-numbers?webKey=${encodeURIComponent(webKey)}`,
+      {
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+        headers: { Accept: "application/json" },
+      },
+    );
+  } catch (err) {
+    const reason = err instanceof Error ? err.name : "network_error";
+    console.error(`[fmcsa] docket request failed: ${reason}`);
+    return { status: "provider_unavailable", reason };
+  }
+
+  const rawBody = await res.text().catch(() => "");
+  if (rawBody.length > MAX_BODY_BYTES) {
+    return { status: "provider_unavailable", reason: "body_too_large" };
+  }
+  if (/webkey not found/i.test(rawBody)) {
+    console.error("[fmcsa] FMCSA_WEBKEY was rejected by the provider");
+    return { status: "provider_unavailable", reason: "credential_rejected" };
+  }
+  if (res.status === 429) {
+    return { status: "provider_unavailable", reason: "rate_limited" };
+  }
+  if (res.status >= 500) {
+    return { status: "provider_unavailable", reason: `http_${res.status}` };
+  }
+
+  let body: unknown;
+  try {
+    body = JSON.parse(rawBody);
+  } catch {
+    return { status: "provider_unavailable", reason: "malformed_json" };
+  }
+
+  const content =
+    typeof body === "object" && body !== null
+      ? (body as { content?: unknown }).content
+      : undefined;
+
+  // Affirmatively nothing. A carrier can legitimately hold no docket (an
+  // intrastate or exempt operation), so this is a real answer, not a failure.
+  if (content === null || content === undefined) {
+    return { status: "found", docketNumbers: [] };
+  }
+  if (!Array.isArray(content)) {
+    // Populated and unreadable — same doctrine as the carrier envelope.
+    return { status: "provider_unavailable", reason: "unrecognized_envelope" };
+  }
+
+  const numbers: string[] = [];
+  for (const entry of content) {
+    if (typeof entry === "string" || typeof entry === "number") {
+      const v = normalizeRegistrationNumber(String(entry));
+      if (v) numbers.push(v);
+      continue;
+    }
+    if (typeof entry !== "object" || entry === null) continue;
+    const o = entry as Record<string, unknown>;
+    // Observed spellings; also handles a nested { docketNumber: … } wrapper.
+    const raw =
+      o.docketNumber ?? o.docket_number ?? o.docket ?? o.mcNumber ?? null;
+    const v = normalizeRegistrationNumber(
+      raw === null || raw === undefined ? null : String(raw),
+    );
+    if (v) numbers.push(v);
+  }
+
+  return { status: "found", docketNumbers: [...new Set(numbers)] };
+}
+
 export const fmcsaQcMobileProvider: CarrierAuthorityProvider = {
   name: "fmcsa_qcmobile",
 
   isConfigured(): boolean {
     return Boolean(process.env.FMCSA_WEBKEY);
+  },
+
+  lookupDocketNumbers(usdot: string): Promise<DocketLookupResult> {
+    return fetchDocketNumbers(usdot);
   },
 
   async lookupByUsdot(usdot: string): Promise<AuthorityLookupResult> {

@@ -194,18 +194,38 @@ describe("M-93 · the adapter wires the outcomes correctly", () => {
     );
   });
 
-  it("not_found is reachable ONLY from the absent branch", () => {
-    // If `not_found` ever appears outside an `absent` guard again, the
-    // ambiguity is back.
-    const notFoundSites = code.match(/status: "not_found"/g) ?? [];
-    // One in lookupByUsdot/lookupByDocket guard clauses (malformed input) ×2,
-    // and exactly one in the response path.
-    expect(notFoundSites.length).toBe(3);
+  it("not_found in the response path comes ONLY from the absent branch", () => {
+    // Counting occurrences was brittle — the docket endpoint legitimately adds
+    // its own malformed-input guard. What matters is structural: the
+    // `unrecognized` branch must never reach `not_found`, and the `absent`
+    // branch must.
+    const unrecognizedBlock = code.slice(
+      code.indexOf('extraction.kind === "unrecognized"'),
+      code.indexOf('extraction.kind === "absent"'),
+    );
+    expect(unrecognizedBlock.length).toBeGreaterThan(0);
+    expect(unrecognizedBlock).not.toContain('status: "not_found"');
+
     const absentBlock = code.slice(
       code.indexOf('extraction.kind === "absent"'),
       code.indexOf("const retrievalDate"),
     );
     expect(absentBlock).toContain('status: "not_found"');
+  });
+
+  it("every remaining not_found guards MALFORMED INPUT, never a provider answer", () => {
+    // The other occurrences are `if (!n) return not_found` — an unparseable
+    // USDOT never leaves this process. That is a statement about the input,
+    // not about what FMCSA said.
+    for (const m of code.matchAll(/status: "not_found"/g)) {
+      const before = code.slice(Math.max(0, m.index - 220), m.index);
+      const isInputGuard = /if \(!n\)/.test(before);
+      const isAbsentBranch = /extraction\.kind === "absent"/.test(before);
+      expect(
+        isInputGuard || isAbsentBranch,
+        `not_found at offset ${m.index} is neither an input guard nor the absent branch`,
+      ).toBe(true);
+    }
   });
 
   it("logs only safe diagnostics on an unrecognized envelope", () => {

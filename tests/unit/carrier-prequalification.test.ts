@@ -43,9 +43,17 @@ const RECORD: NormalizedAuthorityRecord = {
   dbaName: null,
   usdotNumber: "76830",
   mcNumber: "123456",
+  // The submitted MC is in the docket set, so the relationship is confirmed.
+  docketNumbers: ["123456"],
   allowedToOperate: true,
+  statusCode: "A",
   outOfService: false,
   outOfServiceDate: null,
+  commonAuthority: "active",
+  contractAuthority: null,
+  brokerAuthority: null,
+  insurance: null,
+  safety: null,
   sourceRetrievedAt: "2026-08-15T06:00:03.368+0000",
   rawResponseSha256: "a".repeat(64),
 };
@@ -414,15 +422,47 @@ describe("M-93 · data minimisation & secrets", () => {
     expect(src).toContain("AbortSignal.timeout(TIMEOUT_MS)");
   });
 
-  it("models no FMCSA insurance field", () => {
-    // QCMobile does not expose filings. A nullable column would invite the
-    // exact conflation Phase 14 forbids.
+  it("FMCSA insurance indicators are modelled but NEVER persisted as columns", () => {
+    // CORRECTED 2026-08-15. This test previously asserted that no insurance
+    // field existed anywhere, on the strength of FMCSA's published element
+    // list — which turned out to be incomplete. The live response DOES carry
+    // bipd/cargo/bond filing indicators, so they are normalized.
+    //
+    // What still must not exist is a DATABASE column for them: nothing in the
+    // activation gate reads a federal filing, and a persisted
+    // `fmcsa_insurance_ok` would sit next to the COI status inviting exactly
+    // the merge Phase 14 forbids.
     expect(
       code("supabase/migrations/0032_carrier_prequalification.sql"),
     ).not.toMatch(/fmcsa_insurance/);
-    expect(code("src/lib/carrier-authority/provider.ts")).not.toMatch(
-      /insurance/i,
+    // Modelled, and named so its provenance is unmistakable.
+    expect(code("src/lib/carrier-authority/provider.ts")).toMatch(
+      /FmcsaInsuranceIndicators/,
     );
+  });
+
+  it("the risk engine never reads an FMCSA filing as a PickLoads PASS", () => {
+    // A federal filing says a policy was filed. It does not say the policy is
+    // current, meets our limits, or matches the certificate we hold.
+    const engine = code("src/lib/carrier-authority/risk-engine.ts");
+    expect(engine).not.toMatch(/bipdOnFile/);
+    expect(engine).not.toMatch(/cargoOnFile/);
+    expect(engine).not.toMatch(/bondOnFile/);
+    expect(engine).not.toMatch(/record\.insurance/);
+    // Insurance remains an unconditional document review.
+    expect(engine).toMatch(/codes\.push\("INSURANCE_REVIEW_REQUIRED"\)/);
+  });
+
+  it("EIN and the physical address never enter the normalized model", () => {
+    // Both are in the live response. Neither is in the model, so nothing
+    // downstream can persist or log what it never receives.
+    const provider = code("src/lib/carrier-authority/provider.ts");
+    expect(provider).not.toMatch(/\bein\b/i);
+    expect(provider).not.toMatch(/phyStreet|phyCity|phyZip|telephone/);
+    const adapter = code("src/lib/carrier-authority/fmcsa-qcmobile.ts");
+    // The adapter may not read them into the returned record either.
+    expect(adapter).not.toMatch(/carrier\.ein/);
+    expect(adapter).not.toMatch(/phyStreet|phyCity|phyZip/);
   });
 });
 

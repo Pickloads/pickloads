@@ -164,15 +164,23 @@ create table carrier_verifications (
   out_of_service_date date,
 
   -- ── NO INSURANCE COLUMNS, ON PURPOSE ────────────────────────────────────
-  -- The FMCSA QCMobile API does not expose insurance or filing data; that
-  -- lives in the separate L&I system, which has no equivalent public JSON
-  -- API (M-93 §3). Owner decision 2026-08-15: FMCSA insurance status is
-  -- reported as NOT AVAILABLE and PickLoads insurance requirements are judged
-  -- from the uploaded COI and `carriers.insurance_expiry` alone.
   --
-  -- A nullable `fmcsa_insurance_ok` column here would invite exactly the
-  -- conflation Phase 14 forbids: a null meaning "we never checked" rendered
-  -- beside a false meaning "they failed".
+  -- CORRECTED 2026-08-15. This comment previously said QCMobile exposes no
+  -- insurance data. It does — the live response carries bipd/cargo/bond
+  -- on-file, required and required-amount indicators. FMCSA's published
+  -- element list is incomplete, and the earlier claim was taken from it.
+  --
+  -- The columns still do not exist, now for a better reason than absence of
+  -- data. Those indicators describe a FEDERAL FILING. PickLoads insurance
+  -- compliance is judged from the uploaded COI and carriers.insurance_expiry,
+  -- and nothing in the activation gate reads a filing. A persisted
+  -- fmcsa_insurance_ok column would sit beside the COI status inviting exactly
+  -- the merge Phase 14 forbids — and a null in it would be unreadable: "we
+  -- never checked" and "they have nothing on file" look identical.
+  --
+  -- The indicators ARE normalized, as FmcsaInsuranceIndicators in
+  -- src/lib/carrier-authority/provider.ts, for the staff compliance view.
+  -- They are not stored, and no rule consumes them.
 
   name_match identity_match_result,
   mc_match identity_match_result,
