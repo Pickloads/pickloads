@@ -74,58 +74,95 @@ function looksLikeCarrier(v: unknown): v is Record<string, unknown> {
 }
 
 /**
- * Locate the carrier object in a QCMobile response.
+ * Three outcomes, because two of them used to be one.
+ *
+ * `absent` and `unrecognized` are both "we did not get a carrier", and
+ * collapsing them into `not_found` is precisely the bug this type exists to
+ * make impossible: an envelope we fail to parse would tell a real, operating
+ * carrier that FMCSA has no record of them.
+ */
+export type CarrierExtraction =
+  | { kind: "carrier"; carrier: Record<string, unknown> }
+  /** FMCSA affirmatively returned nothing: null, empty array, empty object. */
+  | { kind: "absent" }
+  /** Content was present and non-trivial, and we could not understand it. */
+  | { kind: "unrecognized" };
+
+/** True when `content` carries no information at all. */
+function isEmptyContent(content: unknown): boolean {
+  if (content === null || content === undefined) return true;
+  if (typeof content === "string") return content.trim() === "";
+  if (Array.isArray(content)) return content.length === 0;
+  if (typeof content === "object") {
+    return Object.keys(content as Record<string, unknown>).length === 0;
+  }
+  return false;
+}
+
+/**
+ * Classify a QCMobile response.
  *
  * ── WHY THIS IS DEFENSIVE RATHER THAN EXACT ──────────────────────────────
  *
- * FMCSA's developer documentation lists the response ELEMENTS but publishes no
- * example ENVELOPE for `/carriers/{dotNumber}`. The first version of this
- * function was therefore written against an assumed shape
- * (`content.carrier`), and an assumed shape has a nasty property: when it is
- * wrong it returns `not_found`, which is indistinguishable from correctly
- * parsing a carrier that genuinely does not exist. That ambiguity is exactly
- * what made the first live failure hard to read — the fixture USDOT turned out
- * not to exist, but nothing in the result could have told us that.
+ * FMCSA's developer site lists the response ELEMENTS and publishes no example
+ * ENVELOPE for `/carriers/{dotNumber}`. The first version of this function was
+ * therefore written against an assumed shape (`content.carrier`) and returned
+ * `Record | null` — so a wrong assumption produced `not_found`, which is
+ * indistinguishable from a carrier that genuinely does not exist. Nobody would
+ * ever have found out.
  *
- * So every plausible nesting is tried, and `looksLikeCarrier` is the test
- * rather than the position: a carrier is an object carrying `dotNumber` or
- * `legalName`. Guessing the position wrongly now costs a lookup that finds the
- * record anyway, instead of a silent false negative.
+ * Two changes fix that. Position is no longer the test — `looksLikeCarrier`
+ * is, so a carrier is recognised wherever FMCSA chooses to put it. And "we
+ * could not read this" is now its own outcome rather than being folded into
+ * "there is nothing here", so it can fail safe and be logged.
  *
- * `scripts/fmcsa-shape-check.mjs` reports which branch a live response
- * actually takes.
+ * `scripts/fmcsa-shape-check.mjs` reports which branch a live response takes.
  */
-function extractCarrier(body: unknown): Record<string, unknown> | null {
-  if (typeof body !== "object" || body === null) return null;
+export function extractCarrier(body: unknown): CarrierExtraction {
+  // Not even an object. We asked for JSON and got something else entirely —
+  // that is a broken response, not a statement that the carrier is unknown.
+  if (typeof body !== "object" || body === null)
+    return { kind: "unrecognized" };
+
   const content = (body as { content?: unknown }).content;
 
-  // `{"content": "Webkey not found"}` and `{"content": null}` — handled by the
-  // caller before this point, but never mistaken for a carrier here either.
-  if (content === null || content === undefined) return null;
-  if (typeof content === "string") return null;
+  // FMCSA affirmatively said "nothing here". This is the ONLY path to
+  // `not_found`, and it requires the provider to have actually said so.
+  if (isEmptyContent(content)) return { kind: "absent" };
+
+  // A non-empty string. `{"content":"Webkey not found"}` is caught upstream;
+  // anything else is a message we do not understand, not an absence.
+  if (typeof content === "string") return { kind: "unrecognized" };
 
   // { content: [ … ] } — the docket lookup, and possibly the DOT lookup.
   if (Array.isArray(content)) {
     for (const entry of content) {
       if (typeof entry !== "object" || entry === null) continue;
       const nested = (entry as { carrier?: unknown }).carrier;
-      if (looksLikeCarrier(nested)) return nested;
-      if (looksLikeCarrier(entry)) return entry;
+      if (looksLikeCarrier(nested)) return { kind: "carrier", carrier: nested };
+      if (looksLikeCarrier(entry)) return { kind: "carrier", carrier: entry };
     }
-    return null;
+    // A populated array with nothing carrier-shaped in it. We were handed
+    // something and did not understand it.
+    return { kind: "unrecognized" };
   }
 
-  if (typeof content !== "object") return null;
+  if (typeof content !== "object") return { kind: "unrecognized" };
 
   // { content: { carrier: {...} } }
   const carrier = (content as { carrier?: unknown }).carrier;
-  if (looksLikeCarrier(carrier)) return carrier;
+  if (looksLikeCarrier(carrier)) return { kind: "carrier", carrier };
 
   // { content: {...carrier fields inline...} } — the shape the original
   // implementation did not handle.
-  if (looksLikeCarrier(content)) return content as Record<string, unknown>;
+  if (looksLikeCarrier(content)) {
+    return { kind: "carrier", carrier: content as Record<string, unknown> };
+  }
 
-  return null;
+  // A populated object with no carrier anywhere in it. This includes the
+  // malformed case — `{ content: { carrier: {} } }`, where the key exists but
+  // the object carries neither dotNumber nor legalName.
+  return { kind: "unrecognized" };
 }
 
 function normalize(
@@ -204,9 +241,41 @@ async function request(path: string): Promise<AuthorityLookupResult> {
     return { status: "provider_unavailable", reason: "malformed_json" };
   }
 
-  const carrier = extractCarrier(body);
-  if (!carrier) {
-    // Well-formed response, no carrier in it → genuinely not found.
+  const extraction = extractCarrier(body);
+
+  if (extraction.kind === "unrecognized") {
+    // ── NEVER not_found ────────────────────────────────────────────────────
+    //
+    // FMCSA handed us something and we could not read it. That says nothing
+    // about whether the carrier exists, so reporting `not_found` would tell a
+    // real, operating carrier that the federal register has no record of them
+    // — on the strength of OUR parser being wrong.
+    //
+    // It is an outage of comprehension, and it fails the same way every other
+    // outage does: provider_unavailable → MANUAL_REVIEW → a human looks.
+    //
+    // Logged with enough to diagnose the envelope and nothing more. Top-level
+    // KEYS only — never the body, never a field value, never the URL (it
+    // carries the credential).
+    console.error(
+      JSON.stringify({
+        event: "fmcsa.unrecognized_envelope",
+        provider: "fmcsa_qcmobile",
+        httpStatus: res.status,
+        topLevelKeys:
+          typeof body === "object" && body !== null
+            ? Object.keys(body as Record<string, unknown>).sort()
+            : [],
+        reason: "unrecognized_envelope",
+        at: new Date().toISOString(),
+      }),
+    );
+    return { status: "provider_unavailable", reason: "unrecognized_envelope" };
+  }
+
+  if (extraction.kind === "absent") {
+    // FMCSA affirmatively returned nothing. This is the only path to
+    // not_found, and it requires the provider to have actually said so.
     if (res.ok || res.status === 404) return { status: "not_found" };
     return { status: "provider_unavailable", reason: `http_${res.status}` };
   }
@@ -218,7 +287,7 @@ async function request(path: string): Promise<AuthorityLookupResult> {
 
   return {
     status: "found",
-    record: normalize(carrier, rawBody, retrievalDate),
+    record: normalize(extraction.carrier, rawBody, retrievalDate),
   };
 }
 

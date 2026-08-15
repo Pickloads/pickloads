@@ -43,39 +43,24 @@ describe("M-93 · QCMobile envelope handling", () => {
     expect(ADAPTER_SRC).toMatch(/"dotNumber" in o \|\| "legalName" in o/);
   });
 
-  it("handles content.carrier — the originally assumed shape", () => {
-    expect(ADAPTER_SRC).toMatch(
-      /const carrier = \(content as \{ carrier\?: unknown \}\)\.carrier/,
-    );
-    expect(ADAPTER_SRC).toMatch(
-      /if \(looksLikeCarrier\(carrier\)\) return carrier/,
-    );
-  });
-
-  it("handles a carrier inline on content — the shape it originally MISSED", () => {
-    // { content: { dotNumber: …, legalName: … } } with no `carrier` wrapper.
-    // This branch did not exist before, and its absence would have looked
-    // exactly like "carrier not found".
-    expect(ADAPTER_SRC).toMatch(
-      /if \(looksLikeCarrier\(content\)\) return content as Record<string, unknown>/,
-    );
-  });
-
   it("handles an array envelope, scanning past unusable entries", () => {
     expect(ADAPTER_SRC).toMatch(/if \(Array\.isArray\(content\)\)/);
     expect(ADAPTER_SRC).toMatch(/for \(const entry of content\)/);
   });
 
-  it("never mistakes a string or null content for a carrier", () => {
-    // `{"content":"Webkey not found"}` is the live auth-failure body. It must
-    // not be probed for carrier fields.
-    expect(ADAPTER_SRC).toMatch(
-      /if \(content === null \|\| content === undefined\) return null/,
-    );
-    expect(ADAPTER_SRC).toMatch(
-      /if \(typeof content === "string"\) return null/,
-    );
-  });
+  /*
+   * Three assertions that used to live here matched the parser's SOURCE TEXT
+   * — `if (looksLikeCarrier(carrier)) return carrier`, and so on. They broke
+   * the moment `extractCarrier` returned a discriminated outcome instead of
+   * `Record | null`, which is the tell: they were pinned to an implementation,
+   * not to a behaviour.
+   *
+   * They are gone rather than rewritten. Every property they were reaching for
+   * — content.carrier, inline content, array entries, a string or null content
+   * never being read as a carrier — is now asserted BEHAVIOURALLY against
+   * fixtures in `fmcsa-envelope-outcomes.test.ts`, which is both stricter and
+   * survives a refactor.
+   */
 });
 
 describe("M-93 · 200-with-no-carrier is not a provider failure", () => {
