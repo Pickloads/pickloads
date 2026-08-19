@@ -179,9 +179,38 @@ const MAX_UNTRANSLATED: Record<string, Record<string, number>> = {
   // The other 23 — labels, buttons, field hints, step names, the manual-review
   // and unverified-carrier explanations — ARE translated in ru and ht.
   //
+  // ── M-95 (2026-08-19): ru +8, ht +8. es and fr AGAIN DID NOT MOVE ───────
+  //
+  // The Stripe fee step added 20 v4 strings — the Checkout screen, the payment
+  // return page and its four outcomes. All 20 are authored in es and fr.
+  //
+  // EIGHT mirror English in ru and ht, and every one of them is a statement
+  // about MONEY:
+  //
+  //   "Your $9.99 verification fee is confirmed…" and "Pay $9.99 and
+  //   continue" — a price;
+  //   "Payment cancelled — nothing was charged", "…so no money has moved",
+  //   "…nothing is lost", "…Nothing has been charged" — four separate
+  //   assurances about whether a card was debited;
+  //   "…PickLoads never sees or stores your card details. Paying does not
+  //   activate your account…" — a security claim and an activation claim in
+  //   one sentence;
+  //   "Card payments are processed by Stripe. Your payment is confirmed
+  //   with Stripe directly…" — how and when money is taken.
+  //
+  // These are the worst possible strings to machine-translate. A carrier who
+  // reads a fluent but wrong sentence about whether they have been charged
+  // does not have a translation problem, they have a money problem — and the
+  // one thing worse than reading "nothing was charged" in English is reading
+  // something that does not quite mean that in Haitian Creole. They join the
+  // priority queue in docs/COWORK-CONTENT-REVIEW.md §3.
+  //
+  // The other 12 — buttons, headings, "we're confirming your payment", the
+  // page title — ARE translated in ru and ht.
+  //
   // The direction that matters is unchanged: a raised baseline still has to
   // explain itself, and these lines are that explanation.
-  v4: { es: 33, fr: 46, ru: 530, ht: 549 },
+  v4: { es: 33, fr: 46, ru: 538, ht: 557 },
 };
 
 function flatten(value: unknown, path: string, out: Map<string, string>): void {

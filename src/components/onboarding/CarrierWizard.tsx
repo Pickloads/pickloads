@@ -15,8 +15,10 @@ import {
 } from "@/lib/onboarding-state";
 import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
 import { CarrierPrecheck } from "@/components/onboarding/CarrierPrecheck";
+import { CarrierFeeStep } from "@/components/onboarding/CarrierFeeStep";
 import { DocUpload } from "@/components/onboarding/DocUpload";
 import type { DocType } from "@/lib/supabase/database.types";
+import type { WizardResume } from "@/lib/carrier-authority/wizard-resume";
 
 /**
  * M-20 — the become-a-carrier wizard, REWIRED by M-94.
@@ -80,10 +82,39 @@ interface ContactInfo {
   phone: string;
 }
 
-export function CarrierWizard({ esignLive }: { esignLive: boolean }) {
+/**
+ * M-95 — where the SERVER says this applicant stands.
+ *
+ * The wizard no longer decides its own starting point. `resume` is computed
+ * per request from the httpOnly cookie plus the database (`wizard-resume.ts`),
+ * which is what lets somebody come back from Stripe — a fresh page load —
+ * without the wizard cheerfully restarting them at step 1 after they have been
+ * charged.
+ *
+ * It is presentation, not permission. Every step still ends at a server action
+ * that re-reads eligibility and payment for itself.
+ */
+function initialStepFor(resume: WizardResume): Step {
+  switch (resume.step) {
+    case "fee":
+      return 2;
+    case "company":
+      return 3;
+    default:
+      return 1;
+  }
+}
+
+export function CarrierWizard({
+  esignLive,
+  resume = { step: "precheck" },
+}: {
+  esignLive: boolean;
+  resume?: WizardResume;
+}) {
   const tv = useV4();
   const locale = useLocale();
-  const [step, setStep] = useState<Step>(1);
+  const [step, setStep] = useState<Step>(() => initialStepFor(resume));
   const [info, setInfo] = useState<ContactInfo>({
     full_name: "",
     email: "",
@@ -182,42 +213,42 @@ export function CarrierWizard({ esignLive }: { esignLive: boolean }) {
         </li>
       </ol>
 
-      {/* ---------------- Step 1 — FMCSA verification ---------------- */}
-      {step === 1 ? <CarrierPrecheck onVerified={() => setStep(2)} /> : null}
-
-      {/* ---------------- Step 2 — verification fee (M-95 owns it) ------- */}
-      {step === 2 ? (
+      {/* ── An application that has already been spent ──────────────────
+          Its pre-registration is bound to a carrier account, so there is
+          nothing here for them to do but sign in. Resolved on the server; the
+          client is not asked to work it out. */}
+      {resume.step === "already_onboarded" ? (
         <div className="bigform">
-          <h2>{tv("Verification fee")}</h2>
+          <h2>{tv("This application already has an account.")}</h2>
           <p>
-            {tv(
-              "PickLoads charges a $9.99 one-time carrier verification and onboarding fee.",
-            )}
+            {tv("Sign in to your portal to carry on where you left off.")}
           </p>
-          {/* ── §13/§28: NO FAKE PAYMENT SUCCESS ──────────────────────────
-              Stripe Checkout is M-95. This panel does not create a session,
-              does not record a payment row and does not mark anything paid —
-              and it says so, because a screen that let a carrier believe they
-              had paid would be worse than one that has no button at all.
-              Activation independently requires PAYMENT_CONFIRMED
-              (src/lib/carrier-authority/activation-gate.ts), so continuing
-              here cannot short-circuit anything downstream. */}
-          <div className="esign-panel">
-            <b>{tv("Card payment is not live yet")}</b>
-            <p>
-              {tv(
-                "Nothing is charged today. You can continue with your documents and account now; no carrier account is activated until the verification fee is settled with our team.",
-              )}
-            </p>
+          <div style={{ marginTop: 22, display: "flex", gap: 14, flexWrap: "wrap" }}>
+            <Link className="btn btn-amber" href="/login">
+              {tv("Sign in to your portal →")}
+            </Link>
           </div>
-          <button
-            className="btn btn-amber"
-            type="button"
-            onClick={() => setStep(3)}
-          >
-            {tv("Continue to Company Info →")}
-          </button>
         </div>
+      ) : null}
+
+      {/* ---------------- Step 1 — FMCSA verification ---------------- */}
+      {step === 1 && resume.step !== "already_onboarded" ? (
+        <CarrierPrecheck
+          onVerified={() => setStep(2)}
+          /* A resumed manual-review or refused application renders the same
+             panel the live check would, rather than a second copy of the
+             wording that could drift away from it.
+             Conditional SPREAD, not `: undefined` — `exactOptionalPropertyTypes`
+             distinguishes "absent" from "present and undefined". */
+          {...(resume.step === "manual_review" || resume.step === "not_eligible"
+            ? { resumeOutcome: resume.step }
+            : {})}
+        />
+      ) : null}
+
+      {/* ---------------- Step 2 — the $9.99 fee (Stripe Checkout) ------- */}
+      {step === 2 ? (
+        <CarrierFeeStep onAlreadyPaid={() => setStep(3)} />
       ) : null}
 
       {/* ---------------- Step 3 — company details ---------------- */}

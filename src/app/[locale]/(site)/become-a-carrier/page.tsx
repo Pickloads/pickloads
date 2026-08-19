@@ -6,7 +6,21 @@ import { CarrierWizard } from "@/components/onboarding/CarrierWizard";
 import { isEsignConfigured } from "@/lib/esign";
 import { getV4 } from "@/i18n/v4-server";
 import { ONBOARDING_TIMING } from "@/lib/copy/onboarding-timing";
+import { resolveWizardResume } from "@/lib/carrier-authority/wizard-resume";
 import { pageMetadata } from "@/lib/seo";
+
+/**
+ * M-95: this page reads an httpOnly cookie and the database to decide which
+ * step the applicant is on, so it renders per request rather than at build.
+ *
+ * The cost is real and worth naming: this was a statically generated marketing
+ * page. It stopped being one because an applicant who pays on Stripe comes
+ * back through a fresh page load, and a fresh page load that always restarted
+ * the wizard would look — to somebody who had just been charged $9.99 — like
+ * losing their money. The alternative was resolving the step in the browser,
+ * which would mean the client deciding where it is in a payment flow.
+ */
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
@@ -32,6 +46,7 @@ export default async function BecomeACarrierPage({
   setRequestLocale(locale);
   const tv = await getV4(locale);
   const esignLive = isEsignConfigured();
+  const resume = await resolveWizardResume();
 
   return (
     <main id="main">
@@ -54,7 +69,7 @@ export default async function BecomeACarrierPage({
       </PageHero>
       <section className="light" style={{ paddingTop: 48 }}>
         <div className="wrap">
-          <CarrierWizard esignLive={esignLive} />
+          <CarrierWizard esignLive={esignLive} resume={resume} />
           <p
             className="mono"
             style={{

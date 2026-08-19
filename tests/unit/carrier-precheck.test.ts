@@ -664,12 +664,39 @@ describe("the credential and the payload never leave the server", () => {
     for (const f of [
       "src/components/onboarding/CarrierPrecheck.tsx",
       "src/components/onboarding/CarrierWizard.tsx",
+      "src/components/onboarding/CarrierFeeStep.tsx",
     ]) {
       const src = code(f);
       expect(src, f).not.toContain("FMCSA_WEBKEY");
       expect(src, f).not.toContain("mobile.fmcsa.dot.gov");
-      expect(src, f).not.toContain("carrier-authority");
+
+      /* ── A VALUE import from the server-only module, specifically ───────
+       *
+       * This began as a blanket ban on the string "carrier-authority", which
+       * M-95 tripped legitimately: `CarrierWizard` does
+       * `import type { WizardResume } from "@/lib/carrier-authority/…"`.
+       *
+       * A type-only import is erased before the bundler ever sees it — it
+       * cannot pull a module into the client bundle and cannot carry a
+       * credential, which is what this assertion is actually about. A VALUE
+       * import could do both, and `import "server-only"` in those modules
+       * would turn it into a build error anyway. So the check now names the
+       * thing it means instead of the string that usually accompanies it.
+       */
+      const valueImport = /^import\s+(?!type\b)[^;]*from\s+["']@\/lib\/carrier-authority/m;
+      expect(valueImport.test(src), `${f} value-imports carrier-authority`).toBe(
+        false,
+      );
     }
+  });
+
+  it("NON-VACUITY: the value-import check would catch a real one", () => {
+    // The regex above is the whole assertion, so it has to be shown working.
+    const offending = 'import { fmcsaQcMobileProvider } from "@/lib/carrier-authority/fmcsa-qcmobile";';
+    const allowed = 'import type { WizardResume } from "@/lib/carrier-authority/wizard-resume";';
+    const valueImport = /^import\s+(?!type\b)[^;]*from\s+["']@\/lib\/carrier-authority/m;
+    expect(valueImport.test(offending)).toBe(true);
+    expect(valueImport.test(allowed)).toBe(false);
   });
 
   it("the public state shape carries no decision the browser could forge", () => {

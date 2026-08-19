@@ -18,6 +18,7 @@ import {
   clearPrecheckCookie,
   readPrecheckCookie,
 } from "@/lib/carrier-authority/precheck-session";
+import { readFeePaymentState } from "@/lib/carrier-authority/onboarding-fee";
 import {
   onboardingAccountSchema,
   onboardingInfoSchema,
@@ -81,6 +82,10 @@ import type {
 const GATE_MESSAGE =
   "Start with carrier verification — we need your USDOT and MC before onboarding can continue.";
 
+/** M-95. Distinct from GATE_MESSAGE because the applicant can act on it. */
+const FEE_MESSAGE =
+  "The $9.99 verification fee hasn't been confirmed yet. If you've just paid, give it a moment and refresh — we confirm the payment with Stripe, not from your browser.";
+
 /* --------------------- Step 3 — company details --------------------- */
 
 export async function startOnboarding(
@@ -125,6 +130,36 @@ export async function startOnboarding(
     return { status: "error", message: GATE_MESSAGE };
   }
   const pre = gate.preRegistration;
+
+  /* ── THE M-95 PAYMENT GATE ─────────────────────────────────────────────
+   *
+   * Two conditions, ANDed, both read from the database on this call:
+   *
+   *     the FMCSA decision permits continuation   (above)
+   *   AND the $9.99 fee is settled                (here)
+   *
+   * `readFeePaymentState` consults `carrier_onboarding_payments` — the ledger
+   * Stripe's signature-verified webhook writes — and nothing else. Not the
+   * return URL, not a query parameter, not `carrier_pre_registrations.
+   * payment_status` (a mirror kept for the staff queue), and not any field of
+   * this submission. There is no argument to this function through which a
+   * caller can assert payment.
+   *
+   * Note what the two conditions do NOT do: interact. A MANUAL_REVIEW
+   * applicant who somehow paid is still refused by the first check, because
+   * paying is not a way to become eligible (§"MANUAL REVIEW"). The fee is a
+   * requirement, never a substitute.
+   */
+  const fee = await readFeePaymentState(admin, pre.id);
+  if (!fee.paid) {
+    await recordAuditEvent({
+      actorId: null,
+      action: "onboarding_gate_denied",
+      targetTable: "carriers",
+      detail: { step: "start_onboarding", reason: "fee_unpaid" },
+    });
+    return { status: "error", message: FEE_MESSAGE };
+  }
 
   const parsed = onboardingInfoSchema.safeParse({
     // ── IDENTITY COMES FROM THE VERIFIED RECORD, NOT FROM THIS FORM ──────

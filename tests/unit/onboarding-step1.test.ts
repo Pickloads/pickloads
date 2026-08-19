@@ -71,6 +71,16 @@ interface Scenario {
   preRegistrationError: { message: string } | null;
   /** Whether the conditional UPDATE matched a row (i.e. won the race). */
   claimSucceeds: boolean;
+  /**
+   * M-95. What `carrier_onboarding_payments` holds for this applicant — the
+   * LEDGER the payment gate reads. Not a flag the action is handed: the fake
+   * returns rows and the real `readFeePaymentState` interprets them.
+   */
+  paymentRows: Array<{
+    provider_session_id: string | null;
+    status: string;
+    paid_at: string | null;
+  }>;
 }
 
 let scenario: Scenario;
@@ -157,15 +167,18 @@ vi.mock("@/lib/supabase/admin", () => ({
                   : scenario.leadInsert,
               );
             },
-            select: () =>
-              chain(
-                table === "carrier_pre_registrations"
-                  ? {
-                      data: scenario.preRegistration,
-                      error: scenario.preRegistrationError,
-                    }
-                  : { data: null, error: null },
-              ),
+            select: () => {
+              if (table === "carrier_pre_registrations") {
+                return chain({
+                  data: scenario.preRegistration,
+                  error: scenario.preRegistrationError,
+                });
+              }
+              if (table === "carrier_onboarding_payments") {
+                return chain({ data: scenario.paymentRows, error: null });
+              }
+              return chain({ data: null, error: null });
+            },
             update: (row: Record<string, unknown>) => {
               updates.push({ table, row });
               return chain({
@@ -230,6 +243,16 @@ beforeEach(() => {
     preRegistration: eligiblePreRegistration(),
     preRegistrationError: null,
     claimSucceeds: true,
+    // The default applicant has PAID. Every pre-M-95 test in this file
+    // describes the FMCSA half of the gate and would otherwise be refused by
+    // the payment half before reaching what it is actually testing.
+    paymentRows: [
+      {
+        provider_session_id: "cs_test_1",
+        status: "paid",
+        paid_at: "2026-08-19T00:00:00.000Z",
+      },
+    ],
   };
 });
 
@@ -341,6 +364,99 @@ describe("1b · the gate — no pre-registration, no carrier row", () => {
     const [only] = [...messages];
     for (const leak of ["expired", "claimed", "eligible", "decision", "uuid"]) {
       expect((only ?? "").toLowerCase()).not.toContain(leak);
+    }
+  });
+});
+
+describe("1d · M-95 — the FMCSA gate AND the payment gate, both from the database", () => {
+  const UNPAID: Array<[string, Scenario["paymentRows"]]> = [
+    ["no payment has ever been attempted", []],
+    [
+      "a Checkout was created but never completed",
+      [{ provider_session_id: "cs_1", status: "session_created", paid_at: null }],
+    ],
+    [
+      "the payment failed",
+      [{ provider_session_id: "cs_1", status: "failed", paid_at: null }],
+    ],
+    [
+      "the Checkout expired",
+      [{ provider_session_id: "cs_1", status: "unpaid", paid_at: null }],
+    ],
+    [
+      "the fee was paid and then refunded",
+      [{ provider_session_id: "cs_1", status: "refunded", paid_at: "2026-08-01" }],
+    ],
+  ];
+
+  for (const [name, rows] of UNPAID) {
+    it(`refuses when ${name}`, async () => {
+      scenario.paymentRows = rows;
+      const state = await startOnboarding(initialStartState, validForm());
+      expect(state.status).toBe("error");
+      // No carrier row, no lead, no email — the same closed door the FMCSA
+      // half produces, for the other reason.
+      expect(inserts).toEqual([]);
+      expect(emails).toEqual([]);
+      expect(auditActions).toContain("onboarding_gate_denied");
+    });
+  }
+
+  it("proceeds only when the ledger says paid", async () => {
+    const state = await startOnboarding(initialStartState, validForm());
+    expect(state.status).toBe("success");
+  });
+
+  it("a ledger READ FAILURE is not a pass", async () => {
+    // "We could not ask" must never resolve to "go ahead". The fake returns a
+    // shape `readFeePaymentState` treats as no rows, which is unpaid.
+    scenario.paymentRows = [];
+    const state = await startOnboarding(initialStartState, validForm());
+    expect(state.status).toBe("error");
+  });
+
+  it("PAYMENT DOES NOT OVERRIDE ELIGIBILITY — the two conditions are ANDed", async () => {
+    // The rule this exists to prove: somebody in manual review who pays is
+    // still in manual review. Money buys the fee, not the verdict.
+    for (const decision of ["manual_review", "not_eligible", null]) {
+      inserts = [];
+      scenario.preRegistration = eligiblePreRegistration({ decision });
+      scenario.paymentRows = [
+        {
+          provider_session_id: "cs_paid",
+          status: "paid",
+          paid_at: "2026-08-19T00:00:00.000Z",
+        },
+      ];
+      const state = await startOnboarding(initialStartState, validForm());
+      expect(state.status, String(decision)).toBe("error");
+      expect(inserts, String(decision)).toEqual([]);
+    }
+  });
+
+  it("no client-supplied payment field can stand in for the ledger", async () => {
+    scenario.paymentRows = [];
+    const state = await startOnboarding(
+      initialStartState,
+      validForm({
+        paid: "true",
+        payment_status: "paid",
+        stripe_session_id: "cs_test_forged",
+        checkout_session_id: "cs_test_forged",
+        amount_paid: "999",
+      }),
+    );
+    expect(state.status).toBe("error");
+    expect(inserts).toEqual([]);
+  });
+
+  it("tells the applicant something they can act on, without internals", async () => {
+    scenario.paymentRows = [];
+    const state = await startOnboarding(initialStartState, validForm());
+    const message = state.status === "error" ? (state.message ?? "") : "";
+    expect(message).toMatch(/\$9\.99|verification fee/i);
+    for (const leak of ["cs_", "sk_", "price_", "stripe_secret", "webhook"]) {
+      expect(message.toLowerCase()).not.toContain(leak);
     }
   });
 });

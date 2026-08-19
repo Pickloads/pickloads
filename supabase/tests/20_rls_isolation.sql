@@ -164,6 +164,41 @@ begin
 end;
 $$;
 
+/**
+ * The statement must be refused by a UNIQUE CONSTRAINT (23505), specifically.
+ *
+ * `denied` deliberately will not accept 23505 — for a policy assertion a
+ * duplicate-key error means the test hit the wrong row, not that RLS worked,
+ * and treating the two alike is how a green suite starts lying. But M-95's
+ * duplicate-charge protection IS a unique index, and "the database refused a
+ * second paid row" is exactly the claim worth making. So it gets its own
+ * helper, which accepts 23505 and nothing else.
+ */
+create function rls_test.duplicate_refused(stmt text, label text) returns void
+language plpgsql as $$
+declare
+  allowed boolean := false;
+  state text;
+  msg text;
+begin
+  begin
+    execute stmt;
+    allowed := true;
+  exception when others then
+    get stacked diagnostics state = returned_sqlstate, msg = message_text;
+    if state <> '23505' then
+      raise exception 'RLS TEST BROKEN: % — expected a unique violation, got SQLSTATE % (%)',
+        label, state, msg;
+    end if;
+  end;
+  if allowed then
+    raise exception 'RLS ASSERTION FAILED: % — a duplicate was ACCEPTED: %',
+      label, stmt;
+  end if;
+  perform rls_test.record(label);
+end;
+$$;
+
 grant usage on schema rls_test to authenticated, anon, service_role, public;
 grant execute on all functions in schema rls_test to authenticated, anon, service_role, public;
 
@@ -3823,6 +3858,76 @@ select rls_test.denied(
       set reviewed_by = '00000000-0000-0000-0000-0000000000e1', reviewed_at = null
     where id = '9e9e9e9e-9e9e-4e9e-8e9e-9e9e9e9e0001'$$,
   '§18: a half-written review (reviewer, no timestamp) is refused by the database');
+
+-- ---------------------------------------------------------------------------
+-- 18g · M-95 — the PAYMENT LEDGER is the gate's source of truth
+--
+-- `startOnboarding` advances only when `carrier_onboarding_payments` holds a
+-- `paid` row for the applicant. That makes this table an authorization input,
+-- not just an accounting record — so the question "who can write a paid row?"
+-- has exactly one acceptable answer: the Stripe webhook, running as the
+-- service role, after verifying a signature.
+--
+-- §18a/§18b already prove no browser role can UPDATE one. These cover the
+-- other direction — INSERTING a fully-formed paid row — and the constraint
+-- that stops even the service role from recording a second one.
+-- ---------------------------------------------------------------------------
+reset role;
+set request.jwt.claim.sub = '';
+set role anon;
+
+select rls_test.writes_nothing(
+  $$insert into carrier_onboarding_payments
+      (pre_registration_id, provider, provider_session_id, amount_cents, currency, status, paid_at)
+    values ('9e9e9e9e-9e9e-4e9e-8e9e-9e9e9e9e0001','stripe','cs_forged_anon',999,'usd','paid',now())$$,
+  '§18 / M-95: anon cannot INSERT a paid payment row — forging the ledger is forging the gate');
+
+reset role;
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';
+
+select rls_test.writes_nothing(
+  $$insert into carrier_onboarding_payments
+      (pre_registration_id, provider, provider_session_id, amount_cents, currency, status, paid_at)
+    values ('9e9e9e9e-9e9e-4e9e-8e9e-9e9e9e9e0001','stripe','cs_forged_carrier',999,'usd','paid',now())$$,
+  '§18 / M-95: a signed-in carrier cannot INSERT a paid payment row either');
+select rls_test.eq((select count(*) from carrier_onboarding_payments), 0,
+  '§18 / M-95: and cannot read the ledger at all, so it cannot even find what to forge');
+
+-- ── THE DUPLICATE-CHARGE CONSTRAINT, PROVED AT THE DATABASE ───────────────
+--
+-- Not "the handler checks first" — a partial unique index. Even the service
+-- role, even a webhook replay that slipped past every other guard, cannot
+-- record two settled fees for one applicant.
+reset role;
+select rls_test.affects(
+  $$update carrier_onboarding_payments set status = 'paid', paid_at = now()
+      where provider_session_id is null
+        and pre_registration_id = '9e9e9e9e-9e9e-4e9e-8e9e-9e9e9e9e0001'$$,
+  1, '§18 / M-95 NON-VACUITY: the service role CAN settle a fee (once)');
+
+select rls_test.duplicate_refused(
+  $$insert into carrier_onboarding_payments
+      (pre_registration_id, provider, provider_session_id, amount_cents, currency, status, paid_at)
+    values ('9e9e9e9e-9e9e-4e9e-8e9e-9e9e9e9e0001','stripe','cs_second_paid',999,'usd','paid',now())$$,
+  '§18 / M-95: a SECOND paid row for one applicant is refused by the database, not by a handler');
+
+-- One applicant may hold several ATTEMPTS — a cancelled Checkout then a
+-- successful one is ordinary — so the index is partial on `status = 'paid'`
+-- and this must still be allowed.
+select rls_test.affects(
+  $$insert into carrier_onboarding_payments
+      (pre_registration_id, provider, provider_session_id, amount_cents, currency, status)
+    values ('9e9e9e9e-9e9e-4e9e-8e9e-9e9e9e9e0002','stripe','cs_attempt_1',999,'usd','session_created')$$,
+  1, '§18 / M-95: an unpaid ATTEMPT is still allowed — the constraint bounds settlements, not tries');
+
+-- Clean up the row this section created, so §18e's non-vacuity counts keep
+-- describing the FIXTURES rather than whatever the previous section happened
+-- to leave behind. Sections that quietly change each other's arithmetic are
+-- how a suite starts failing for reasons nobody can locate.
+select rls_test.affects(
+  $$delete from carrier_onboarding_payments where provider_session_id = 'cs_attempt_1'$$,
+  1, '§18 / M-95: the attempt row is cleaned up after itself');
 
 -- ---------------------------------------------------------------------------
 -- 18e · NON-VACUITY, and the structural facts behind it

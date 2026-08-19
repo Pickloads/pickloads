@@ -1072,7 +1072,27 @@
     "we_couldn_t_verify_this_usdot_number_with_fmcsa_please_r": "We couldn't verify this USDOT number with FMCSA. Please review the number or contact PickLoads for assistance.",
     "we_need_to_review_some_of_your_carrier_information_befor": "Nou bezwen egzamine kèk enfòmasyon sou konpayi w anvan nou kontinye.",
     "where_we_reach_you_if_the_record_needs_a_human_look": "Kote pou nou jwenn ou si dosye a bezwen yon egzamen alamen.",
-    "your_usdot_and_mc_match_an_active_carrier_record_at_fmcs": "USDOT ak MC ou yo koresponn ak yon dosye transpòtè aktif nan FMCSA. Poko gen okenn kont ki kreye."
+    "your_usdot_and_mc_match_an_active_carrier_record_at_fmcs": "USDOT ak MC ou yo koresponn ak yon dosye transpòtè aktif nan FMCSA. Poko gen okenn kont ki kreye.",
+    "back_to_carrier_onboarding": "Retounen nan enskripsyon transpòtè →",
+    "back_to_the_verification_fee": "Retounen nan frè verifikasyon an →",
+    "card_payments_are_processed_by_stripe_your_payment_is_co": "Card payments are processed by Stripe. Your payment is confirmed with Stripe directly — not from your browser — so give it a moment if you've just returned.",
+    "confirming_your_pickloads_carrier_verification_fee_with": "N ap konfime frè verifikasyon transpòtè PickLoads ou an ak Stripe.",
+    "if_it_still_says_this_after_a_minute_nothing_is_lost_cal": "If it still says this after a minute, nothing is lost — call (908) 404-5373 and we'll find the payment.",
+    "let_s_pick_up_where_you_left_off": "Ann kontinye kote ou te rete a.",
+    "pay_9_99_and_continue": "Pay $9.99 and continue →",
+    "payment_cancelled_nothing_was_charged": "Payment cancelled — nothing was charged.",
+    "payment_received_thank_you": "Nou resevwa peman an. Mèsi.",
+    "secure_card_payment_by_stripe": "Peman sekirize ak kat atravè Stripe",
+    "sign_in_to_your_portal_to_carry_on_where_you_left_off": "Konekte nan pòtay ou pou kontinye kote ou te rete a.",
+    "stripe_confirms_payments_to_us_directly_rather_than_thro": "Stripe konfime peman yo dirèkteman ak nou, pa atravè navigatè w la, e pafwa sa pran kèk segond. Aktyalize paj sa a nan yon moman.",
+    "taking_you_to_stripe": "N ap mennen w nan Stripe…",
+    "this_application_already_has_an_account": "Aplikasyon sa a gen yon kont deja.",
+    "verification_fee_pickloads_logistics_group": "Frè verifikasyon — PickLoads Logistics Group",
+    "we_couldn_t_match_this_to_a_verified_application_nothing": "We couldn't match this to a verified application. Nothing has been charged.",
+    "we_re_confirming_your_payment": "N ap konfime peman ou.",
+    "you_left_the_payment_page_before_it_completed_so_no_mone": "You left the payment page before it completed, so no money has moved. Your carrier verification is still valid and you can pay whenever you're ready.",
+    "you_ll_finish_on_stripe_s_secure_payment_page_and_come_s": "You'll finish on Stripe's secure payment page and come straight back. PickLoads never sees or stores your card details. Paying does not activate your account — documents, the agreement and our compliance review still apply.",
+    "your_9_99_verification_fee_is_confirmed_your_account_is": "Your $9.99 verification fee is confirmed. Your account is not active yet — documents, the dispatch agreement and our compliance review still apply."
   },
   "shipment": {
     "status": {

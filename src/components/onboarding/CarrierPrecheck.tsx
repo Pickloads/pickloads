@@ -39,9 +39,16 @@ import { useV4 } from "@/i18n/v4";
  */
 export function CarrierPrecheck({
   onVerified,
+  resumeOutcome,
 }: {
   /** Called when the applicant chooses to continue past a verified check. */
   onVerified: () => void;
+  /**
+   * M-95. A server-resolved outcome for an applicant returning to a check
+   * they already ran — the same two panels the live action renders, so the
+   * copy has one home and cannot drift into two versions.
+   */
+  resumeOutcome?: "manual_review" | "not_eligible";
 }) {
   const tv = useV4();
   const locale = useLocale();
@@ -115,7 +122,7 @@ export function CarrierPrecheck({
   }
 
   /* ---------------- Manual review — not a rejection ---------------- */
-  if (state.status === "manual_review") {
+  if (state.status === "manual_review" || resumeOutcome === "manual_review") {
     return (
       <div className="bigform" ref={outcomeRef}>
         <h2>
@@ -141,7 +148,7 @@ export function CarrierPrecheck({
   }
 
   /* ---------------- Not eligible — neutral, no internals ---------------- */
-  if (state.status === "not_eligible") {
+  if (state.status === "not_eligible" || resumeOutcome === "not_eligible") {
     return (
       <div className="bigform" ref={outcomeRef}>
         <h2>{tv("We couldn't verify this carrier with FMCSA.")}</h2>

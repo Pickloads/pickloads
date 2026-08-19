@@ -1072,7 +1072,27 @@
     "we_couldn_t_verify_this_usdot_number_with_fmcsa_please_r": "Nous n'avons pas pu vérifier ce numéro USDOT auprès de la FMCSA. Vérifiez le numéro ou contactez PickLoads pour obtenir de l'aide.",
     "we_need_to_review_some_of_your_carrier_information_befor": "Nous devons vérifier certaines informations sur votre entreprise avant de continuer.",
     "where_we_reach_you_if_the_record_needs_a_human_look": "Où vous joindre si le dossier nécessite un examen manuel.",
-    "your_usdot_and_mc_match_an_active_carrier_record_at_fmcs": "Votre USDOT et votre MC correspondent à un dossier de transporteur actif auprès de la FMCSA. Aucun compte n'a encore été créé."
+    "your_usdot_and_mc_match_an_active_carrier_record_at_fmcs": "Votre USDOT et votre MC correspondent à un dossier de transporteur actif auprès de la FMCSA. Aucun compte n'a encore été créé.",
+    "back_to_carrier_onboarding": "Retour à l'inscription transporteur →",
+    "back_to_the_verification_fee": "Retour aux frais de vérification →",
+    "card_payments_are_processed_by_stripe_your_payment_is_co": "Les paiements par carte sont traités par Stripe. Votre paiement est confirmé directement auprès de Stripe — et non depuis votre navigateur — patientez donc un instant si vous venez de revenir.",
+    "confirming_your_pickloads_carrier_verification_fee_with": "Confirmation de vos frais de vérification transporteur PickLoads auprès de Stripe.",
+    "if_it_still_says_this_after_a_minute_nothing_is_lost_cal": "Si ce message persiste après une minute, rien n'est perdu — appelez le (908) 404-5373 et nous retrouverons le paiement.",
+    "let_s_pick_up_where_you_left_off": "Reprenons où vous en étiez.",
+    "pay_9_99_and_continue": "Payer 9,99 $ et continuer →",
+    "payment_cancelled_nothing_was_charged": "Paiement annulé — aucun montant n'a été prélevé.",
+    "payment_received_thank_you": "Paiement reçu. Merci.",
+    "secure_card_payment_by_stripe": "Paiement par carte sécurisé via Stripe",
+    "sign_in_to_your_portal_to_carry_on_where_you_left_off": "Connectez-vous à votre portail pour reprendre où vous en étiez.",
+    "stripe_confirms_payments_to_us_directly_rather_than_thro": "Stripe nous confirme les paiements directement plutôt que par votre navigateur, ce qui prend parfois quelques secondes. Actualisez cette page dans un instant.",
+    "taking_you_to_stripe": "Redirection vers Stripe…",
+    "this_application_already_has_an_account": "Cette demande a déjà un compte.",
+    "verification_fee_pickloads_logistics_group": "Frais de vérification — PickLoads Logistics Group",
+    "we_couldn_t_match_this_to_a_verified_application_nothing": "Nous n'avons pas pu rattacher ceci à une demande vérifiée. Aucun montant n'a été prélevé.",
+    "we_re_confirming_your_payment": "Nous confirmons votre paiement.",
+    "you_left_the_payment_page_before_it_completed_so_no_mone": "Vous avez quitté la page de paiement avant la fin, donc aucun montant n'a été déplacé. Votre vérification de transporteur reste valable et vous pouvez payer quand vous le souhaitez.",
+    "you_ll_finish_on_stripe_s_secure_payment_page_and_come_s": "Vous terminerez sur la page de paiement sécurisée de Stripe et reviendrez aussitôt ici. PickLoads ne voit ni ne conserve jamais vos données de carte. Payer n'active pas votre compte — les documents, le contrat et notre vérification de conformité s'appliquent toujours.",
+    "your_9_99_verification_fee_is_confirmed_your_account_is": "Vos frais de vérification de 9,99 $ sont confirmés. Votre compte n'est pas encore actif — les documents, le contrat de répartition et notre vérification de conformité s'appliquent toujours."
   },
   "shipment": {
     "status": {
