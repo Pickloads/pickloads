@@ -141,6 +141,37 @@ test("the shipped CSP names no map vendor — because the map makes no request",
   expect(csp).toContain("challenges.cloudflare.com");
 });
 
+/**
+ * M-98 — the PRODUCTION policy, asserted against a real production server.
+ *
+ * This lane runs `next start`, so the header measured here is the one a
+ * visitor gets. `'unsafe-eval'` is a development-only concession to Next's dev
+ * runtime (webpack + React Refresh evaluate strings, and without it nothing
+ * hydrates at all). It must never reach a built server, where it would make
+ * any injected string executable.
+ *
+ * `tests/unit/security-headers.test.ts` proves the policy BUILDER never emits
+ * it outside development. This proves the server actually sends what the
+ * builder built — the two failure modes are different, and only this one
+ * catches a config that stopped calling the builder.
+ */
+test("the production CSP does not allow eval, and there is exactly one of it", async ({
+  request,
+}) => {
+  const response = await request.get("/track");
+  const csp = response.headers()["content-security-policy"] ?? "";
+  expect(csp).not.toContain("unsafe-eval");
+  // A second CSP header would not merge — browsers enforce the intersection —
+  // so a stray one is both a conflict and a silent re-break.
+  const raw = response.headersArray().filter(
+    (h) => h.name.toLowerCase() === "content-security-policy",
+  );
+  expect(raw).toHaveLength(1);
+  // The inline bootstrap Next needs in production is still permitted, so the
+  // absence above is about eval specifically and not a blanket tightening.
+  expect(csp).toContain("'unsafe-inline'");
+});
+
 /* ================================================================== *
  * 3 · The surfaces that host the panel are session-gated
  * ================================================================== */
