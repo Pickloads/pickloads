@@ -130,6 +130,46 @@ export async function getMfaState(
 
   try {
     const supabase = await createClient();
+
+    /* ── AUTHENTICATE THE SESSION BEFORE READING ANYTHING FROM IT ────────
+     *
+     * `getUser()` contacts the Auth server and validates the token; the
+     * cookies alone are just storage and could say anything. Two reasons this
+     * call has to come first:
+     *
+     *   1. SECURITY. Everything below decides whether MFA is SATISFIED. Basing
+     *      that on an unvalidated local token means the gate is only as good
+     *      as a cookie.
+     *   2. It is the documented fix for the warning this used to print —
+     *      "Using the user object as returned from supabase.auth.getSession()
+     *      … could be insecure". `getAuthenticatorAssuranceLevel()` reads the
+     *      stored session internally, and auth-js flags that on the server
+     *      unless the client has already authenticated a user (it sets
+     *      `suppressGetSessionWarning` after a successful `getUser()`). So
+     *      calling it first both fixes the warning and removes the thing the
+     *      warning was about.
+     */
+    const { data: authed, error: authError } = await supabase.auth.getUser();
+    if (authError || !authed.user) {
+      /* Configured, but this request carries no authenticated user. FAIL
+       * CLOSED: report the role's real requirement and `satisfied: false`, so
+       * a caller sends them to enrollment rather than waving them through.
+       * `unconfigured()` would be wrong here — it reports `satisfied: true`,
+       * which is only correct when there is no auth service to consult. */
+      const fallback = requirementFor(role, profileCreatedAt);
+      return {
+        configured: true,
+        enrolled: false,
+        verified: false,
+        currentLevel: null,
+        nextLevel: null,
+        requirement: fallback.requirement,
+        satisfied: fallback.requirement === "none",
+        graceEndsAt: fallback.graceEndsAt,
+        graceDaysLeft: fallback.graceDaysLeft,
+      };
+    }
+
     const [factors, aal] = await Promise.all([
       supabase.auth.mfa.listFactors(),
       supabase.auth.mfa.getAuthenticatorAssuranceLevel(),

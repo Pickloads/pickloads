@@ -45,7 +45,9 @@ with the reason documented in the migration.
 
 ## Files
 
-New: `src/lib/mfa.ts` · `src/lib/audit.ts` · `src/app/actions/security.ts` ·
+New: `src/lib/mfa.ts` · `src/lib/audit.ts` · `src/app/api/portal/mfa-journal/route.ts`
+(M-97: was `src/app/actions/security.ts`; a Server Action there redirected admins
+to /login mid-MFA — see docs/modules/M-97-mfa-session.md) ·
 `src/app/[locale]/portal/admin/mfa/page.tsx` ·
 `src/components/portal/MfaEnrollment.tsx` ·
 `src/components/portal/MfaGraceBanner.tsx` ·

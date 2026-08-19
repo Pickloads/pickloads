@@ -138,7 +138,18 @@ describe("audit_events coverage for sensitive staff actions (audit §6.2)", () =
     ["src/app/actions/quotes.ts", ["quote.status_change"]],
     ["src/app/actions/carrier-portal.ts", ["carrier.change_request", "agreement.resend_requested"]],
     ["src/app/actions/account.tsx", ["account.signup"]],
-    ["src/app/actions/security.ts", ["staff.mfa_enrolled", "staff.mfa_verified"]],
+    // M-97 — moved from `src/app/actions/security.ts`. It was a Server Action,
+    // which POSTs to the CURRENT route and re-renders it; called straight
+    // after `mfa.verify()` rotated the auth cookies, that re-render hit
+    // `requireStaffNoMfa()`, found no readable session and redirected — so a
+    // best-effort audit row was logging admins out of the page that had just
+    // authenticated them. A route handler renders nothing and sits outside the
+    // middleware matcher, so it has no way to redirect. Same two actions, same
+    // server-side identity check, same ledger.
+    [
+      "src/app/api/portal/mfa-journal/route.ts",
+      ["staff.mfa_enrolled", "staff.mfa_verified"],
+    ],
     // M-77 — §15's document-access history for SHIPMENT documents. Same
     // `document.download` action string as the carrier-document paths above,
     // so the admin security log is one query rather than two.

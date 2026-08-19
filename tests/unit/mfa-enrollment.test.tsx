@@ -31,6 +31,17 @@ import { toRenderableQrSrc, looksLikeSvg } from "@/lib/mfa-qr";
  * a person staring at a blank square with no way forward.
  */
 
+/**
+ * Source with comments removed. These files DOCUMENT the mistakes they fix —
+ * a scanner that reads prose flags the explanation as the defect, which is
+ * exactly what happened the first time these assertions were written.
+ */
+function code(file: string): string {
+  return readFileSync(file, "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/^[ 	]*\/\/.*$/gm, " ");
+}
+
 /* ── The encoder ────────────────────────────────────────────────────────── */
 
 /** A faithful miniature of what Supabase actually returns. */
@@ -130,18 +141,36 @@ interface MfaStub {
 }
 
 let mfa: MfaStub;
-let auditCalls: string[] = [];
 
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({ auth: { mfa } }),
 }));
 
-vi.mock("@/app/actions/security", () => ({
-  recordMfaEnrollment: (kind: string) => {
-    auditCalls.push(kind);
-    return Promise.resolve();
-  },
-}));
+/**
+ * M-97: the journal is a ROUTE HANDLER now, not a server action, so the test
+ * double is `fetch` rather than a module mock. That difference is the fix —
+ * see the "the journal cannot log anybody out" block below.
+ */
+let journalRequests: Array<{ url: string; method: string; body: unknown }> = [];
+let journalFails = false;
+
+function installFetchDouble() {
+  journalRequests = [];
+  globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    journalRequests.push({
+      url,
+      method: init?.method ?? "GET",
+      body: init?.body ? JSON.parse(String(init.body)) : null,
+    });
+    if (journalFails) throw new Error("network down");
+    return new Response(null, { status: 204 });
+  }) as unknown as typeof fetch;
+}
+
+/** The kinds journalled, in order — the shape the old assertions used. */
+const auditKinds = () =>
+  journalRequests.map((r) => (r.body as { kind?: string } | null)?.kind);
 
 const { MfaEnrollment } = await import("@/components/portal/MfaEnrollment");
 
@@ -163,7 +192,8 @@ const clickGenerate = async () => {
 };
 
 beforeEach(() => {
-  auditCalls = [];
+  journalFails = false;
+  installFetchDouble();
   mfa = {
     listFactors: vi.fn(async () => ({ data: { all: [], totp: [] }, error: null })),
     enroll: vi.fn(async () => ({
@@ -379,7 +409,7 @@ describe("verifying the code", () => {
     // The AAL2 token is minted by verify() into this browser's session; the
     // full navigation is what makes the server re-read it and open the gate.
     expect(window.location.assign).toHaveBeenCalledWith("/portal/admin");
-    expect(auditCalls).toContain("enrolled");
+    expect(auditKinds()).toContain("enrolled");
   });
 
   it("step-up: a verified factor is challenged without enrolling a new one", async () => {
@@ -395,7 +425,126 @@ describe("verifying the code", () => {
     });
     expect(mfa.enroll).not.toHaveBeenCalled();
     expect(mfa.challenge).toHaveBeenCalledWith({ factorId: "v1" });
-    expect(auditCalls).toContain("verified");
+    expect(auditKinds()).toContain("verified");
+  });
+});
+
+/* ── M-97: the journal cannot log anybody out ───────────────────────────── */
+
+describe("the post-verify journal", () => {
+  it("posts to the ROUTE HANDLER, not to the current page", async () => {
+    // The regression, stated directly. A Server Action POSTs to the current
+    // route and makes Next re-render it; that route is gated by
+    // requireStaffNoMfa, which redirects to /login when the request lands
+    // mid-cookie-rotation. 303 → /login, immediately after a correct MFA.
+    renderEnrollment();
+    await clickGenerate();
+    const input = screen.getByLabelText(/6-digit code/i) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "123456" } });
+      fireEvent.submit(input.closest("form")!);
+    });
+    expect(journalRequests).toHaveLength(1);
+    expect(journalRequests[0]!.url).toBe("/api/portal/mfa-journal");
+    expect(journalRequests[0]!.method).toBe("POST");
+    // Nothing addressed at the page itself, which is what could redirect.
+    for (const r of journalRequests) {
+      expect(r.url).not.toMatch(/\/portal\/admin\/mfa$/);
+    }
+  });
+
+  it("still navigates when the journal fails outright", async () => {
+    // A best-effort audit row must never cost somebody their session upgrade.
+    journalFails = true;
+    renderEnrollment();
+    await clickGenerate();
+    const input = screen.getByLabelText(/6-digit code/i) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "123456" } });
+      fireEvent.submit(input.closest("form")!);
+    });
+    expect(window.location.assign).toHaveBeenCalledWith("/portal/admin");
+  });
+
+  it("sends only a kind — never a factor id, code or secret", async () => {
+    renderEnrollment();
+    await clickGenerate();
+    const input = screen.getByLabelText(/6-digit code/i) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "123456" } });
+      fireEvent.submit(input.closest("form")!);
+    });
+    const body = journalRequests[0]!.body as Record<string, unknown>;
+    expect(Object.keys(body)).toEqual(["kind"]);
+    const serialized = JSON.stringify(body);
+    expect(serialized).not.toContain("JBSWY3DPEHPK3PXP");
+    expect(serialized).not.toContain("123456");
+    expect(serialized).not.toContain("factor-1");
+  });
+
+  it("a wrong code journals nothing and does not navigate", async () => {
+    // Stays authenticated at AAL1, with an error — no logout, no upgrade.
+    mfa.verify = vi.fn(async () => ({
+      data: null,
+      error: { message: "Invalid TOTP code entered", status: 422 },
+    }));
+    renderEnrollment();
+    await clickGenerate();
+    const input = screen.getByLabelText(/6-digit code/i) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "000000" } });
+      fireEvent.submit(input.closest("form")!);
+    });
+    expect(journalRequests).toEqual([]);
+    expect(window.location.assign).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toMatch(/didn't match/i);
+  });
+
+  it("no server action is imported by the enrollment surface at all", () => {
+    // Comments stripped: this file DOCUMENTS the action it replaced, and a
+    // scanner that reads prose flags the explanation as the defect.
+    const src = code("src/components/portal/MfaEnrollment.tsx");
+    expect(src).not.toContain("@/app/actions/security");
+    expect(src).not.toContain("recordMfaEnrollment");
+    expect(src).toContain("/api/portal/mfa-journal");
+  });
+
+  it("the journal route is outside the middleware matcher", () => {
+    // If it were inside, an unauthenticated POST would be answered with a
+    // redirect — reintroducing exactly the failure this moved away from.
+    const mw = readFileSync("src/middleware.ts", "utf8");
+    expect(mw).toMatch(/\(\?!api\|/);
+  });
+});
+
+/* ── M-97: the AAL decision is made about an AUTHENTICATED session ──────── */
+
+describe("MFA state is derived from a validated session", () => {
+  const src = code("src/lib/mfa.ts");
+
+  it("calls getUser() before reading factors or the assurance level", () => {
+    const authIndex = src.indexOf("supabase.auth.getUser()");
+    const aalIndex = src.indexOf("getAuthenticatorAssuranceLevel()");
+    expect(authIndex).toBeGreaterThan(-1);
+    expect(aalIndex).toBeGreaterThan(-1);
+    expect(authIndex).toBeLessThan(aalIndex);
+  });
+
+  it("never reads the user off getSession()", () => {
+    expect(src).not.toContain("getSession()");
+  });
+
+  it("fails CLOSED when the session cannot be authenticated", () => {
+    // `unconfigured()` reports satisfied:true, which is right only when there
+    // is no auth service to ask. A configured project that cannot authenticate
+    // the caller must not report MFA as satisfied.
+    const branch = src.slice(
+      src.indexOf("if (authError || !authed.user)"),
+      src.indexOf("const [factors, aal]"),
+    );
+    expect(branch).toContain("configured: true");
+    expect(branch).toContain('satisfied: fallback.requirement === "none"');
+    expect(branch).not.toContain("return unconfigured()");
   });
 });
 
@@ -427,13 +576,11 @@ describe("the secret stays where it belongs", () => {
       fireEvent.submit(input.closest("form")!);
     });
     // The only server call carries a kind, never the factor or its secret.
-    expect(auditCalls).toEqual(["enrolled"]);
+    expect(auditKinds()).toEqual(["enrolled"]);
   });
 
-  const source = (f: string) =>
-    readFileSync(f, "utf8")
-      .replace(/\/\*[\s\S]*?\*\//g, " ")
-      .replace(/^[ \t]*\/\/.*$/gm, " ");
+  /** The shared comment-stripping reader from the top of this file. */
+  const source = code;
 
   it("no code path logs or persists the enrollment payload", () => {
     const src = source("src/components/portal/MfaEnrollment.tsx");
@@ -443,13 +590,15 @@ describe("the secret stays where it belongs", () => {
     expect(src).not.toContain("sessionStorage");
   });
 
-  it("the audit action never accepts a secret from the client", () => {
-    // It takes one string and validates it against a two-value enum; identity
-    // is re-derived server-side. There is no parameter a secret could ride in.
-    const src = source("src/app/actions/security.ts");
+  it("the journal endpoint never accepts a secret from the client", () => {
+    // It takes one value from a two-item enum; identity is re-derived
+    // server-side. There is no parameter a secret could ride in.
+    const src = source("src/app/api/portal/mfa-journal/route.ts");
     expect(src).toContain('z.enum(["enrolled", "verified"])');
     expect(src).toContain("getSessionProfile()");
     expect(src).toContain("isStaffRole(session.role)");
+    // And it can never answer with a redirect, which is the whole point.
+    expect(src).not.toContain("redirect");
   });
 
   it("enrollment is not a route to staff authorization", () => {
@@ -457,7 +606,7 @@ describe("the secret stays where it belongs", () => {
     // nothing, because every staff surface gates on profiles.role first.
     const auth = source("src/lib/auth.ts");
     expect(auth).toMatch(/session\.role !== "admin" && session\.role !== "dispatcher"/);
-    const security = source("src/app/actions/security.ts");
-    expect(security).toMatch(/if \(!session \|\| !isStaffRole\(session\.role\)\) return;/);
+    const journal = source("src/app/api/portal/mfa-journal/route.ts");
+    expect(journal).toMatch(/!session \|\| !isStaffRole\(session\.role\)/);
   });
 });

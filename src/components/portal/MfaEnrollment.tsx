@@ -2,8 +2,36 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { recordMfaEnrollment } from "@/app/actions/security";
 import { toRenderableQrSrc } from "@/lib/mfa-qr";
+
+/**
+ * Journal the security event WITHOUT a server action.
+ *
+ * This was `await recordMfaEnrollment(...)`, a Server Action — which POSTs to
+ * the current route and makes Next re-render it. The current route is
+ * `/portal/admin/mfa`, gated by `requireStaffNoMfa()`, so when the POST landed
+ * mid-cookie-rotation (immediately after `verify()` swapped the tokens for
+ * AAL2 ones) the re-render found no session, called `redirect("/login")`, and
+ * Next answered the action with 303. The admin was bounced to the login page
+ * having just passed MFA.
+ *
+ * A route handler renders no page and sits outside the middleware matcher, so
+ * there is no gate left that could redirect. And it is deliberately
+ * best-effort: the factor is already active whatever happens here, so a failed
+ * journal entry must never cost the user their navigation.
+ */
+async function journalMfaEvent(kind: "enrolled" | "verified"): Promise<void> {
+  try {
+    await fetch("/api/portal/mfa-journal", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kind }),
+      credentials: "same-origin",
+    });
+  } catch {
+    /* best effort — see above */
+  }
+}
 
 /**
  * M-61 — staff TOTP enrollment + step-up challenge (audit §6.1 / decision D3).
@@ -146,9 +174,10 @@ export function MfaEnrollment({
         return;
       }
       setPhase("done");
-      // Journal the security event (service-role ledger); best effort — the
-      // factor is already active either way.
-      await recordMfaEnrollment(phase === "enrolling" ? "enrolled" : "verified");
+      await journalMfaEvent(phase === "enrolling" ? "enrolled" : "verified");
+      // The hard navigation is what makes the SERVER re-read the upgraded
+      // session and open the gate. Nothing between `verify()` and here is
+      // allowed to redirect, or the upgrade is lost on the way out.
       window.location.assign(returnTo);
     } catch {
       setError("We couldn't reach the sign-in service. Try again in a moment.");
