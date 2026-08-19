@@ -326,7 +326,7 @@ export default async function AdminDashboardPage({
       </div>
 
       {scope.restricted ? (
-        <p className="pempty" style={{ padding: "0 0 12px" }}>
+        <p className="phelp">
           Scoped view (dispatcher): your assigned carriers (
           {scope.carrierIds?.length ?? 0}) and your own + unassigned leads.
         </p>
@@ -377,10 +377,10 @@ export default async function AdminDashboardPage({
       </div>
 
       <span className="psec">Pipeline funnel</span>
-      <div className="ptiles" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(120px,1fr))" }}>
+      <div className="ptiles compact">
         {FUNNEL.map((f) => (
-          <div className="ptile" key={f.status} style={{ padding: "12px 14px" }}>
-            <b style={{ fontSize: "1.3rem" }}>{funnel.get(f.status) ?? 0}</b>
+          <div className="ptile" key={f.status}>
+            <b>{funnel.get(f.status) ?? 0}</b>
             <span>{f.label}</span>
           </div>
         ))}
@@ -430,11 +430,11 @@ export default async function AdminDashboardPage({
         <div className="pcard">
           <h2>Active carriers by home state</h2>
           {carriersByState.size === 0 ? (
-            <p className="pempty" style={{ padding: 0 }}>
+            <p className="pempty flush">
               No active carriers yet.
             </p>
           ) : (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <div className="pbadges">
               {[...carriersByState.entries()]
                 .sort((a, b) => b[1] - a[1])
                 .map(([state, count]) => (
@@ -444,13 +444,13 @@ export default async function AdminDashboardPage({
                 ))}
             </div>
           )}
-          <h2 style={{ marginTop: 22 }}>Load mix by equipment</h2>
+          <h2 className="psubhead">Load mix by equipment</h2>
           {loadsByEquipment.size === 0 ? (
-            <p className="pempty" style={{ padding: 0 }}>
+            <p className="pempty flush">
               No loads booked yet.
             </p>
           ) : (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <div className="pbadges">
               {[...loadsByEquipment.entries()]
                 .sort((a, b) => b[1] - a[1])
                 .map(([equipment, count]) => (
@@ -460,7 +460,7 @@ export default async function AdminDashboardPage({
                 ))}
             </div>
           )}
-          <p className="pempty" style={{ padding: "14px 0 0" }}>
+          <p className="phelp">
             Equipment mix comes from booked loads — the carriers table
             deliberately has no equipment column (a fleet can run several).
           </p>
@@ -468,7 +468,7 @@ export default async function AdminDashboardPage({
         <div className="pcard">
           <h2>Per-dispatcher performance</h2>
           {byDispatcher.size === 0 ? (
-            <p className="pempty" style={{ padding: 0 }}>
+            <p className="pempty flush">
               Appears with the first booked load.
             </p>
           ) : (
@@ -529,10 +529,10 @@ export default async function AdminDashboardPage({
           <span className="sub">connect Search Console API (O-07)</span>
         </div>
       </div>
-      <div className="pcard" style={{ maxWidth: 620 }}>
+      <div className="pcard narrow">
         <h2>Lead sources</h2>
         {bySource.size === 0 ? (
-          <p className="pempty" style={{ padding: 0 }}>
+          <p className="pempty flush">
             No leads yet.
           </p>
         ) : (
@@ -662,7 +662,7 @@ export default async function AdminDashboardPage({
       <span className="psec">Notifications — recent email &amp; webhook activity</span>
       <div className="pcard">
         {feed.length === 0 ? (
-          <p className="pempty" style={{ padding: 0 }}>
+          <p className="pempty flush">
             Quiet — no emails logged and no failed webhooks.
           </p>
         ) : (

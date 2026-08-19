@@ -315,3 +315,246 @@
 .portal .shipmap-list time{color:var(--color-steel)}
 .portal .shipmap-place{color:var(--paper)}
 .portal .shipmap-coords,.portal .shipmap-speed{color:var(--steel)}
+
+/* ============================================================================
+   M-99 — the admin surfaces get the vocabulary they were missing.
+
+   ── WHAT WAS ACTUALLY WRONG ───────────────────────────────────────────────
+
+   Not taste. Four structural misuses, each with a visible symptom:
+
+   1. `.ptable-wrap` used as a generic card. It is a TABLE SCROLLER —
+      `padding:0`, `overflow-x:auto`, one border — so a heading, list or
+      paragraph placed inside it sits flush against that border. That is the
+      reported "text sitting directly on divider lines".
+
+   2. `.ptable` used for label/value pairs. A data grid gives every row
+      `border-bottom` and 11px of vertical padding, sized for one line of
+      tabular text. Two-line values therefore crowd the divider, and a
+      `white-space:nowrap` label pushes long values into a column too narrow
+      to hold them.
+
+   3. `h2.sec` — a MARKETING display heading, `clamp(1.8rem,3.6vw,2.7rem)`,
+      weight 900 — used for portal section titles, then fought back down with
+      an inline `fontSize`. Two type systems arguing inside one card.
+
+   4. Spacing expressed as inline styles per call site, so no two sections
+      agreed on the gap between a label and its value, or between a button row
+      and the text above it.
+
+   Everything below is layout and typography built from the EXISTING portal
+   vocabulary and the existing @theme tokens. No new colours (CLAUDE.md), no
+   new identity, no logic.
+
+   ── THE SPACING SCALE ─────────────────────────────────────────────────────
+
+   The values already in this file, named so they stop being re-invented:
+   6 / 10 / 14 / 18 / 22 / 26px. Card padding stays 20-22px, section gaps 22px,
+   row padding 14px. Nothing here introduces a size the portal did not already
+   use.
+   ========================================================================== */
+
+/* ---- card sub-sections: the portal's own heading scale ------------------
+   `.pcard h2` is the card title (1.05rem/800, already defined). `.psub` is
+   the section title INSIDE a card — the level that was reaching for `h2.sec`.
+   Mono/uppercase/steel matches `.psec`, so the two read as one system. */
+.pcard .psub{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--steel);margin:0 0 12px;font-weight:600}
+.pcard .psub:not(:first-child){margin-top:26px}
+/* A card whose first child is a heading should not double its top padding. */
+.pcard>h2:first-child,.pcard>.psub:first-child{margin-top:0}
+.pcard>:last-child{margin-bottom:0}
+
+/* ---- helper text --------------------------------------------------------
+   One class for every "explanation under a control" in the portal. It had
+   been `.pempty` (26px of padding, meant for empty states) or a bare `<p>`
+   with an inline style, which is why the gap under a textarea and the gap
+   under a table never matched. */
+.phelp{font-size:.82rem;line-height:1.6;color:var(--color-steel);margin:10px 0 0;max-width:68ch}
+.phelp:first-child{margin-top:0}
+.phelp b{color:#cfd6da}
+
+/* ---- definition lists: label/value detail rows --------------------------
+   The replacement for `.ptable` on non-tabular data. A two-column grid over
+   dt/dd pairs, with the divider drawn as a `border-top` on BOTH cells of a
+   row — so the line always falls between rows and never behind text, which a
+   per-cell `border-bottom` on a wrapping row cannot guarantee.
+
+   `minmax(0,1fr)` on the value column plus `overflow-wrap:anywhere` is what
+   lets a 64-character digest or a long legal name wrap instead of forcing the
+   grid wider than its card (the M-82 D-2 lesson, applied before it bites). */
+.pdl{display:grid;grid-template-columns:minmax(120px,190px) minmax(0,1fr);margin:0;align-items:baseline}
+.pdl>dt{font-family:var(--font-mono);font-size:.64rem;letter-spacing:.1em;text-transform:uppercase;color:var(--steel);padding:14px 18px 14px 0;border-top:1px solid var(--line);min-width:0;overflow-wrap:anywhere}
+.pdl>dd{margin:0;padding:14px 0;border-top:1px solid var(--line);color:var(--paper);font-size:.9rem;line-height:1.6;min-width:0;overflow-wrap:anywhere}
+.pdl>dt:first-of-type,.pdl>dt:first-of-type+dd{border-top:none;padding-top:0}
+.pdl>dd em{color:var(--color-steel);font-style:normal}
+/* Registration numbers, ids and digests — the only places monospace earns its
+   keep. Applied per value, never to the whole list. */
+.pdl>dd.mono{font-family:var(--font-mono);font-size:.82rem;letter-spacing:.01em}
+/* A second line under a value (a note, a qualifier) with its own rhythm. */
+.pdl>dd .psubvalue{display:block;font-family:var(--font-mono);font-size:.68rem;color:var(--color-steel);margin-top:5px;line-height:1.5}
+
+/* ≤640px the label/value pair stacks. The divider then belongs above the
+   LABEL only, or every row would draw two lines. */
+@media(max-width:640px){
+  .pdl{grid-template-columns:1fr}
+  .pdl>dt{padding:14px 0 3px;border-top:1px solid var(--line)}
+  .pdl>dd{padding:0 0 14px;border-top:none}
+  .pdl>dt:first-of-type{padding-top:0}
+  .pdl>dt:first-of-type+dd{padding-top:0}
+}
+
+/* ---- badge rows ---------------------------------------------------------
+   Badges were emitted as bare siblings, so they inherited whatever whitespace
+   the JSX happened to produce and crowded the `<h1>` in `.pbar`. */
+.pbadges{display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-width:0}
+.pbadge{line-height:1.7;padding:3px 9px;white-space:nowrap;max-width:100%;overflow-wrap:anywhere}
+/* In the page bar the badge group is a sibling of the title block, so it
+   needs to be able to drop to its own line rather than squeeze the heading. */
+.pbar .pbadges{flex:0 1 auto}
+/* Controls in the page bar — filters, view switches. Distinct from `.pbadges`
+   (which is status, not actions) and from `.pactions` (which is a block-level
+   row with its own top margin). */
+.pbar-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex:0 1 auto;min-width:0}
+@media(max-width:480px){.pbar-actions{width:100%}.pbar-actions>.btn{flex:1 1 auto;text-align:center}}
+
+/* ---- action rows --------------------------------------------------------
+   Every "row of buttons" in the portal, with one gap and one wrap rule. */
+.pactions{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:18px}
+.pactions>*{min-width:0}
+/* Below 480px a wrapped row of half-width buttons reads as a broken grid;
+   full-width stacked buttons read as a list of choices. */
+@media(max-width:480px){
+  .pactions{gap:10px}
+  .pactions>.btn{flex:1 1 100%;text-align:center}
+}
+
+/* ---- the review block ---------------------------------------------------
+   The permanent-record warning used to sit hard against the textarea's
+   border. It is now a labelled region with its own breathing room, and the
+   textarea is a portal control rather than a user-agent default. */
+.preview-form{margin-top:4px}
+.preview-form .field{margin-bottom:0}
+.preview-form textarea{width:100%;max-width:100%;min-width:0;box-sizing:border-box;min-height:110px;background:#0B0E11;border:1px solid var(--line);border-radius:6px;color:var(--paper);padding:12px 13px;font-family:var(--font-sans);font-size:.92rem;line-height:1.6;resize:vertical}
+.preview-form textarea:focus{outline:2px solid var(--amber);outline-offset:0;border-color:var(--amber)}
+.preview-form textarea::placeholder{color:var(--color-steel)}
+/* 10px clear of the control, not touching it. */
+.preview-form .phelp{margin-top:10px}
+
+/* ---- reason codes -------------------------------------------------------
+   Was a bare `<ul>` with a browser bullet and inline padding. Each code is a
+   finding with a machine name; the two want different weights, and the list
+   wants dividers that fall between items. */
+.preasons{list-style:none;margin:0;padding:0}
+.preasons li{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;padding:10px 0;border-top:1px solid var(--line);min-width:0}
+.preasons li:first-child{border-top:none;padding-top:0}
+.preasons .rlabel{font-size:.88rem;color:#cfd6da;line-height:1.55;min-width:0;overflow-wrap:anywhere}
+.preasons .rcode{font-family:var(--font-mono);font-size:.62rem;letter-spacing:.06em;color:var(--color-steel);overflow-wrap:anywhere}
+/* A finding leads; an observation follows. Colour is NOT the only signal —
+   the label text says what it is (§ no colour-only meaning). */
+.preasons li.is-finding .rlabel{color:var(--paper)}
+
+/* ---- stat tiles: label and value need air between them ------------------ */
+.ptile{display:flex;flex-direction:column;gap:6px;min-height:96px;justify-content:center}
+.ptile b{line-height:1.1}
+.ptile span{line-height:1.5}
+.ptile .sub{margin-top:2px}
+
+/* ---- the page bar -------------------------------------------------------
+   `align-items:center` pushed a two-line title against a badge group. Top
+   alignment keeps the crumb, the title and the badges on a shared baseline
+   grid when either side wraps. */
+.pbar{align-items:flex-start}
+.pbar h1{line-height:1.25;margin:2px 0 0;overflow-wrap:anywhere}
+.pbar .crumb{display:block;margin-bottom:4px}
+.pbar .crumb a{color:inherit}
+.pbar .crumb a:hover{color:var(--amber)}
+
+/* ---- sidebar: spacing only, no redesign -------------------------------- */
+.pside a,.pside .psignout{line-height:1.4;overflow-wrap:anywhere}
+.pside .plabel{margin-top:22px}
+.pside .plabel:first-of-type{margin-top:6px}
+
+/* ---- table cells that carry two lines ----------------------------------
+   The queue lists a company and its email, a USDOT and its MC. `.ptable td`
+   is `vertical-align:middle` sized for one line; a stacked pair needs top
+   alignment and its own leading or the second line collides with the row
+   divider. */
+.ptable td.stacked{vertical-align:top;line-height:1.5}
+.ptable td .tsub{display:block;font-family:var(--font-mono);font-size:.64rem;color:var(--color-steel);margin-top:4px;overflow-wrap:anywhere}
+.ptable td.wrap{white-space:normal;overflow-wrap:anywhere;min-width:0}
+
+/* ── M-99 · admin dashboard ────────────────────────────────────────────────
+   Every rule here replaces an inline `style` that was working around a class
+   whose defaults suited a different context. No metric, threshold or colour
+   changes — the numbers and their good/warn states are untouched. */
+
+/* `.pempty` is a standalone empty-state box with 26px of padding. Inside a
+   `.pcard` that padding is already there, so card-nested uses carried
+   `style={{padding:0}}` to undo it — 139 more `.pempty` call sites outside
+   this module do the same, so the shape of the fix is `.pcard .pempty`.
+   It is NOT written that way. The e2e lane runs secretless and cannot reach
+   an authenticated carrier or shipper page, so a descendant rule would change
+   surfaces no test in this repo can check. An explicit modifier changes only
+   what this module actually looked at. Widening it to `.pcard .pempty` is the
+   follow-up, and it needs those pages covered first. */
+.pempty.flush{padding:0}
+
+/* A second heading in a card needs air above it. Was an inline marginTop. */
+.psubhead{margin-top:22px}
+
+/* The pipeline funnel is nine small counts, not eight headline metrics, so it
+   wants a denser grid and a smaller numeral. That intent was expressed as
+   three separate inline overrides on `.ptiles`, `.ptile` and `b`; it is one
+   modifier. */
+.ptiles.compact{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}
+.ptiles.compact .ptile{padding:12px 14px;min-height:74px}
+.ptiles.compact .ptile b{font-size:1.3rem}
+
+/* A card held to reading width. Was `style={{maxWidth:620}}`. */
+.pcard.narrow{max-width:620px}
+
+/* ── M-99 · accounts table & pagination ────────────────────────────────────
+   NOTE for the report: `className="mono"` is applied 97 times across 63 files
+   and is defined NOWHERE. Every one of those elements renders in the body
+   face. It is not fixed here on purpose — defining `.mono` globally would
+   restyle public marketing pages too, which is outside a dashboard cleanup
+   and outside "convert, never redesign". The admin surfaces below use
+   `.tsub`, which really does set the mono face, so their intent now holds. */
+
+/* A control that sits under a cell's text rather than beside it. Was
+   `style={{display:"block",marginTop:6}}`. */
+.ptable td .tact{display:block;margin-top:6px}
+
+/* Table pager. Was an inline flex on a bare <p>, with the counter carrying
+   its own inline font-size and colour. */
+.ppager{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px}
+.ppager .pcount{font-family:var(--font-mono);font-size:.7rem;color:var(--steel)}
+
+/* The gap that opens a new block under a table or a card stack. Was
+   `style={{marginTop:26}}` in three places. */
+.pgap{margin-top:26px}
+/* A table inside a card, under that card's heading and lede. Scoped as a
+   modifier for the same reason as `.pempty.flush` above. */
+.pgap-sm{margin-top:18px}
+
+/* ── M-99 · MFA page & sidebar head ────────────────────────────────────────
+   CLAUDE.md forbids raw hex in components. These two values were inline in
+   `admin/mfa/page.tsx`; they are unchanged, just moved here. `#cfd6da` is the
+   dimmed paper already used by `.pside .psignout` above — it recurs enough to
+   deserve a real token, which is a theme change and so out of scope here. */
+
+/* A card carrying a blocking condition. Same red family as `.pbadge.red`. */
+.pcard.alert{border-color:#7a2a2a}
+
+/* A card's opening paragraph — larger and brighter than `.phelp`, which is a
+   footnote. Was `style={{fontSize:".9rem",color:"#cfd6da"}}`. */
+.plede{font-size:.9rem;line-height:1.6;color:#cfd6da;margin:10px 0 0;max-width:68ch}
+
+/* Sidebar head: logo left, close button right. Was a six-property inline
+   style object on an anonymous <div>. */
+.pside-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:4px 6px 10px}
+
+/* Cells that must not break: dates, docket numbers, a single action button. */
+.ptable td.nw{white-space:nowrap}
+/* One reason per line inside a cell. Was `style={{display:"block"}}`. */
+.treason{display:block}

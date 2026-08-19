@@ -1,15 +1,12 @@
 import type { Metadata } from "next";
 
-import { Link } from "@/i18n/navigation";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { LegacyCarrierAdoptForm } from "@/components/portal/LegacyCarrierAdoptForm";
 import {
-  DECISION_BADGE,
-  VERIFICATION_BADGE,
-  reasonCodeLabel,
-  sortReasonCodes,
-} from "@/lib/carrier-authority/review-labels";
+  CarrierVerificationQueueView,
+  type LegacyRow,
+  type QueueRow,
+} from "@/components/portal/CarrierVerificationQueueView";
 
 export const dynamic = "force-dynamic";
 
@@ -19,35 +16,29 @@ export const metadata: Metadata = {
 };
 
 /**
- * M-94 — the manual-review queue.
+ * M-94 — the manual-review queue. M-99 moved the MARKUP into
+ * `CarrierVerificationQueueView` so it can be rendered in jsdom and measured in
+ * a browser; this file is now reads and nothing else. No query, no filter and
+ * no decision changed.
  *
  * ── WHY THIS PAGE EXISTS ─────────────────────────────────────────────────
  *
- * M-94 shipped the gate without it, and that left a real hole: MANUAL_REVIEW
- * is where the engine puts every case it refuses to decide alone — an FMCSA
- * timeout, a docket endpoint that was down, a legal name that differs by more
- * than punctuation — and most of those applicants are legitimate carriers. A
- * queue nobody can see is a queue nobody works, and the applicant is left
- * holding a screen that says "we'll come back to you" while nothing brings
- * them to anyone's attention.
+ * MANUAL_REVIEW is where the engine puts every case it refuses to decide alone
+ * — an FMCSA timeout, a docket endpoint that was down, a legal name that
+ * differs by more than punctuation — and most of those applicants are
+ * legitimate carriers. A queue nobody can see is a queue nobody works.
  *
  * ── WHAT IT READS, AND WHAT IT REFUSES TO READ ───────────────────────────
  *
  * The `select` below is the enumeration of what a reviewer operationally
- * needs: what the applicant typed, when, what the engine decided, and how to
- * reach them. It does NOT select — and the tables do not carry —
- * `raw_response`, an EIN, a physical address, an insurance filing or the
- * FMCSA WebKey. The digest is available on the detail page as provenance and
- * is not a payload.
+ * needs. It does NOT select — and the tables do not carry — `raw_response`, an
+ * EIN, a physical address, an insurance filing or the FMCSA WebKey.
  *
  * ── THE READ IS COOKIE-BOUND, NOT SERVICE-ROLE ───────────────────────────
  *
- * So RLS enforces the staff check a second time, at the database, under
- * 0032's `staff manage pre registrations` policy. `requireStaff` above is the
- * gate; the policy is what makes a hole in the gate not a hole in the system.
- * §18 of the RLS suite proves no browser role but staff can read these rows at
- * all — a carrier cannot even read the pre-registration bound to its own
- * carrier row.
+ * So RLS enforces the staff check a second time, at the database, under 0032's
+ * `staff manage pre registrations` policy. `requireStaff` is the gate; the
+ * policy is what makes a hole in the gate not a hole in the system.
  */
 export default async function CarrierVerificationsPage({
   params,
@@ -78,8 +69,20 @@ export default async function CarrierVerificationsPage({
   }
 
   const { data, error } = await query;
-  const rows = data ?? [];
-  const now = Date.now();
+
+  const rows: QueueRow[] = (data ?? []).map((r) => ({
+    id: r.id,
+    createdAt: r.created_at,
+    legalNameEntered: r.legal_name_entered,
+    usdotNumberEntered: r.usdot_number_entered,
+    mcNumberEntered: r.mc_number_entered,
+    email: r.email,
+    decision: r.decision,
+    verificationStatus: r.verification_status,
+    reasonCodes: r.reason_codes,
+    expiresAt: r.expires_at,
+    claimedCarrierId: r.claimed_carrier_id,
+  }));
 
   /* ── Pre-M-94 applications that cannot finish ──────────────────────────
    *
@@ -90,8 +93,7 @@ export default async function CarrierVerificationsPage({
    *
    * `profile_id is null` is the whole of the affected set. A carrier who
    * already has an account is refused by `completeOnboarding` for an older
-   * reason ("sign in instead") and nothing else in the product reads a
-   * pre-registration, so they are not listed and are not affected.
+   * reason ("sign in instead"), so they are not listed and are not affected.
    */
   const { data: unclaimed } = await supabase
     .from("carriers")
@@ -110,239 +112,24 @@ export default async function CarrierVerificationsPage({
   const boundIds = new Set(
     (bound ?? []).map((b) => b.claimed_carrier_id).filter(Boolean),
   );
-  const legacy = (unclaimed ?? []).filter((c) => !boundIds.has(c.id));
+  const legacy: LegacyRow[] = (unclaimed ?? [])
+    .filter((c) => !boundIds.has(c.id))
+    .map((c) => ({
+      id: c.id,
+      companyName: c.company_name,
+      mcNumber: c.mc_number,
+      dotNumber: c.dot_number,
+      createdAt: c.created_at,
+    }));
 
   return (
     <main id="main">
-      <div className="pbar">
-        <div>
-          <span className="crumb">DISPATCH / CARRIER VERIFICATIONS</span>
-          <h1>{showAll ? "All carrier applications" : "Awaiting review"}</h1>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <Link
-            className={`btn btn-ghost btn-sm${showAll ? "" : " active"}`}
-            href="/portal/admin/carrier-verifications"
-          >
-            Awaiting review
-          </Link>
-          <Link
-            className={`btn btn-ghost btn-sm${showAll ? " active" : ""}`}
-            href="/portal/admin/carrier-verifications?show=all"
-          >
-            All
-          </Link>
-        </div>
-      </div>
-
-      {error ? (
-        // Never an empty table on a failed read: "no carriers are waiting" and
-        // "we could not ask" look identical to a reviewer and only one of them
-        // means they can go home.
-        <p className="pempty" role="alert">
-          The verification queue could not be read. Nothing has been lost —
-          refresh, and if it persists this is a database issue, not an empty
-          queue.
-        </p>
-      ) : rows.length === 0 ? (
-        <p className="pempty">
-          {showAll
-            ? "No carrier applications yet."
-            : "Nothing awaiting review. Applications the engine could not decide alone appear here."}
-        </p>
-      ) : (
-        <div className="ptable-wrap">
-          <table className="ptable">
-            <thead>
-              <tr>
-                <th>Submitted</th>
-                <th>Applicant</th>
-                <th>USDOT / MC</th>
-                <th>FMCSA</th>
-                <th>Decision</th>
-                <th>Why it is here</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => {
-                const decision = DECISION_BADGE[r.decision ?? ""] ?? {
-                  label: "Pending",
-                  badge: "",
-                };
-                const fmcsa = VERIFICATION_BADGE[r.verification_status] ?? {
-                  label: r.verification_status,
-                  badge: "",
-                };
-                const expired = new Date(r.expires_at).getTime() <= now;
-                const top = sortReasonCodes(r.reason_codes).slice(0, 2);
-                return (
-                  <tr key={r.id}>
-                    <td style={{ whiteSpace: "nowrap" }}>
-                      {new Date(r.created_at).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                      })}
-                      {expired ? (
-                        <span
-                          className="pbadge red"
-                          style={{ display: "block", marginTop: 4 }}
-                        >
-                          Expired
-                        </span>
-                      ) : null}
-                    </td>
-                    <td>
-                      {r.legal_name_entered}
-                      <span
-                        className="mono"
-                        style={{
-                          display: "block",
-                          fontSize: ".62rem",
-                          color: "var(--color-steel)",
-                        }}
-                      >
-                        {r.email}
-                      </span>
-                    </td>
-                    <td className="mono" style={{ whiteSpace: "nowrap" }}>
-                      {r.usdot_number_entered}
-                      <span
-                        style={{
-                          display: "block",
-                          fontSize: ".62rem",
-                          color: "var(--color-steel)",
-                        }}
-                      >
-                        {r.mc_number_entered
-                          ? `MC-${r.mc_number_entered}`
-                          : "no MC submitted"}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={`pbadge ${fmcsa.badge}`}>
-                        {fmcsa.label}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={`pbadge ${decision.badge}`}>
-                        {decision.label}
-                      </span>
-                      {r.claimed_carrier_id ? (
-                        <span
-                          className="mono"
-                          style={{
-                            display: "block",
-                            fontSize: ".62rem",
-                            color: "var(--color-steel)",
-                            marginTop: 4,
-                          }}
-                        >
-                          onboarded
-                        </span>
-                      ) : null}
-                    </td>
-                    <td style={{ fontSize: ".82rem" }}>
-                      {top.length === 0
-                        ? "—"
-                        : top.map((c) => (
-                            <span key={c} style={{ display: "block" }}>
-                              {reasonCodeLabel(c)}
-                            </span>
-                          ))}
-                    </td>
-                    <td>
-                      <Link
-                        className="btn btn-ghost btn-sm"
-                        href={`/portal/admin/carrier-verifications/${r.id}`}
-                      >
-                        Review →
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <p className="pempty" style={{ paddingLeft: 0 }}>
-        Clearing an application lets the carrier continue to the verification
-        fee and document upload. It is <b>not</b> approval and it does not
-        activate anything — activation still requires the documents, the
-        agreement, the fee and the compliance checks in full.
-      </p>
-
-      {/* ── Pre-M-94 applications ───────────────────────────────────────────
-          These `carriers` rows were created by the old flow, which made one
-          the moment somebody typed a company name. They have no verification
-          bound to them, so `completeOnboarding` refuses them — correctly, and
-          through no fault of the applicant, who applied before the rule
-          existed.
-
-          The button runs the SAME pre-check a new applicant runs. It is not an
-          exemption: an application that fails still fails, and one the engine
-          cannot decide alone lands in the queue above like any other. */}
-      {legacy.length > 0 ? (
-        <div className="ptable-wrap" style={{ marginTop: 28 }}>
-          <h2 className="sec" style={{ fontSize: "1rem" }}>
-            Applications that predate verification ({legacy.length})
-          </h2>
-          <p className="pempty" style={{ paddingLeft: 0 }}>
-            Unfinished applications from before the FMCSA gate existed. They
-            cannot create a portal account until they have been verified. A
-            carrier who <em>already has an account</em> is not affected and is
-            not listed here.
-          </p>
-          <table className="ptable">
-            <thead>
-              <tr>
-                <th>Started</th>
-                <th>Company</th>
-                <th>USDOT / MC on file</th>
-                <th>Run the check</th>
-              </tr>
-            </thead>
-            <tbody>
-              {legacy.map((c) => (
-                <tr key={c.id}>
-                  <td style={{ whiteSpace: "nowrap" }}>
-                    {new Date(c.created_at).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </td>
-                  <td>{c.company_name}</td>
-                  <td className="mono" style={{ whiteSpace: "nowrap" }}>
-                    {c.dot_number ?? (
-                      <span style={{ color: "var(--color-amber-aa)" }}>
-                        no USDOT on file
-                      </span>
-                    )}
-                    <span
-                      style={{
-                        display: "block",
-                        fontSize: ".62rem",
-                        color: "var(--color-steel)",
-                      }}
-                    >
-                      {c.mc_number ? `MC-${c.mc_number}` : "no MC on file"}
-                    </span>
-                  </td>
-                  <td>
-                    <LegacyCarrierAdoptForm
-                      carrierId={c.id}
-                      needsUsdot={!c.dot_number}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
+      <CarrierVerificationQueueView
+        rows={rows}
+        legacy={legacy}
+        showAll={showAll}
+        failed={Boolean(error)}
+      />
     </main>
   );
 }

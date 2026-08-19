@@ -399,12 +399,20 @@ describe("the review surface cannot become an approval surface", () => {
   });
 
   it("the detail page shows the digest, never a payload", () => {
-    const src = code(
+    // M-99 split this in two: the PAGE selects the digest column, the VIEW
+    // renders it truncated. Both halves are asserted, because either one
+    // alone would let the whole digest reach a screen.
+    const page = code(
       "src/app/[locale]/portal/admin/carrier-verifications/[id]/page.tsx",
     );
-    expect(src).toContain("raw_response_sha256");
+    expect(page).toContain("raw_response_sha256");
+
+    const view = code(
+      "src/components/portal/CarrierVerificationDetailView.tsx",
+    );
+    expect(view).toContain("rawResponseSha256");
     // Truncated: provenance, not data.
-    expect(src).toMatch(/raw_response_sha256\.slice\(0, \d+\)/);
+    expect(view).toMatch(/rawResponseSha256\.slice\(0, \d+\)/);
   });
 });
 

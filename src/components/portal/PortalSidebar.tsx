@@ -97,15 +97,7 @@ export function PortalSidebar({
           if (e.key === "Escape" && open) close(true);
         }}
       >
-        <div
-          style={{
-            padding: "4px 6px 10px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 10,
-          }}
-        >
+        <div className="pside-head">
           <Logo small />
           <button
             type="button"

@@ -227,12 +227,12 @@ export default async function AdminUsersPage({
                   <tr key={u.id}>
                     <td>
                       {u.full_name ?? "—"}
-                      <span className="mono" style={{ display: "block", fontSize: ".62rem", color: "var(--color-steel)" }}>
+                      <span className="tsub">
                         {emailById.get(u.id) ??
                           (admin ? "—" : "email: needs service credentials")}
                         {u.phone ? ` · ${u.phone}` : ""}
                       </span>
-                      <span className="mono" style={{ display: "block", fontSize: ".62rem", color: "var(--color-steel)" }}>
+                      <span className="tsub">
                         joined{" "}
                         {new Date(u.created_at).toLocaleDateString("en-US", {
                           month: "short",
@@ -248,12 +248,12 @@ export default async function AdminUsersPage({
                       {carrier ? (
                         <>
                           {carrier.company_name}
-                          <span className="mono" style={{ display: "block", fontSize: ".62rem", color: "var(--color-steel)" }}>
+                          <span className="tsub">
                             {carrier.mc_number ? `MC ${carrier.mc_number} · ` : ""}
                             onboarding {progress?.done}/{progress?.total}
                             {carrier.active ? " · ACTIVE" : ""}
                           </span>
-                          <span style={{ display: "block", marginTop: 6 }}>
+                          <span className="tact">
                             <CarrierActiveToggle
                               carrierId={carrier.id}
                               active={carrier.active}
@@ -282,11 +282,11 @@ export default async function AdminUsersPage({
                     </td>
                     <td>
                       {u.id === session.userId ? (
-                        <span className="mono" style={{ fontSize: ".62rem", color: "var(--color-steel)" }}>
+                        <span className="tsub">
                           (you)
                         </span>
                       ) : u.role === "admin" ? (
-                        <span className="mono" style={{ fontSize: ".62rem", color: "var(--color-steel)" }}>
+                        <span className="tsub">
                           admin — protected
                         </span>
                       ) : (
@@ -302,13 +302,13 @@ export default async function AdminUsersPage({
       </div>
 
       {totalPages > 1 ? (
-        <p style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "center" }}>
+        <p className="ppager">
           {page > 1 ? (
             <Link className="btn btn-ghost btn-sm" href={pageHref(page - 1)}>
               ← Prev
             </Link>
           ) : null}
-          <span className="mono" style={{ fontSize: ".7rem", color: "var(--steel)" }}>
+          <span className="pcount">
             Page {page} of {totalPages}
           </span>
           {page < totalPages ? (
@@ -319,10 +319,10 @@ export default async function AdminUsersPage({
         </p>
       ) : null}
 
-      <div className="pgrid2" style={{ marginTop: 26 }}>
+      <div className="pgrid2 pgap">
         <div className="pcard">
           <h2>Invite staff</h2>
-          <p className="pempty" style={{ padding: "0 0 10px" }}>
+          <p className="phelp">
             Staff access is invite-only (S-04): a single-use, 7-day tokenized
             link — the role is assigned server-side on accept.
           </p>
@@ -331,7 +331,7 @@ export default async function AdminUsersPage({
         <div className="pcard">
           <h2>Recent invites</h2>
           {(inviteRows ?? []).length === 0 ? (
-            <p className="pempty" style={{ padding: 0 }}>
+            <p className="pempty flush">
               No invites yet.
             </p>
           ) : (

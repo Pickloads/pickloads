@@ -26,6 +26,10 @@ const SUITES = [
   "tests/unit/carrier-driver-a11y.test.tsx",
   "tests/unit/broker-portal-a11y.test.tsx",
   "tests/unit/shipment-map-a11y.test.tsx",
+  // M-99 — the admin verification surfaces emit their own fixtures for
+  // tests/e2e/admin-responsive-a11y.spec.ts, for the same reason: they are
+  // session-gated, so the browser lane cannot reach the real route.
+  "tests/unit/admin-verifications-a11y.test.tsx",
 ];
 
 /**
