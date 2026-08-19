@@ -8,6 +8,7 @@ import { initialFormState } from "@/lib/form-state";
 /**
  * M-94 — the staff decision on a manual-review pre-registration.
  * M-99 — laid out with the shared portal vocabulary.
+ * M-100 — on the admin design system.
  *
  * Two outcomes and a mandatory note. There is no "approve carrier" control
  * here and there cannot be one: this form resolves whether an applicant may
@@ -18,18 +19,21 @@ import { initialFormState } from "@/lib/form-state";
  * deliberate press rather than a radio that can be left where the last
  * reviewer put it.
  *
- * ── LAYOUT NOTES (M-99) ──────────────────────────────────────────────────
+ * ── LAYOUT (M-100 §13) ───────────────────────────────────────────────────
  *
- * The permanent-record warning used to sit hard against the textarea's border
- * — a `<p>` with no margin under an unstyled control. It is now `.phelp`
- * below a portal-styled textarea, wired to the field with `aria-describedby`
- * so it is announced as the field's description rather than as loose text.
+ * The brief's objection was that the buttons looked like "random elements
+ * placed after a textarea" — which they were: a flex row immediately below
+ * the field, inside the same padding box, with nothing separating a
+ * reversible edit from an irreversible decision.
  *
- * The two buttons are a `.pactions` row: one gap rule, and below 480px they
- * go full width and stack, because a wrapped row of half-width buttons reads
- * as a broken grid. "Clear to continue" is the primary (amber); "Not eligible"
- * is the dark secondary — and the two say what they do in words, so the
- * distinction is never carried by colour alone.
+ * They are now an `ActionBar` — a footer with its own top border and raised
+ * background, spanning the card. The field and its hint sit above it. Below
+ * 520px the buttons go full width and stack, because a wrapped row of
+ * half-width buttons reads as a broken grid.
+ *
+ * "Clear to continue" is the primary (amber); "Not eligible" is the dark
+ * secondary — and both say what they do in words, so the distinction is never
+ * carried by colour alone.
  */
 export function CarrierReviewForm({
   preRegistrationId,
@@ -43,20 +47,22 @@ export function CarrierReviewForm({
 
   if (state.status === "success") {
     return (
-      <div className="form-ok show" role="status">
-        {state.message}
+      <div className="a-card-body">
+        <div className="form-ok show" role="status">
+          {state.message}
+        </div>
       </div>
     );
   }
 
   return (
-    <form action={action} className="preview-form">
+    <form action={action}>
       <input
         type="hidden"
         name="pre_registration_id"
         value={preRegistrationId}
       />
-      <div className="field">
+      <div className="a-field">
         <label htmlFor="review-note">Reviewer note</label>
         <textarea
           id="review-note"
@@ -68,14 +74,20 @@ export function CarrierReviewForm({
           aria-describedby="review-note-hint"
           placeholder="What did you check, where, and what did you conclude?"
         />
+        <p id="review-note-hint" className="a-hint">
+          <b>Required — this is the permanent record of the decision.</b> Name
+          the source you checked: an FMCSA lookup by hand, a phone call, a
+          document. &ldquo;Looks fine&rdquo; is not something anyone can act on
+          six months from now.
+        </p>
+        <div
+          className={`form-err${state.status === "error" ? " show" : ""}`}
+          role="alert"
+        >
+          {state.status === "error" ? state.message : null}
+        </div>
       </div>
-      <p id="review-note-hint" className="phelp">
-        <b>Required — this is the permanent record of the decision.</b> Name the
-        source you checked: an FMCSA lookup by hand, a phone call, a document.
-        &ldquo;Looks fine&rdquo; is not something anyone can act on six months
-        from now.
-      </p>
-      <div className="pactions">
+      <div className="a-actions">
         <button
           className="btn btn-amber btn-sm"
           type="submit"
@@ -96,12 +108,6 @@ export function CarrierReviewForm({
         >
           {pending ? "Saving…" : "Mark not eligible"}
         </button>
-      </div>
-      <div
-        className={`form-err${state.status === "error" ? " show" : ""}`}
-        role="alert"
-      >
-        {state.status === "error" ? state.message : null}
       </div>
     </form>
   );

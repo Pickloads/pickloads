@@ -138,3 +138,79 @@ export function matchLabel(value: string | null): string {
 
 /** Reason codes an APPLICANT may be shown. Re-exported for the assertion. */
 export type { ReasonCode };
+
+/* ==========================================================================
+   M-100 — presentational tone for the values above.
+
+   These map a value the engine ALREADY decided onto a badge colour. They
+   decide nothing: `allowedToOperate === false` was false before this file
+   existed and is false after it. They exist so the detail screen can show
+   "NOT ALLOWED TO OPERATE" as a danger badge instead of as the word "No" in
+   body text, which is what made a compliance blocker read like a data point.
+
+   Every label is still a full word, so no state is carried by colour alone.
+   ========================================================================== */
+
+export type BadgeTone = "neutral" | "info" | "success" | "warning" | "danger";
+
+/**
+ * A tri-state where TRUE is the good outcome (`allowed to operate`).
+ * `null` stays neutral: the authority not answering is not a finding.
+ */
+export function affirmativeTone(value: boolean | null): BadgeTone {
+  if (value === null) return "neutral";
+  return value ? "success" : "danger";
+}
+
+/** A tri-state where TRUE is the bad outcome (`out of service`). */
+export function negativeTone(value: boolean | null): BadgeTone {
+  if (value === null) return "neutral";
+  return value ? "danger" : "success";
+}
+
+/** `unavailable` is neutral, not a failure — not knowing is not disagreeing. */
+export function matchTone(value: string | null): BadgeTone {
+  switch (value) {
+    case "exact":
+    case "normalized":
+      return "success";
+    case "mismatch":
+      return "danger";
+    default:
+      return "neutral";
+  }
+}
+
+/** `carrier_risk_tier` — 'low' | 'medium' | 'high' | 'manual_review'. */
+export const RISK_TIER_BADGE: Readonly<
+  Record<string, { label: string; tone: BadgeTone }>
+> = {
+  low: { label: "Low risk", tone: "success" },
+  medium: { label: "Medium risk", tone: "warning" },
+  high: { label: "High risk", tone: "danger" },
+  manual_review: { label: "Manual review", tone: "warning" },
+};
+
+/** `onboarding_payment_status` — the five states in migration 0032. */
+export const PAYMENT_BADGE: Readonly<
+  Record<string, { label: string; tone: BadgeTone }>
+> = {
+  unpaid: { label: "Unpaid", tone: "neutral" },
+  session_created: { label: "Checkout started", tone: "info" },
+  paid: { label: "Paid", tone: "success" },
+  failed: { label: "Payment failed", tone: "danger" },
+  refunded: { label: "Refunded", tone: "warning" },
+};
+
+/**
+ * An unrecognised enum value must still render, and must not silently read as
+ * a normal state — it shows the raw value on a neutral badge so staff can see
+ * that the code and the database have diverged.
+ */
+export function badgeFor(
+  map: Readonly<Record<string, { label: string; tone: BadgeTone }>>,
+  value: string | null,
+): { label: string; tone: BadgeTone } {
+  if (value === null) return { label: "—", tone: "neutral" };
+  return map[value] ?? { label: value, tone: "neutral" };
+}

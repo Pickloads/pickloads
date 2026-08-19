@@ -55,7 +55,7 @@ export default async function AdminQuotesPage({
   const stageBadge = (status: LeadStatus) => QUOTE_STATUS[status];
 
   return (
-    <main id="main">
+    <main id="main" className="a-page">
       <div className="pbar">
         <div>
           <span className="crumb">DISPATCH / FREIGHT QUOTES</span>

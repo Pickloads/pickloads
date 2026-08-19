@@ -28,6 +28,7 @@ const CLEANED = [
   "src/components/portal/CarrierVerificationDetailView.tsx",
   "src/components/portal/CarrierReviewForm.tsx",
   "src/components/portal/PortalSidebar.tsx",
+  "src/components/portal/admin-ui.tsx",
 ];
 
 describe("M-99 · the cleaned admin surface carries no inline layout", () => {
@@ -50,14 +51,19 @@ describe("M-99 · every class the cleanup introduced is real and used", () => {
   const css = read("src/app/portal.css");
   const markup = CLEANED.map(read).join("\n");
 
+  /**
+   * M-100 retired four of M-99's classes — `.preview-form`, `.preasons`,
+   * `.pbar-actions` and `.pgap-sm` — when the design system absorbed what
+   * they did. This test caught them the moment they went unused, so the RULES
+   * were deleted from `portal.css` rather than the assertion being relaxed.
+   * That is §24 working as intended: the list is the inventory, and anything
+   * that falls off it is dead code, not a failing test.
+   */
   const INTRODUCED = [
     "pdl",
     "phelp",
     "pbadges",
-    "pbar-actions",
     "pactions",
-    "preview-form",
-    "preasons",
     "ppager",
     "pcount",
     "pgap",
@@ -67,17 +73,68 @@ describe("M-99 · every class the cleanup introduced is real and used", () => {
     "treason",
     "nw",
     "flush",
+    // M-100 — the admin design system. Same guarantee: every class it
+    // introduces must be defined in the stylesheet AND actually reach markup,
+    // so the system cannot rot into a set of rules nothing uses.
+    "a-page",
+    "a-head",
+    "a-crumb",
+    "a-desc",
+    "a-ids",
+    "a-grid",
+    "a-col",
+    "a-card",
+    "a-card-head",
+    "a-card-body",
+    "dlist",
+    "drow",
+    "dsub",
+    "dgroup",
+    "a-badge",
+    "a-badges",
+    "a-reasons",
+    "a-code",
+    "a-callout",
+    "a-note",
+    "a-state",
+    "a-actions",
+    "a-field",
+    "a-hint",
+    "a-empty",
+    "a-sublabel",
+    "tid",
     "psubhead",
-    "pgap-sm",
     "stacked",
     "wrap",
   ];
 
   // Every class token that actually appears in the cleaned markup.
+  //
+  // Two forms reach the DOM and both have to be read, or a class that is only
+  // ever applied through a tone/variant expression reads as dead:
+  //   className="a-card"                       — a plain attribute
+  //   className={`a-badge is-${tone}`}         — a template literal
+  //   className={x ? "a-callout is-inset" : "a-callout"}
+  // Interpolations are stripped, so `is-${tone}` contributes "is-" and never
+  // a token that could make a missing class look present.
   const used = new Set<string>();
-  for (const m of markup.matchAll(/class[Nn]ame="([^"]*)"/g)) {
-    for (const t of (m[1] ?? "").split(/\s+/)) if (t) used.add(t);
+  // Interpolations are stripped FIRST, for two reasons: `is-${tone}` must not
+  // contribute a token that could make a missing class look present, and the
+  // `}` inside `${tone}` would otherwise terminate the className={...} match
+  // early and hide every class in a template literal.
+  const flat = markup.replace(/\$\{[^}]*\}/g, " ");
+  const addTokens = (raw: string) => {
+    for (const t of raw.split(/\s+/)) if (t) used.add(t);
+  };
+  for (const m of flat.matchAll(/class[Nn]ame="([^"]*)"/g)) {
+    addTokens(m[1] ?? "");
   }
+  for (const m of flat.matchAll(/class[Nn]ame=\{([^}]*)\}/g)) {
+    for (const lit of (m[1] ?? "").matchAll(/"([^"]*)"|`([^`]*)`/g)) {
+      addTokens(lit[1] ?? lit[2] ?? "");
+    }
+  }
+
   // Every class token portal.css defines a rule for.
   const defined = new Set<string>();
   for (const m of css.matchAll(/\.([a-zA-Z][\w-]*)/g)) {

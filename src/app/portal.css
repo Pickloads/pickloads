@@ -414,8 +414,6 @@
 /* Controls in the page bar — filters, view switches. Distinct from `.pbadges`
    (which is status, not actions) and from `.pactions` (which is a block-level
    row with its own top margin). */
-.pbar-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex:0 1 auto;min-width:0}
-@media(max-width:480px){.pbar-actions{width:100%}.pbar-actions>.btn{flex:1 1 auto;text-align:center}}
 
 /* ---- action rows --------------------------------------------------------
    Every "row of buttons" in the portal, with one gap and one wrap rule. */
@@ -432,26 +430,14 @@
    The permanent-record warning used to sit hard against the textarea's
    border. It is now a labelled region with its own breathing room, and the
    textarea is a portal control rather than a user-agent default. */
-.preview-form{margin-top:4px}
-.preview-form .field{margin-bottom:0}
-.preview-form textarea{width:100%;max-width:100%;min-width:0;box-sizing:border-box;min-height:110px;background:#0B0E11;border:1px solid var(--line);border-radius:6px;color:var(--paper);padding:12px 13px;font-family:var(--font-sans);font-size:.92rem;line-height:1.6;resize:vertical}
-.preview-form textarea:focus{outline:2px solid var(--amber);outline-offset:0;border-color:var(--amber)}
-.preview-form textarea::placeholder{color:var(--color-steel)}
 /* 10px clear of the control, not touching it. */
-.preview-form .phelp{margin-top:10px}
 
 /* ---- reason codes -------------------------------------------------------
    Was a bare `<ul>` with a browser bullet and inline padding. Each code is a
    finding with a machine name; the two want different weights, and the list
    wants dividers that fall between items. */
-.preasons{list-style:none;margin:0;padding:0}
-.preasons li{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;padding:10px 0;border-top:1px solid var(--line);min-width:0}
-.preasons li:first-child{border-top:none;padding-top:0}
-.preasons .rlabel{font-size:.88rem;color:#cfd6da;line-height:1.55;min-width:0;overflow-wrap:anywhere}
-.preasons .rcode{font-family:var(--font-mono);font-size:.62rem;letter-spacing:.06em;color:var(--color-steel);overflow-wrap:anywhere}
 /* A finding leads; an observation follows. Colour is NOT the only signal —
    the label text says what it is (§ no colour-only meaning). */
-.preasons li.is-finding .rlabel{color:var(--paper)}
 
 /* ---- stat tiles: label and value need air between them ------------------ */
 .ptile{display:flex;flex-direction:column;gap:6px;min-height:96px;justify-content:center}
@@ -533,9 +519,7 @@
 /* The gap that opens a new block under a table or a card stack. Was
    `style={{marginTop:26}}` in three places. */
 .pgap{margin-top:26px}
-/* A table inside a card, under that card's heading and lede. Scoped as a
-   modifier for the same reason as `.pempty.flush` above. */
-.pgap-sm{margin-top:18px}
+/* M-100 removed `.pgap-sm` here: the card system now owns that spacing. */
 
 /* ── M-99 · MFA page & sidebar head ────────────────────────────────────────
    CLAUDE.md forbids raw hex in components. These two values were inline in
@@ -558,3 +542,537 @@
 .ptable td.nw{white-space:nowrap}
 /* One reason per line inside a cell. Was `style={{display:"block"}}`. */
 .treason{display:block}
+
+/* ============================================================================
+   M-100 — ADMIN DESIGN SYSTEM
+   ============================================================================
+
+   Everything above this line is the portal vocabulary as it grew, module by
+   module: `.pcard`, `.ptable`, `.pbadge`, `.pdl`. It works, and the customer
+   surfaces depend on it, so none of it is edited here.
+
+   What this block adds is the layer that was missing — a real token set and a
+   small number of primitives built on it, for the ADMIN surface only.
+
+   ── THE DEFECT THIS EXISTS TO FIX ─────────────────────────────────────────
+
+   Screenshots at 1440 and 1920 (test-results/admin-shots/before) show the
+   label-column divider and the value-column divider of the SAME row sitting
+   at different Y positions. The cause is structural, not cosmetic:
+
+       .pdl        display:grid; align-items:baseline
+       .pdl > dt   border-top: 1px solid
+       .pdl > dd   border-top: 1px solid
+
+   Two boxes, two borders, one row. `align-items:baseline` aligns their TEXT
+   baselines, which means their BOX tops differ by the difference in their
+   font metrics and padding — so each row draws two rules a few pixels apart,
+   with a seam where they meet. Every "the lines don't line up" report traces
+   here.
+
+   A row must therefore OWN its divider — one element, one border, spanning
+   both columns. That is what `.drow + .drow` below does, and it is why the
+   markup gained a wrapper div (`<dl><div class="drow"><dt/><dd/></div></dl>`,
+   which is valid HTML5 and keeps the dt/dd association intact).
+
+   ── COLOUR ────────────────────────────────────────────────────────────────
+
+   No new colours, per CLAUDE.md and the header of this file. Every value
+   below is an existing @theme token or a literal already present above:
+   #0B0E11 night, #12161a asphalt, #1a2026 asphalt-2, #cfd6da cloud,
+   #aeb7bd gray-mid, #97a1a8 steel, #4CC492 mint, #f2c9c9 / #7a2a2a the U-03
+   red family, #ffb020 amber. Elevation is white-alpha over those, the same
+   technique `--color-line` already uses.
+   ========================================================================== */
+
+.portal{
+  /* Spacing scale — the brief's ladder. Nothing in this block may use a
+     length that is not one of these (or a token derived from them). */
+  --s1:4px;  --s2:8px;  --s3:12px; --s4:16px; --s5:20px;
+  --s6:24px; --s8:32px; --s10:40px; --s12:48px;
+
+  /* Radii */
+  --r-xs:4px; --r-sm:6px; --r-md:8px; --r-lg:12px; --r-pill:999px;
+
+  /* Surfaces */
+  --a-page:#12161a;
+  --a-side:#0B0E11;
+  --a-card:#1a2026;
+  --a-raised:rgb(255 255 255 / .035);   /* note panel, grouped subhead */
+  --a-sunken:#0B0E11;                   /* textarea, code well */
+  --a-hover:rgb(255 255 255 / .045);
+
+  /* Lines */
+  --a-line:rgb(255 255 255 / .10);
+  --a-line-strong:rgb(255 255 255 / .16);
+
+  /* Text */
+  --a-text:#f4f6f5;
+  --a-text-2:#cfd6da;
+  --a-text-3:#aeb7bd;
+  --a-muted:#97a1a8;
+
+  /* Accent + semantic. Amber stays the primary accent. */
+  --a-accent:#ffb020;
+  --a-accent-deep:#e29500;
+  --a-success:#4CC492;   --a-success-bg:rgb(27 122 84 / .18);
+  --a-warning:#ffb020;   --a-warning-bg:rgb(255 176 32 / .12);
+  --a-danger:#f2c9c9;    --a-danger-bg:rgb(74 22 22 / .30);
+  --a-info:#cfd6da;      --a-info-bg:rgb(255 255 255 / .06);
+
+  /* Elevation — subtle. This is an operations tool, not a landing page. */
+  --a-shadow:0 1px 2px rgb(0 0 0 / .28);
+  --a-shadow-lg:0 6px 24px rgb(0 0 0 / .32);
+
+  /* Structure */
+  --a-card-pad:var(--s6);
+  --a-row-min:50px;
+  --a-label-col:200px;
+  --a-gutter:var(--s8);
+  --a-maxw:1720px;
+  --a-motion:160ms;
+
+  /* Type scale (§15) */
+  --a-t-page:1.65rem;   /* ~27px */
+  --a-t-card:1.0625rem; /* ~17px */
+  --a-t-body:.9rem;     /* ~14.5px */
+  --a-t-label:.72rem;   /* ~11.5px */
+  --a-t-help:.79rem;    /* ~12.7px */
+  --a-t-code:.72rem;
+}
+@media(max-width:1024px){ .portal{ --a-card-pad:var(--s5); --a-gutter:var(--s6); } }
+@media(max-width:640px){  .portal{ --a-card-pad:var(--s4); --a-gutter:var(--s4); --a-label-col:1fr; } }
+@media(prefers-reduced-motion:reduce){ .portal{ --a-motion:0ms; } }
+
+/* ── SHELL ────────────────────────────────────────────────────────────────
+   The sidebar was 230px and the main pane 26px/30px of padding, neither on
+   any scale. An ultra-wide monitor got raw content stretched across it, which
+   is the "1920 wastes horizontal space" report: a 200px label followed by a
+   1400px empty value cell. `--a-maxw` caps the reading measure and centres it
+   without letterboxing the 1440 case. */
+.portal:has(.a-page){grid-template-columns:248px 1fr}
+@media(max-width:860px){.portal:has(.a-page){grid-template-columns:1fr;grid-template-rows:auto 1fr}}
+
+.a-page{max-width:var(--a-maxw);margin-inline:auto;padding:var(--s2) var(--a-gutter) var(--s12)}
+@media(max-width:1024px){.a-page{padding-left:var(--s6);padding-right:var(--s6)}}
+@media(max-width:640px){.a-page{padding-left:var(--s4);padding-right:var(--s4)}}
+
+/* ── PAGE HEADER (§17) ────────────────────────────────────────────────────
+   Breadcrumb, title, description, identifiers, badges, actions — one
+   component so every admin page opens the same way. */
+.a-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;
+  gap:var(--s4) var(--s6);padding:var(--s6) 0 var(--s5);border-bottom:1px solid var(--a-line);
+  margin-bottom:var(--s6)}
+.a-head-main{min-width:0;flex:1 1 420px}
+.a-head .a-crumb{display:block;font-family:var(--font-mono);font-size:var(--a-t-code);
+  letter-spacing:.1em;text-transform:uppercase;color:var(--a-muted);margin-bottom:var(--s2)}
+.a-head .a-crumb a{color:inherit}
+.a-head .a-crumb a:hover{color:var(--a-accent)}
+.a-head h1{font-size:var(--a-t-page);font-weight:800;line-height:1.15;margin:0;
+  overflow-wrap:anywhere}
+.a-head .a-desc{font-size:var(--a-t-help);color:var(--a-text-3);margin:var(--s2) 0 0;
+  max-width:70ch;line-height:1.55}
+.a-head-side{display:flex;flex-direction:column;align-items:flex-end;gap:var(--s3);
+  min-width:0;flex:0 1 auto}
+@media(max-width:860px){.a-head-side{align-items:flex-start;flex:1 1 100%}}
+/* Identifier strip — USDOT / MC and similar record keys. Mono here is
+   correct: these ARE machine identifiers (§15). */
+.a-ids{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s4);margin-top:var(--s3);min-width:0}
+.a-ids > span{font-family:var(--font-mono);font-size:var(--a-t-code);color:var(--a-text-3);
+  letter-spacing:.04em;overflow-wrap:anywhere}
+.a-ids b{color:var(--a-text);font-weight:600}
+
+/* ── GRID (§5) ────────────────────────────────────────────────────────────
+   60/40, 24px gutter, both columns starting on the same Y. Card BOTTOMS are
+   deliberately left to follow their content — the brief forbids faking
+   symmetry with fixed heights. */
+.a-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);
+  gap:var(--s6);align-items:start}
+@media(max-width:1180px){.a-grid{grid-template-columns:1fr}}
+.a-col{display:flex;flex-direction:column;gap:var(--s6);min-width:0}
+
+/* ── SECTION ──────────────────────────────────────────────────────────── */
+.a-section{margin:0 0 var(--s6)}
+.a-section > h2{font-family:var(--font-mono);font-size:var(--a-t-label);letter-spacing:.14em;
+  text-transform:uppercase;color:var(--a-muted);font-weight:600;margin:0 0 var(--s3)}
+
+/* ── CARD (§6) ────────────────────────────────────────────────────────────
+   One header treatment everywhere. The heading NEVER uses the card's own
+   border as its underline — the header owns a border-bottom inside the card,
+   which is the rule the brief states twice. */
+.a-card{background:var(--a-card);border:1px solid var(--a-line);border-radius:var(--r-lg);
+  box-shadow:var(--a-shadow);min-width:0;overflow:hidden}
+.a-card-head{display:flex;align-items:center;justify-content:space-between;gap:var(--s4);
+  padding:var(--s5) var(--a-card-pad);border-bottom:1px solid var(--a-line);min-height:56px;
+  min-width:0}
+.a-card-head h2,.a-card-head h3{font-family:var(--font-display);font-size:var(--a-t-card);
+  font-weight:700;line-height:1.3;margin:0;letter-spacing:-.005em;min-width:0;
+  overflow-wrap:anywhere}
+.a-card-head .a-head-actions{display:flex;align-items:center;gap:var(--s2);flex:0 0 auto}
+.a-card-body{padding:var(--a-card-pad)}
+/* A body that is nothing but a DetailList needs no padding of its own — the
+   rows carry it, so the dividers can run the full width of the card (§7). */
+.a-card-body.is-flush{padding:0}
+.a-card-body > :first-child{margin-top:0}
+.a-card-body > :last-child{margin-bottom:0}
+
+/* ── DETAIL LIST (§7, §8) ─────────────────────────────────────────────────
+   THE fix. One divider per row, owned by the row, spanning the full content
+   width. `.drow + .drow` means the first row never draws one and no row can
+   draw one independently — the two failure modes of the old `.pdl`. */
+.dlist{margin:0;padding:0;min-width:0}
+.drow{display:grid;grid-template-columns:var(--a-label-col) minmax(0,1fr);
+  gap:var(--s2) var(--s5);align-items:center;min-height:var(--a-row-min);
+  padding:var(--s3) var(--a-card-pad);min-width:0}
+.drow + .drow{border-top:1px solid var(--a-line)}
+.drow > dt{font-family:var(--font-mono);font-size:var(--a-t-label);font-weight:600;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--a-muted);margin:0;
+  min-width:0;overflow-wrap:anywhere;line-height:1.45}
+.drow > dd{margin:0;font-size:var(--a-t-body);color:var(--a-text);line-height:1.55;
+  min-width:0;overflow-wrap:anywhere}
+/* An identifier reads as an identifier (§9). */
+.drow > dd.is-id{font-family:var(--font-mono);font-size:.85rem;letter-spacing:.02em;
+  color:var(--a-text);font-weight:600}
+.drow > dd.is-muted{color:var(--a-text-3)}
+.drow > dd em{color:var(--a-text-3);font-style:normal}
+/* A second line under a value: provenance, an expiry warning, a timestamp. */
+.dsub{display:block;font-size:var(--a-t-help);color:var(--a-muted);margin-top:var(--s1);
+  line-height:1.5;overflow-wrap:anywhere}
+/* Subsection label inside a list (§10 IDENTITY / AUTHORITY / MATCHING). It is
+   a row too, so the divider rhythm never breaks. */
+.dgroup{margin:0;padding:var(--s3) var(--a-card-pad);font-family:var(--font-mono);
+  font-size:var(--a-t-code);letter-spacing:.14em;text-transform:uppercase;
+  color:var(--a-accent);font-weight:600;background:var(--a-raised);
+  border-top:1px solid var(--a-line);border-bottom:1px solid var(--a-line)}
+/* The band already draws the rule that separates it from the list above, so
+   the card head must not draw a second one immediately below itself. */
+.a-card-head + .dgroup{border-top:none}
+/* Mobile (§19): the 200px label column becomes a stacked label. */
+@media(max-width:640px){
+  .drow{grid-template-columns:1fr;gap:var(--s1);align-items:start;padding-top:var(--s3);
+    padding-bottom:var(--s3)}
+  .drow > dt{font-size:var(--a-t-code)}
+}
+
+/* ── STATUS BADGE (§14) ───────────────────────────────────────────────────
+   One implementation. Consistent height, padding, radius, weight — so a row
+   containing a badge is the same height as one that does not. */
+.a-badge{display:inline-flex;align-items:center;gap:var(--s1);min-height:22px;
+  padding:2px var(--s2);border-radius:var(--r-xs);border:1px solid transparent;
+  font-family:var(--font-mono);font-size:var(--a-t-code);font-weight:600;
+  letter-spacing:.07em;text-transform:uppercase;line-height:1.5;white-space:nowrap;
+  max-width:100%;overflow-wrap:anywhere}
+.a-badge.is-neutral{background:transparent;border-color:var(--a-line-strong);color:var(--a-text-3)}
+.a-badge.is-info{background:var(--a-info-bg);color:var(--a-info)}
+.a-badge.is-success{background:var(--a-success-bg);color:var(--a-success)}
+.a-badge.is-warning{background:var(--a-warning-bg);color:var(--a-warning)}
+.a-badge.is-danger{background:var(--a-danger-bg);color:var(--a-danger)}
+/* The dot is decorative; the label always carries the meaning in text, so a
+   state is never communicated by colour alone (§20). */
+.a-badge .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:0 0 auto}
+.a-badges{display:flex;flex-wrap:wrap;gap:var(--s2);align-items:center;min-width:0}
+
+/* ── REASON CODES (§11) ───────────────────────────────────────────────────
+   The human sentence dominates; the machine code is a secondary chip. */
+.a-reasons{list-style:none;margin:0;padding:0}
+.a-reasons li{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s2) var(--s3);
+  padding:var(--s3) var(--a-card-pad);min-height:var(--a-row-min);min-width:0}
+.a-reasons li + li{border-top:1px solid var(--a-line)}
+.a-reasons .r-text{flex:1 1 240px;font-size:var(--a-t-body);color:var(--a-text);
+  line-height:1.5;min-width:0;overflow-wrap:anywhere}
+.a-reasons li.is-finding .r-text{color:var(--a-text)}
+.a-reasons li.is-finding{box-shadow:inset 3px 0 0 var(--a-warning)}
+.a-code{font-family:var(--font-mono);font-size:var(--a-t-code);letter-spacing:.04em;
+  color:var(--a-muted);background:var(--a-info-bg);border-radius:var(--r-xs);
+  padding:2px var(--s2);flex:0 0 auto;overflow-wrap:anywhere;max-width:100%}
+
+/* ── CALLOUT (§10) ────────────────────────────────────────────────────────
+   The FMCSA insurance note is a standing caveat, not developer footnote
+   text. It reads as a bordered aside at the foot of the card. */
+.a-callout{display:flex;gap:var(--s3);margin:0;padding:var(--s4);border-radius:var(--r-md);
+  background:var(--a-raised);border:1px solid var(--a-line);color:var(--a-text-2);
+  font-size:var(--a-t-help);line-height:1.6}
+.a-callout.is-inset{margin:var(--a-card-pad);}
+.a-callout .a-ico{flex:0 0 auto;color:var(--a-accent);font-family:var(--font-mono);
+  font-weight:700;line-height:1.5}
+.a-callout b{color:var(--a-text)}
+.a-callout p{margin:0}
+
+/* ── REVIEW NOTE (§12) ────────────────────────────────────────────────────
+   A written record, not a table value. */
+.a-note{margin:0;padding:var(--s5);border-radius:var(--r-lg);background:var(--a-sunken);
+  border:1px solid var(--a-line);color:var(--a-text);font-size:var(--a-t-body);
+  line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
+.a-note.is-empty{color:var(--a-muted);font-style:italic}
+
+/* ── DECISION STATE (§13) ─────────────────────────────────────────────── */
+.a-state{display:flex;gap:var(--s3);align-items:flex-start;min-width:0}
+.a-state .a-ico{flex:0 0 auto;width:32px;height:32px;border-radius:var(--r-md);
+  display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);
+  font-size:.85rem;font-weight:700;background:var(--a-info-bg);color:var(--a-text-3)}
+.a-state.is-success .a-ico{background:var(--a-success-bg);color:var(--a-success)}
+.a-state.is-warning .a-ico{background:var(--a-warning-bg);color:var(--a-warning)}
+.a-state.is-danger  .a-ico{background:var(--a-danger-bg);color:var(--a-danger)}
+.a-state-body{min-width:0}
+.a-state-body h3{font-size:var(--a-t-body);font-weight:700;margin:0 0 var(--s1);
+  font-family:var(--font-sans);letter-spacing:0}
+.a-state-body p{margin:0;font-size:var(--a-t-help);color:var(--a-text-3);line-height:1.6}
+
+/* ── ACTION BAR (§13) ─────────────────────────────────────────────────────
+   Actions live in a footer separated from the form, never loose after a
+   textarea. */
+.a-actions{display:flex;flex-wrap:wrap;gap:var(--s3);align-items:center;
+  padding:var(--s4) var(--a-card-pad);border-top:1px solid var(--a-line);
+  background:var(--a-raised)}
+.a-actions.is-end{justify-content:flex-end}
+@media(max-width:520px){.a-actions .btn{flex:1 1 100%;text-align:center;justify-content:center}}
+
+/* ── FORM ─────────────────────────────────────────────────────────────── */
+.a-field{display:block;padding:var(--a-card-pad);min-width:0}
+.a-field > label{display:block;font-family:var(--font-mono);font-size:var(--a-t-label);
+  font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--a-muted);
+  margin-bottom:var(--s2)}
+.a-field textarea{width:100%;max-width:100%;min-width:0;box-sizing:border-box;
+  min-height:120px;background:var(--a-sunken);border:1px solid var(--a-line);
+  border-radius:var(--r-md);color:var(--a-text);padding:var(--s3) var(--s4);
+  font:inherit;font-size:var(--a-t-body);line-height:1.6;resize:vertical;
+  transition:border-color var(--a-motion) ease}
+.a-field textarea:hover{border-color:var(--a-line-strong)}
+.a-field textarea:focus-visible{outline:2px solid var(--a-accent);outline-offset:2px;
+  border-color:transparent}
+.a-hint{font-size:var(--a-t-help);color:var(--a-muted);line-height:1.6;margin:var(--s2) 0 0;
+  max-width:72ch}
+.a-hint b{color:var(--a-text-2)}
+
+/* ── EMPTY STATE ──────────────────────────────────────────────────────── */
+.a-empty{padding:var(--s10) var(--a-card-pad);text-align:center;color:var(--a-muted);
+  font-size:var(--a-t-help);line-height:1.6}
+.a-empty b{display:block;color:var(--a-text-2);font-size:var(--a-t-body);
+  margin-bottom:var(--s1)}
+
+/* ── METRIC CARDS (§26) ───────────────────────────────────────────────────
+   Grid, not per-tile sizing. Equal heights come from the grid track, so a
+   tile with a supporting line does not push its row taller than its
+   neighbours. */
+.a-metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+  gap:var(--s4);margin:0}
+.a-metrics.is-compact{grid-template-columns:repeat(auto-fill,minmax(132px,1fr))}
+.a-metric{display:flex;flex-direction:column;gap:var(--s1);justify-content:flex-start;
+  background:var(--a-card);border:1px solid var(--a-line);border-radius:var(--r-lg);
+  padding:var(--s5);min-width:0;box-shadow:var(--a-shadow);
+  transition:border-color var(--a-motion) ease}
+.a-metric:hover{border-color:var(--a-line-strong)}
+.a-metric .m-val{font-family:var(--font-mono);font-size:1.7rem;font-weight:600;
+  line-height:1.1;color:var(--a-text);letter-spacing:-.01em;overflow-wrap:anywhere}
+.a-metrics.is-compact .m-val{font-size:1.3rem}
+.a-metric .m-lbl{font-family:var(--font-mono);font-size:var(--a-t-label);font-weight:600;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--a-muted);line-height:1.45;
+  overflow-wrap:anywhere}
+.a-metric .m-sub{font-size:var(--a-t-help);color:var(--a-text-3);line-height:1.5;
+  margin-top:var(--s1);overflow-wrap:anywhere}
+/* Tone applies to the NUMBER, and every toned tile also carries a worded
+   sub-line, so the state is never colour-only (§20). */
+.a-metric.is-success .m-val{color:var(--a-success)}
+.a-metric.is-warning .m-val{color:var(--a-warning)}
+.a-metric.is-danger  .m-val{color:var(--a-danger)}
+.a-metric.is-accent  .m-val{color:var(--a-accent)}
+
+/* ── TABLE, admin flavour ─────────────────────────────────────────────────
+   `.ptable` keeps its own look for the customer surfaces. Inside `.a-card`
+   the table adopts the card's padding scale and loses its outer border,
+   because the card already draws one. */
+.a-card .ptable{font-size:var(--a-t-body)}
+.a-card .ptable th{font-size:var(--a-t-label);font-weight:600;letter-spacing:.09em;
+  color:var(--a-muted);padding:var(--s3) var(--a-card-pad);border-bottom:1px solid var(--a-line)}
+.a-card .ptable td{padding:var(--s3) var(--a-card-pad);color:var(--a-text-2);
+  border-bottom:1px solid var(--a-line);vertical-align:middle}
+.a-card .ptable tr:last-child td{border-bottom:none}
+.a-card .ptable tbody tr{transition:background var(--a-motion) ease}
+.a-card .ptable tbody tr:hover{background:var(--a-hover)}
+.a-card .ptable-wrap{border:none;border-radius:0;background:transparent}
+
+/* ── SIDEBAR (§16) ────────────────────────────────────────────────────────
+   Behaviour untouched — this is row height, alignment and state clarity.
+   Applied only when the shell renders the admin page wrapper, so customer
+   portals keep exactly the sidebar they have. */
+.portal:has(.a-page) .pside{padding:var(--s5) var(--s3);gap:2px}
+.portal:has(.a-page) .pside a,
+.portal:has(.a-page) .pside .psignout{display:flex;align-items:center;min-height:42px;
+  padding:var(--s2) var(--s3);border-radius:var(--r-sm);font-size:.875rem;font-weight:500;
+  color:var(--a-text-2);line-height:1.4;
+  transition:background var(--a-motion) ease,color var(--a-motion) ease}
+.portal:has(.a-page) .pside a:hover,
+.portal:has(.a-page) .pside .psignout:hover{background:var(--a-hover);color:var(--a-text)}
+.portal:has(.a-page) .pside a.active{color:var(--a-accent);background:var(--a-warning-bg);
+  border-color:transparent;font-weight:600;box-shadow:inset 2px 0 0 var(--a-accent)}
+.portal:has(.a-page) .pside .plabel{font-size:var(--a-t-code);letter-spacing:.14em;
+  color:var(--a-muted);margin:var(--s4) var(--s3) var(--s1);font-weight:600}
+.portal:has(.a-page) .pside a:focus-visible,
+.portal:has(.a-page) .pside .psignout:focus-visible{outline:2px solid var(--a-accent);
+  outline-offset:-2px}
+
+/* ── BUTTONS, admin flavour (§21) ─────────────────────────────────────── */
+.a-page .btn{transition:background var(--a-motion) ease,border-color var(--a-motion) ease,
+  color var(--a-motion) ease}
+.a-page .btn:disabled,.a-page .btn[aria-disabled="true"]{opacity:.55;cursor:not-allowed}
+
+/* A read-only sub-heading inside a card body — the "Review note" caption.
+   Not a <label>: there is no control to label, only a written record. */
+.a-sublabel{font-family:var(--font-mono);font-size:var(--a-t-label);font-weight:600;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--a-muted);
+  margin:0 0 var(--s2)}
+
+/* ── M-100 corrections found by looking at the rendered page ──────────────
+   Both of these were invisible to jsdom and to every structural assertion;
+   they showed up the moment the screenshots were opened. */
+
+/* v4.css line 31 sets `section{padding:88px 0}` for the marketing pages.
+   `AdminCard`/`AdminSection` render <section>, so every card was inheriting
+   88px of vertical padding — the ~100px of dead space above each card title.
+   Semantic elements were the right call; they just have to opt out of the
+   public site's rhythm. */
+.a-card,.a-section{padding:0}
+
+/* A card in the narrow column is ~330px wide, so a 200px label column leaves
+   130px for the value — and a badge (`white-space:nowrap`) was clipped by the
+   card's `overflow:hidden`. The row now stacks on the CARD's width rather
+   than the viewport's, which is what it should always have keyed off: the
+   same row is comfortable at 1440 in the wide column and cramped in the
+   narrow one at the very same viewport. */
+.a-card{container-type:inline-size}
+@container (max-width:560px){
+  .drow{grid-template-columns:1fr;gap:var(--s1);align-items:start}
+  .drow > dt{font-size:var(--a-t-code)}
+  .a-reasons li{padding-left:var(--s4);padding-right:var(--s4)}
+}
+
+/* `.pmain` brings its own 26px/30px padding for the customer portals. An
+   admin page adds `.a-page`'s gutter on top of it, so the measured inset was
+   ~91px instead of the 32px the design system specifies. The page owns its
+   gutter; the shell stands back. */
+.pmain:has(.a-page){padding:0}
+@media(max-width:860px){.pmain:has(.a-page){padding:0}}
+
+/* Stacked cards outside the two-column grid — a page-level rhythm so no card
+   needs a margin of its own. */
+.a-stack{margin-top:var(--s6)}
+.a-page > .a-card + .a-card{margin-top:var(--s6)}
+/* A table identifier cell: a docket number is a machine identifier (§15). */
+.ptable td .tid{font-family:var(--font-mono);font-size:.85rem;font-weight:600;
+  letter-spacing:.02em;color:var(--a-text)}
+
+/* ── M-100 · the rest of the admin portal adopts the system ───────────────
+   §25 says shared primitives first, then migrate pages systematically, and
+   explicitly warns against redesigning every page at once if that risks
+   regressions.
+
+   The carrier-verification screens were rewritten onto the primitives because
+   they are the reference implementation. The remaining admin pages are
+   aggregation-heavy Server Components — the dashboard alone is 694 lines of
+   queries and reductions around its markup — and their vocabulary
+   (`.psec`, `.ptiles`, `.ptile`, `.pcard`, `.ptable-wrap`) is already regular
+   and already proven by the suites.
+
+   So they adopt the design system through the stylesheet instead: the same
+   tokens, the same spacing scale, the same radii, the same card treatment,
+   the same badge metrics, applied to the markup that is already there. Every
+   §26 requirement for metric cards — consistent height, aligned rows,
+   identical padding, a strong number, a small label, no height jump from an
+   extra line — is a CSS property, and CSS Grid is what §26 asks for.
+
+   Scoped to `.a-page`, so the customer portals are untouched. Converting the
+   markup is the follow-up, and it is now a rename rather than a redesign.
+   ========================================================================= */
+
+/* Section label */
+.a-page .psec{font-family:var(--font-mono);font-size:var(--a-t-label);letter-spacing:.14em;
+  text-transform:uppercase;color:var(--a-muted);font-weight:600;
+  margin:var(--s8) 0 var(--s3);display:block}
+.a-page .psec:first-of-type{margin-top:var(--s6)}
+
+/* Metric tiles → the metric-card system */
+.a-page .ptiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+  gap:var(--s4);margin:0 0 var(--s6)}
+.a-page .ptiles.compact{grid-template-columns:repeat(auto-fill,minmax(132px,1fr))}
+.a-page .ptile{display:flex;flex-direction:column;gap:var(--s1);justify-content:flex-start;
+  background:var(--a-card);border:1px solid var(--a-line);border-radius:var(--r-lg);
+  padding:var(--s5);min-height:0;box-shadow:var(--a-shadow);min-width:0;
+  transition:border-color var(--a-motion) ease}
+.a-page .ptile:hover{border-color:var(--a-line-strong)}
+.a-page .ptile b{font-family:var(--font-mono);font-size:1.7rem;font-weight:600;
+  line-height:1.1;color:var(--a-text);letter-spacing:-.01em;display:block;
+  overflow-wrap:anywhere}
+.a-page .ptiles.compact .ptile{padding:var(--s4)}
+.a-page .ptiles.compact .ptile b{font-size:1.3rem}
+.a-page .ptile span{font-family:var(--font-mono);font-size:var(--a-t-label);font-weight:600;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--a-muted);line-height:1.45;
+  overflow-wrap:anywhere}
+.a-page .ptile .sub{display:block;font-family:var(--font-sans);font-size:var(--a-t-help);
+  font-weight:400;letter-spacing:0;text-transform:none;color:var(--a-text-3);
+  line-height:1.5;margin-top:var(--s1)}
+/* Tone applies to the NUMBER; every toned tile also carries a worded label,
+   so no state is colour-only (§20). */
+.a-page .ptile.good b{color:var(--a-success)}
+.a-page .ptile.warn b{color:var(--a-danger)}
+
+/* Cards */
+.a-page .pcard{background:var(--a-card);border:1px solid var(--a-line);
+  border-radius:var(--r-lg);box-shadow:var(--a-shadow);padding:var(--a-card-pad);
+  margin:0 0 var(--s6);min-width:0}
+.a-page .pcard h2{font-family:var(--font-display);font-size:var(--a-t-card);font-weight:700;
+  line-height:1.3;letter-spacing:-.005em;margin:0 0 var(--s4);padding-bottom:var(--s3);
+  border-bottom:1px solid var(--a-line)}
+.a-page .pcard h2.psubhead{margin-top:var(--s6)}
+.a-page .pgrid2{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:var(--s6)}
+@media(max-width:1180px){.a-page .pgrid2{grid-template-columns:1fr}}
+
+/* Standalone tables become cards in their own right */
+.a-page > .ptable-wrap{background:var(--a-card);border:1px solid var(--a-line);
+  border-radius:var(--r-lg);box-shadow:var(--a-shadow);margin-bottom:var(--s6)}
+.a-page .ptable{font-size:var(--a-t-body)}
+.a-page .ptable th{font-size:var(--a-t-label);font-weight:600;letter-spacing:.09em;
+  color:var(--a-muted);padding:var(--s3) var(--s5);border-bottom:1px solid var(--a-line)}
+.a-page .ptable td{padding:var(--s3) var(--s5);color:var(--a-text-2);
+  border-bottom:1px solid var(--a-line)}
+.a-page .ptable tr:last-child td{border-bottom:none}
+.a-page .ptable tbody tr{transition:background var(--a-motion) ease}
+.a-page .ptable tbody tr:hover{background:var(--a-hover)}
+.a-page .pcard .ptable-wrap{border:none;background:transparent;border-radius:0}
+.a-page .pcard .ptable th:first-child,.a-page .pcard .ptable td:first-child{padding-left:0}
+.a-page .pcard .ptable th:last-child,.a-page .pcard .ptable td:last-child{padding-right:0}
+
+/* Badges on the mapped pages use the same metrics as `.a-badge` */
+.a-page .pbadge{display:inline-flex;align-items:center;min-height:22px;
+  padding:2px var(--s2);border-radius:var(--r-xs);font-size:var(--a-t-code);
+  font-weight:600;letter-spacing:.07em;line-height:1.5}
+.a-page .pbadge.amber{background:var(--a-warning-bg);color:var(--a-warning)}
+.a-page .pbadge.green{background:var(--a-success-bg);color:var(--a-success)}
+.a-page .pbadge.red{background:var(--a-danger-bg);color:var(--a-danger)}
+
+/* Prose and empty states */
+.a-page .phelp{font-size:var(--a-t-help);color:var(--a-text-3);line-height:1.6;max-width:72ch}
+.a-page .pempty{font-family:var(--font-sans);font-size:var(--a-t-help);color:var(--a-muted);
+  padding:var(--s8) var(--s5)}
+.a-page .pempty.flush{padding:0}
+.a-page .timeline .tlt{font-size:var(--a-t-code);color:var(--a-muted)}
+.a-page .timeline p{font-size:var(--a-t-body);color:var(--a-text-2)}
+
+/* The page bar on the mapped pages gets the `.a-head` treatment. Converting
+   18 page headers to `AdminPageHeader` is a mechanical follow-up; this is the
+   same result without touching 18 files before a gate. */
+.a-page .pbar{display:flex;flex-wrap:wrap;justify-content:space-between;
+  align-items:flex-start;gap:var(--s4) var(--s6);padding:var(--s6) 0 var(--s5);
+  border-bottom:1px solid var(--a-line);margin-bottom:var(--s6)}
+.a-page .pbar h1{font-size:var(--a-t-page);font-weight:800;line-height:1.15;margin:0;
+  overflow-wrap:anywhere}
+.a-page .pbar .crumb{display:block;font-family:var(--font-mono);font-size:var(--a-t-code);
+  letter-spacing:.1em;text-transform:uppercase;color:var(--a-muted);margin-bottom:var(--s2)}
+
+/* Two reason sentences in one cell ran together as a single block of prose —
+   `.treason` was `display:block` with no separation. */
+.a-card .ptable td .treason + .treason,
+.a-page .ptable td .treason + .treason{margin-top:var(--s2)}
+/* `table-layout:auto` gave the wrapping reason column ~190px at 1440 while a
+   nowrap column kept slack. A floor stops the narrowest wrapping column from
+   being squeezed into four lines. */
+.a-card .ptable td.wrap,.a-page .ptable td.wrap{min-width:170px}

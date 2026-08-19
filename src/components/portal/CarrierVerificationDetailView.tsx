@@ -1,40 +1,73 @@
 import { Link } from "@/i18n/navigation";
 import { CarrierReviewForm } from "@/components/portal/CarrierReviewForm";
 import {
+  AdminCard,
+  AdminCardShell,
+  AdminColumn,
+  AdminGrid,
+  AdminPage,
+  AdminPageHeader,
+  DetailGroup,
+  DetailList,
+  DetailRow,
+  InfoCallout,
+  ReasonItem,
+  ReasonList,
+  ReviewNote,
+  StateBlock,
+  StatusBadge,
+  type Tone,
+} from "@/components/portal/admin-ui";
+import {
   DECISION_BADGE,
+  PAYMENT_BADGE,
+  RISK_TIER_BADGE,
   VERIFICATION_BADGE,
+  affirmativeTone,
+  badgeFor,
   isNotableReason,
   matchLabel,
+  matchTone,
+  negativeTone,
   reasonCodeLabel,
   sortReasonCodes,
   triStateLabel,
 } from "@/lib/carrier-authority/review-labels";
 
 /**
- * M-99 — one carrier application, presentationally.
+ * M-100 — one carrier application, on the admin design system.
  *
- * ── WHY THIS IS A COMPONENT AND NOT MARKUP IN THE PAGE ───────────────────
+ * ── WHAT CHANGED, AND WHY ────────────────────────────────────────────────
  *
- * The page is an async Server Component, which cannot be rendered in jsdom —
- * so as long as the markup lived there, none of it could be measured. This is
- * the same split M-74/M-81 use (`BrokerShipmentDetailView` and friends): the
- * page fetches, the View renders, and `tests/unit/admin-verifications-a11y.
- * test.tsx` renders the View into the browser harness so
- * `tests/e2e/admin-responsive-a11y.spec.ts` can measure it at twelve widths
- * behind the real compiled stylesheet.
+ * The information is identical, field for field: nothing was removed, no
+ * value was re-derived, and every decision still arrives as a prop that the
+ * page already read. What changed is how it is structured.
  *
- * No data logic moved with it. Every value arrives as a prop, already read and
- * already decided by the page.
+ * 1. DIVIDERS. The reported defect — "lines don't align" — was `.pdl` putting
+ *    `border-top` on the `dt` AND the `dd` under `align-items:baseline`. Two
+ *    boxes at two different Y values drew two rules per row. `DetailRow` puts
+ *    one wrapper around the pair and `.drow + .drow` draws one border. See the
+ *    note in `admin-ui.tsx`.
  *
- * ── WHAT CHANGED VISUALLY ────────────────────────────────────────────────
+ * 2. FMCSA IS NO LONGER A WALL. Twelve identical rows became four labelled
+ *    bands — IDENTITY, AUTHORITY, MATCHING, SOURCE — and the four values that
+ *    are actually compliance outcomes (allowed to operate, out of service,
+ *    the three matches) became badges. `MISMATCH` as a danger chip is read in
+ *    a glance; `MISMATCH` as body text is not.
  *
- * The information is identical, field for field. What changed is the
- * vocabulary carrying it: `.pcard` instead of `.ptable-wrap` (which is a table
- * scroller with no padding, so headings sat on its border), `.pdl` instead of
- * `.ptable` (dividers between rows rather than through wrapped text), `.psub`
- * instead of `h2.sec` (a marketing display heading at up to 2.7rem), and the
- * shared `.pbadges` / `.pactions` / `.phelp` rows instead of per-call-site
- * inline styles.
+ * 3. RAW ENUMS ARE GONE FROM THE SCREEN. `manual_review` and `unpaid` were
+ *    rendered verbatim. They are now `Manual review` and `Unpaid` on toned
+ *    badges, via maps in `review-labels.ts`. The stored values are untouched.
+ *
+ * 4. THE REVIEW NOTE IS A RECORD, not a table cell. It gets its own panel.
+ *
+ * 5. THE DECISION CARD HAS STATES. Awaiting review / cleared / not eligible /
+ *    already onboarded each render an icon, a badge and a sentence, and the
+ *    two actions sit in a footer bar rather than loose under a textarea.
+ *
+ * Colour never carries a state by itself: every badge spells the state out,
+ * and the "finding" reason codes are marked with a rule down the left edge as
+ * well as being sorted to the top.
  */
 
 export interface VerificationDetail {
@@ -76,6 +109,15 @@ export interface VerificationCheck {
 
 const dateTime = (iso: string) => new Date(iso).toLocaleString("en-US");
 
+/** The existing `.pbadge` maps use V4 colour words; the design system uses
+ *  tones. One translation, in one place, so both vocabularies stay honest. */
+const TONE_OF: Readonly<Record<string, Tone>> = {
+  green: "success",
+  amber: "warning",
+  red: "danger",
+};
+const toneOf = (badge: string): Tone => TONE_OF[badge] ?? "neutral";
+
 export function CarrierVerificationDetailView({
   pre,
   latest,
@@ -97,220 +139,297 @@ export function CarrierVerificationDetailView({
   const expired = new Date(pre.expiresAt).getTime() <= now;
   const open = pre.decision === "manual_review" && !pre.claimedCarrierId;
 
+  const risk = badgeFor(RISK_TIER_BADGE, pre.riskTier);
+  const payment = badgeFor(PAYMENT_BADGE, pre.paymentStatus);
+
   return (
-    <>
-      <div className="pbar">
-        <div>
-          <span className="crumb">
-            <Link href="/portal/admin/carrier-verifications">
-              Dispatch desk / Carrier verifications
-            </Link>
-          </span>
-          <h1>{pre.legalNameEntered}</h1>
-        </div>
-        <div className="pbadges">
-          <span className={`pbadge ${fmcsa.badge}`}>{fmcsa.label}</span>
-          <span className={`pbadge ${decision.badge}`}>{decision.label}</span>
-          {expired ? <span className="pbadge red">Expired</span> : null}
-        </div>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        crumb={
+          <Link href="/portal/admin/carrier-verifications">
+            Dispatch desk / Carrier verifications
+          </Link>
+        }
+        title={pre.legalNameEntered}
+        description="Carrier authority verification — what the applicant submitted, what FMCSA returned, and what the engine concluded."
+        identifiers={
+          <>
+            <span>
+              USDOT <b>{pre.usdotNumberEntered}</b>
+            </span>
+            <span>
+              MC{" "}
+              <b>
+                {pre.mcNumberEntered ? `MC-${pre.mcNumberEntered}` : "none"}
+              </b>
+            </span>
+            <span>
+              Submitted <b>{dateTime(pre.createdAt)}</b>
+            </span>
+            <span>
+              Expires <b>{dateTime(pre.expiresAt)}</b>
+            </span>
+          </>
+        }
+        badges={
+          <>
+            <StatusBadge tone={toneOf(fmcsa.badge)} dot>
+              {fmcsa.label}
+            </StatusBadge>
+            <StatusBadge tone={toneOf(decision.badge)} dot>
+              {decision.label}
+            </StatusBadge>
+            {expired ? <StatusBadge tone="danger">Expired</StatusBadge> : null}
+          </>
+        }
+      />
 
-      <div className="pgrid2">
-        <div>
-          <div className="pcard">
-            <h2>What the applicant submitted</h2>
-            <dl className="pdl">
-              <dt>Legal company name</dt>
-              <dd>{pre.legalNameEntered}</dd>
-
-              <dt>USDOT</dt>
-              <dd className="mono">{pre.usdotNumberEntered}</dd>
-
-              <dt>MC</dt>
-              <dd className={pre.mcNumberEntered ? "mono" : undefined}>
+      <AdminGrid>
+        <AdminColumn>
+          {/* ── §9 ────────────────────────────────────────────────────── */}
+          <AdminCard title="What the applicant submitted" flush>
+            <DetailList>
+              <DetailRow label="Legal company name">
+                {pre.legalNameEntered}
+              </DetailRow>
+              <DetailRow label="USDOT" id>
+                {pre.usdotNumberEntered}
+              </DetailRow>
+              <DetailRow
+                label="MC"
+                id={pre.mcNumberEntered !== null}
+                muted={pre.mcNumberEntered === null}
+              >
                 {pre.mcNumberEntered ? (
                   `MC-${pre.mcNumberEntered}`
                 ) : (
                   <em>None submitted — legitimate for intrastate or exempt</em>
                 )}
-              </dd>
-
-              <dt>Email</dt>
-              <dd>{pre.email}</dd>
-
-              <dt>Phone</dt>
-              <dd>{pre.phone ?? "—"}</dd>
-
-              <dt>Submitted</dt>
-              <dd>{dateTime(pre.createdAt)}</dd>
-
-              <dt>Expires</dt>
-              <dd>
+              </DetailRow>
+              <DetailRow label="Email">{pre.email}</DetailRow>
+              <DetailRow label="Phone" muted={pre.phone === null}>
+                {pre.phone ?? "—"}
+              </DetailRow>
+              <DetailRow label="Submitted">{dateTime(pre.createdAt)}</DetailRow>
+              <DetailRow
+                label="Expires"
+                {...(expired
+                  ? {
+                      sub: "Expired — a new verification is required to continue",
+                    }
+                  : {})}
+              >
                 {dateTime(pre.expiresAt)}
-                {expired ? (
-                  <span className="psubvalue">
-                    Expired — a new verification is required to continue
-                  </span>
-                ) : null}
-              </dd>
-            </dl>
-          </div>
+              </DetailRow>
+            </DetailList>
+          </AdminCard>
 
-          <div className="pcard">
-            <h2>What FMCSA returned</h2>
+          {/* ── §10 ───────────────────────────────────────────────────── */}
+          <AdminCardShell title="What FMCSA returned">
             {latest === null ? (
-              <p className="phelp">
-                No authority check is recorded against this application. That
-                happens when the pre-check could not reach the provider before
-                the record was written — treat it as unverified, not as a
-                finding.
-              </p>
+              <div className="a-card-body">
+                <InfoCallout>
+                  No authority check is recorded against this application. That
+                  happens when the pre-check could not reach the provider before
+                  the record was written — treat it as unverified, not as a
+                  finding.
+                </InfoCallout>
+              </div>
             ) : (
-              <dl className="pdl">
-                <dt>Legal name on record</dt>
-                <dd>{latest.legalName ?? "Not reported"}</dd>
+              <>
+                <DetailGroup>Identity</DetailGroup>
+                <DetailList>
+                  <DetailRow
+                    label="Legal name on record"
+                    muted={latest.legalName === null}
+                  >
+                    {latest.legalName ?? "Not reported"}
+                  </DetailRow>
+                  <DetailRow label="DBA" muted={latest.dbaName === null}>
+                    {latest.dbaName ?? "—"}
+                  </DetailRow>
+                  <DetailRow
+                    label="USDOT on record"
+                    id={latest.usdotNumber !== null}
+                    muted={latest.usdotNumber === null}
+                  >
+                    {latest.usdotNumber ?? "—"}
+                  </DetailRow>
+                  <DetailRow
+                    label="MC on record"
+                    id={latest.mcNumber !== null}
+                    muted={latest.mcNumber === null}
+                  >
+                    {latest.mcNumber ?? "—"}
+                  </DetailRow>
 
-                <dt>DBA</dt>
-                <dd>{latest.dbaName ?? "—"}</dd>
+                </DetailList>
+                <DetailGroup>Authority</DetailGroup>
+                <DetailList>
+                  <DetailRow label="Allowed to operate">
+                    <StatusBadge tone={affirmativeTone(latest.allowedToOperate)}>
+                      {triStateLabel(latest.allowedToOperate)}
+                    </StatusBadge>
+                  </DetailRow>
+                  <DetailRow
+                    label="Out of service"
+                    {...(latest.outOfServiceDate
+                      ? { sub: `Since ${latest.outOfServiceDate}` }
+                      : {})}
+                  >
+                    <StatusBadge tone={negativeTone(latest.outOfService)}>
+                      {triStateLabel(latest.outOfService)}
+                    </StatusBadge>
+                  </DetailRow>
 
-                <dt>USDOT on record</dt>
-                <dd className="mono">{latest.usdotNumber ?? "—"}</dd>
+                </DetailList>
+                <DetailGroup>Matching</DetailGroup>
+                <DetailList>
+                  <DetailRow label="Name match">
+                    <StatusBadge tone={matchTone(latest.nameMatch)}>
+                      {matchLabel(latest.nameMatch)}
+                    </StatusBadge>
+                  </DetailRow>
+                  <DetailRow label="USDOT match">
+                    <StatusBadge tone={matchTone(latest.dotMatch)}>
+                      {matchLabel(latest.dotMatch)}
+                    </StatusBadge>
+                  </DetailRow>
+                  <DetailRow label="MC field match">
+                    <StatusBadge tone={matchTone(latest.mcMatch)}>
+                      {matchLabel(latest.mcMatch)}
+                    </StatusBadge>
+                  </DetailRow>
 
-                <dt>MC on record</dt>
-                <dd className="mono">{latest.mcNumber ?? "—"}</dd>
-
-                <dt>Allowed to operate</dt>
-                <dd>{triStateLabel(latest.allowedToOperate)}</dd>
-
-                <dt>Out of service</dt>
-                <dd>
-                  {triStateLabel(latest.outOfService)}
-                  {latest.outOfServiceDate ? (
-                    <span className="psubvalue">
-                      Since {latest.outOfServiceDate}
-                    </span>
-                  ) : null}
-                </dd>
-
-                <dt>Name match</dt>
-                <dd>{matchLabel(latest.nameMatch)}</dd>
-
-                <dt>USDOT match</dt>
-                <dd>{matchLabel(latest.dotMatch)}</dd>
-
-                <dt>MC field match</dt>
-                <dd>{matchLabel(latest.mcMatch)}</dd>
-
-                <dt>Checked</dt>
-                <dd>{dateTime(latest.checkedAt)}</dd>
-
-                <dt>Source freshness</dt>
-                <dd>
-                  {latest.sourceRetrievedAt
-                    ? dateTime(latest.sourceRetrievedAt)
-                    : "Not reported"}
-                </dd>
-
-                <dt>Response digest</dt>
-                <dd className="mono">
-                  {latest.rawResponseSha256
-                    ? `${latest.rawResponseSha256.slice(0, 16)}…`
-                    : "—"}
-                  <span className="psubvalue">
-                    SHA-256. The payload itself is never stored.
-                  </span>
-                </dd>
-              </dl>
+                </DetailList>
+                <DetailGroup>Source</DetailGroup>
+                <DetailList>
+                  <DetailRow label="Checked">
+                    {dateTime(latest.checkedAt)}
+                  </DetailRow>
+                  <DetailRow
+                    label="Source freshness"
+                    muted={latest.sourceRetrievedAt === null}
+                  >
+                    {latest.sourceRetrievedAt
+                      ? dateTime(latest.sourceRetrievedAt)
+                      : "Not reported"}
+                  </DetailRow>
+                  <DetailRow
+                    label="Response digest"
+                    id={latest.rawResponseSha256 !== null}
+                    muted={latest.rawResponseSha256 === null}
+                    sub="SHA-256. The payload itself is never stored."
+                  >
+                    {latest.rawResponseSha256
+                      ? `${latest.rawResponseSha256.slice(0, 16)}…`
+                      : "—"}
+                  </DetailRow>
+                </DetailList>
+                <InfoCallout inset>
+                  An FMCSA insurance filing is <b>not</b> shown here and is
+                  never read as compliance. PickLoads insurance requirements are
+                  judged from the uploaded COI and the expiry on the carrier
+                  record, separately.
+                </InfoCallout>
+              </>
             )}
-            <p className="phelp">
-              An FMCSA insurance filing is <b>not</b> shown here and is never
-              read as compliance. PickLoads insurance requirements are judged
-              from the uploaded COI and the expiry on the carrier record,
-              separately.
-            </p>
-          </div>
-        </div>
+          </AdminCardShell>
+        </AdminColumn>
 
-        <div>
-          <div className="pcard">
-            <h2>Why the engine decided this</h2>
-            <dl className="pdl">
-              <dt>Risk tier</dt>
-              <dd>{pre.riskTier ?? "—"}</dd>
-
-              <dt>Payment</dt>
-              <dd>{pre.paymentStatus}</dd>
-
-              <dt>Onboarded</dt>
-              <dd>
+        <AdminColumn>
+          {/* ── §11 ───────────────────────────────────────────────────── */}
+          <AdminCardShell title="Why the engine decided this">
+            <DetailList>
+              <DetailRow label="Risk tier">
+                <StatusBadge tone={risk.tone}>{risk.label}</StatusBadge>
+              </DetailRow>
+              <DetailRow label="Payment">
+                <StatusBadge tone={payment.tone}>{payment.label}</StatusBadge>
+              </DetailRow>
+              <DetailRow
+                label="Onboarded"
+                {...(pre.claimedCarrierId && pre.claimedAt
+                  ? { sub: dateTime(pre.claimedAt) }
+                  : {})}
+              >
                 {pre.claimedCarrierId ? (
-                  <>
-                    Yes — carrier account created
-                    {pre.claimedAt ? (
-                      <span className="psubvalue">
-                        {dateTime(pre.claimedAt)}
-                      </span>
-                    ) : null}
-                  </>
+                  <StatusBadge tone="success">Carrier account created</StatusBadge>
                 ) : (
-                  "No carrier account exists for this application"
+                  <StatusBadge tone="neutral">No carrier account</StatusBadge>
                 )}
-              </dd>
-            </dl>
-
-            <h3 className="psub">Reason codes</h3>
-            <ul className="preasons">
+              </DetailRow>
+            </DetailList>
+            <DetailGroup>Reason codes</DetailGroup>
+            <ReasonList>
               {sortReasonCodes(pre.reasonCodes).map((code) => (
-                <li
+                <ReasonItem
                   key={code}
-                  className={isNotableReason(code) ? "is-finding" : undefined}
-                >
-                  <span className="rlabel">{reasonCodeLabel(code)}</span>
-                  <span className="rcode">{code}</span>
-                </li>
+                  text={reasonCodeLabel(code)}
+                  code={code}
+                  finding={isNotableReason(code)}
+                />
               ))}
-            </ul>
-          </div>
+            </ReasonList>
+          </AdminCardShell>
 
+          {/* ── §12 ───────────────────────────────────────────────────── */}
           {pre.reviewedAt ? (
-            <div className="pcard">
-              <h2>Staff review</h2>
-              <dl className="pdl">
-                <dt>Reviewed by</dt>
-                <dd>{pre.reviewerName ?? "Staff"}</dd>
-
-                <dt>Reviewed at</dt>
-                <dd>{dateTime(pre.reviewedAt)}</dd>
-
-                <dt>Note</dt>
-                <dd>{pre.reviewNote ?? "—"}</dd>
-              </dl>
-            </div>
+            <AdminCardShell title="Staff review">
+              <DetailList>
+                <DetailRow label="Reviewed by">
+                  {pre.reviewerName ?? "Staff"}
+                </DetailRow>
+                <DetailRow label="Reviewed at">
+                  {dateTime(pre.reviewedAt)}
+                </DetailRow>
+              </DetailList>
+              <div className="a-field">
+                {/* A heading, not a <label> — there is no control here to
+                    label; this is the written record, read-only. */}
+                <h3 className="a-sublabel">Review note</h3>
+                <ReviewNote>{pre.reviewNote}</ReviewNote>
+              </div>
+            </AdminCardShell>
           ) : null}
 
-          <div className="pcard">
-            <h2>Decision</h2>
+          {/* ── §13 ───────────────────────────────────────────────────── */}
+          <AdminCardShell title="Decision">
             {open ? (
               <>
-                <p className="phelp">
-                  Clearing this application lets the carrier continue to the
-                  verification fee and document upload. It does <b>not</b>{" "}
-                  approve them, does <b>not</b> activate an account, and does{" "}
-                  <b>not</b> change what FMCSA said — the activation
-                  requirements are evaluated separately and in full, later.
-                </p>
+                <div className="a-card-body">
+                  <StateBlock
+                    tone="warning"
+                    icon="!"
+                    title="Awaiting review"
+                  >
+                    Clearing this application lets the carrier continue to the
+                    verification fee and document upload. It does <b>not</b>{" "}
+                    approve them, does <b>not</b> activate an account, and does{" "}
+                    <b>not</b> change what FMCSA said — the activation
+                    requirements are evaluated separately and in full, later.
+                  </StateBlock>
+                </div>
                 <CarrierReviewForm preRegistrationId={pre.id} />
               </>
             ) : (
-              <p className="phelp">
-                {pre.claimedCarrierId
-                  ? "This application has already been used to create a carrier account and can no longer be re-decided."
-                  : "This application is not awaiting review."}
-              </p>
+              <div className="a-card-body">
+                <StateBlock
+                  tone={pre.claimedCarrierId ? "success" : toneOf(decision.badge)}
+                  icon={pre.claimedCarrierId ? "✓" : "•"}
+                  title={
+                    pre.claimedCarrierId ? "Completed" : decision.label
+                  }
+                >
+                  {pre.claimedCarrierId
+                    ? "This application has already been used to create a carrier account and can no longer be re-decided."
+                    : "This application is not awaiting review."}
+                </StateBlock>
+              </div>
             )}
-          </div>
-        </div>
-      </div>
-    </>
+          </AdminCardShell>
+        </AdminColumn>
+      </AdminGrid>
+    </AdminPage>
   );
 }

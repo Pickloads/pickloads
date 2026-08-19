@@ -29,7 +29,7 @@ export default async function SettingsPage({
     .order("key", { ascending: true });
 
   return (
-    <main id="main">
+    <main id="main" className="a-page">
       <div className="pbar">
         <div>
           <span className="crumb">Dispatch desk / Admin</span>

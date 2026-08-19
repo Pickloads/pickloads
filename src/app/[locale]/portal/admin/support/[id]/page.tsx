@@ -61,7 +61,7 @@ export default async function AdminSupportThreadPage({
   const isChangeRequest = thread.subject.startsWith("[CHANGE REQUEST]");
 
   return (
-    <main id="main">
+    <main id="main" className="a-page">
       <div className="pbar">
         <div>
           <span className="crumb">Dispatch desk / Support</span>

@@ -30,7 +30,7 @@ export default async function AdminPostsPage({
   const published = posts.filter((p) => p.published).length;
 
   return (
-    <main id="main">
+    <main id="main" className="a-page">
       <div className="pbar">
         <div>
           <span className="crumb">Dispatch desk / Marketing</span>

@@ -36,7 +36,7 @@ export default async function EditPostPage({
   if (!post) notFound();
 
   return (
-    <main id="main">
+    <main id="main" className="a-page">
       <div className="pbar">
         <div>
           <span className="crumb">Dispatch desk / Marketing / Posts</span>

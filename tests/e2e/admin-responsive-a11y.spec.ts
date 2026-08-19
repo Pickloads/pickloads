@@ -72,8 +72,10 @@ async function stylesheets(page: Page): Promise<Stylesheets> {
     path.join(process.cwd(), ".next", "static", "css", path.basename(portal!)),
     "utf8",
   );
-  expect(portalCss, "the built stylesheet predates .pdl — rebuild").toContain(
-    ".pdl",
+  // A staleness guard, not a design assertion: if the built sheet predates the
+  // design system every measurement below would pass against the old layout.
+  expect(portalCss, "the built stylesheet predates .drow — rebuild").toContain(
+    ".drow",
   );
 
   await page.goto("/track");
@@ -156,7 +158,7 @@ async function probe(page: Page): Promise<Probe> {
       }
 
       // 4 · touch targets in the action row
-      if (el.closest(".pactions") && (el.tagName === "BUTTON" || el.tagName === "A")) {
+      if (el.closest(".a-actions") && (el.tagName === "BUTTON" || el.tagName === "A")) {
         if (r.height < 24 || r.width < 24) {
           smallTargets.push(`${sel(el)} ${Math.round(r.width)}x${Math.round(r.height)}`);
         }
@@ -295,14 +297,22 @@ test("the review action row stacks rather than wrapping into a broken grid", asy
   try {
     await openFixture(page, "admin-verifications-detail");
     const geometry = await page.evaluate(() => {
-      const row = document.querySelector<HTMLElement>(".preview-form .pactions");
+      const row = document.querySelector<HTMLElement>("form .a-actions");
       if (!row) return null;
       const buttons = [...row.querySelectorAll<HTMLElement>(".btn")];
-      const rowRect = row.getBoundingClientRect();
+      // The CONTENT box, not the border box. `.a-actions` is a footer with
+      // its own padding, so "full width" means the full width available to a
+      // button — comparing against the padded outer box would ask each button
+      // to be wider than the space it has.
+      const cs = getComputedStyle(row);
+      const inner =
+        row.clientWidth -
+        parseFloat(cs.paddingLeft) -
+        parseFloat(cs.paddingRight);
       return {
         count: buttons.length,
         widths: buttons.map((b) => Math.round(b.getBoundingClientRect().width)),
-        rowWidth: Math.round(rowRect.width),
+        rowWidth: Math.round(inner),
         // Distinct top offsets = the buttons are on separate lines.
         lines: new Set(buttons.map((b) => Math.round(b.getBoundingClientRect().top)))
           .size,
@@ -347,7 +357,7 @@ test("a 64-character digest and a long legal name wrap inside their column", asy
   try {
     await openFixture(page, "admin-verifications-detail");
     const values = await page.evaluate(() =>
-      [...document.querySelectorAll<HTMLElement>(".pdl > dd")].map((dd) => ({
+      [...document.querySelectorAll<HTMLElement>(".drow > dd")].map((dd) => ({
         text: (dd.textContent ?? "").slice(0, 20),
         scroll: dd.scrollWidth,
         client: dd.clientWidth,

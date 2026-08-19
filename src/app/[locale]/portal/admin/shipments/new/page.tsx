@@ -81,7 +81,7 @@ export default async function NewShipmentPage({
   const mapped = quote === null ? null : mapQuoteToShipmentDraft(quote);
 
   return (
-    <main id="main">
+    <main id="main" className="a-page">
       <div className="pbar">
         <div>
           <span className="crumb">Dispatch desk / Shipments</span>

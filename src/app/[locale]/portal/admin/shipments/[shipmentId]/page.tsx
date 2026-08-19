@@ -200,7 +200,7 @@ export default async function StaffShipmentPage({
   }));
 
   return (
-    <main id="main">
+    <main id="main" className="a-page">
       <ShipmentStaffDetailView
         shipment={shipment}
         events={history.events}

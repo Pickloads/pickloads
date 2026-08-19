@@ -215,18 +215,32 @@ afterEach(cleanup);
 /* ── The layout vocabulary is actually present ──────────────────────────── */
 
 describe("the surfaces use the portal's layout vocabulary", () => {
-  it("renders label/value pairs as a definition list, not a data grid", () => {
+  it("every label/value pair is a row that owns its own divider", () => {
+    // M-100. The old markup put `border-top` on the `dt` AND on the `dd` of a
+    // grid with `align-items:baseline` — two boxes at two different Y values,
+    // so each row drew two rules a few pixels apart and the columns visibly
+    // disagreed. The fix is structural: one wrapper per pair, and the CSS
+    // draws `.drow + .drow`. This asserts the structure that makes that
+    // possible, because without it the stylesheet has nothing to hang a
+    // single full-width divider on.
     const { container } = renderDetail();
-    const lists = container.querySelectorAll("dl.pdl");
+    const lists = container.querySelectorAll("dl.dlist");
     expect(lists.length).toBeGreaterThanOrEqual(3);
-    // Every dt has exactly one dd after it — the grid depends on the pairing.
     for (const dl of lists) {
-      const kids = [...dl.children].map((c) => c.tagName);
-      expect(kids.length % 2, "a dl.pdl has an unpaired term").toBe(0);
-      for (let i = 0; i < kids.length; i += 2) {
-        expect(kids[i]).toBe("DT");
-        expect(kids[i + 1]).toBe("DD");
+      for (const child of dl.children) {
+        expect(child.tagName, "a dl.dlist child is not a .drow").toBe("DIV");
+        expect(child.className).toContain("drow");
+        const kids = [...child.children].map((c) => c.tagName);
+        expect(kids, "a .drow is not exactly one dt + one dd").toEqual([
+          "DT",
+          "DD",
+        ]);
       }
+    }
+    // No dt or dd may sit loose in a list: that is the shape that produced
+    // the misaligned pair of rules.
+    for (const el of container.querySelectorAll("dl.dlist > dt, dl.dlist > dd")) {
+      throw new Error(`loose ${el.tagName} directly inside a dl.dlist`);
     }
   });
 
@@ -252,25 +266,25 @@ describe("the surfaces use the portal's layout vocabulary", () => {
     }
   });
 
-  it("uses .phelp for helper text and .pactions for button rows", () => {
+  it("uses .a-hint for helper text and .a-actions for button rows", () => {
     const { container } = renderDetail();
-    expect(container.querySelectorAll(".phelp").length).toBeGreaterThan(0);
-    expect(container.querySelectorAll(".pactions").length).toBeGreaterThan(0);
+    expect(container.querySelectorAll(".a-hint").length).toBeGreaterThan(0);
+    expect(container.querySelectorAll(".a-actions").length).toBeGreaterThan(0);
     // The marketing display heading has no business in the portal.
     expect(container.querySelectorAll("h2.sec")).toHaveLength(0);
   });
 
   it("groups the page-bar badges so they can wrap as a unit", () => {
     const { container } = renderDetail();
-    const bar = container.querySelector(".pbar")!;
-    const badges = bar.querySelector(".pbadges")!;
+    const bar = container.querySelector(".a-head")!;
+    const badges = bar.querySelector(".a-badges")!;
     expect(badges).toBeTruthy();
-    expect(badges.querySelectorAll(".pbadge").length).toBeGreaterThanOrEqual(2);
+    expect(badges.querySelectorAll(".a-badge").length).toBeGreaterThanOrEqual(2);
   });
 
   it("keeps monospace for identifiers only", () => {
     const { container } = renderDetail();
-    const mono = [...container.querySelectorAll("dd.mono")].map(
+    const mono = [...container.querySelectorAll("dd.is-id")].map(
       (n) => n.textContent ?? "",
     );
     // USDOT, MC, the two on-record numbers and the digest — never prose.
@@ -312,7 +326,7 @@ describe("headings and landmarks", () => {
     // announced with the field rather than floating near it.
     const describedBy = note.getAttribute("aria-describedby")!;
     const hint = container.querySelector(`#${describedBy}`)!;
-    expect(hint.className).toContain("phelp");
+    expect(hint.className).toContain("a-hint");
     expect(hint.textContent).toMatch(/permanent record/i);
   });
 
@@ -326,18 +340,18 @@ describe("headings and landmarks", () => {
 
   it("status badges carry text, so colour is never the only signal", () => {
     const { container } = renderQueue();
-    for (const badge of container.querySelectorAll(".pbadge")) {
+    for (const badge of container.querySelectorAll(".pbadge, .a-badge")) {
       expect((badge.textContent ?? "").trim().length).toBeGreaterThan(2);
     }
   });
 
   it("reason codes pair a sentence with the machine name", () => {
     const { container } = renderDetail();
-    const items = [...container.querySelectorAll(".preasons li")];
+    const items = [...container.querySelectorAll(".a-reasons li")];
     expect(items.length).toBe(DETAIL.reasonCodes.length);
     for (const li of items) {
       expect(within(li as HTMLElement).getByText(/[a-z]/)).toBeTruthy();
-      expect(li.querySelector(".rcode")?.textContent).toMatch(/^[A-Z_]+$/);
+      expect(li.querySelector(".a-code")?.textContent).toMatch(/^[A-Z_]+$/);
     }
   });
 
@@ -352,8 +366,13 @@ describe("headings and landmarks", () => {
       "(908) 555-0142",
       CHECK.legalName!,
       "MISMATCH",
-      "unpaid",
-      "manual_review",
+      // M-100 renders the two enums through the badge maps in
+      // `review-labels.ts` — `unpaid` -> "Unpaid", `manual_review` ->
+      // "Manual review". The information is the same information; showing a
+      // database enum verbatim was the defect. Asserting the LABEL keeps this
+      // test doing its job, which is proving nothing vanished.
+      "Unpaid",
+      "Manual review",
     ]) {
       expect(text, `missing: ${expected}`).toContain(expected);
     }
