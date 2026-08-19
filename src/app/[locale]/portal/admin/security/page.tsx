@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { Link } from "@/i18n/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { AUDIT_PAGE_SIZE, parsePage } from "@/lib/validation/staff";
-import { ScrollRegion } from "@/components/portal/ScrollRegion";
+import { SecurityLogView } from "@/components/portal/SecurityLogView";
+import { resolveActionFilter } from "@/lib/audit/format";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +17,19 @@ export const metadata: Metadata = {
  * changes, dispatcher assignments, change requests, invites, agreement
  * re-sends…), paginated, newest first. Admin-only; reads run cookie-bound
  * under "staff read audit events".
+ *
+ * M-101 — the page fetches and the View renders. The queries below are the
+ * M-58 queries: same table, same columns, same ordering, same page size, same
+ * cookie-bound client under the same policy. What changed is that the rows are
+ * handed to a presentational component instead of being stringified into a
+ * table cell.
+ *
+ * The one behavioural difference is the filter, and it is a widening rather
+ * than a change of contract: the box used to accept only an exact stored
+ * constant, so typing what the table actually showed you matched nothing.
+ * `resolveActionFilter` maps human wording back to constants, and the query
+ * uses `.in()` when a term resolves to several. An exact constant still
+ * resolves to itself.
  */
 export default async function AdminSecurityPage({
   params,
@@ -29,10 +42,11 @@ export default async function AdminSecurityPage({
   await requireAdmin(locale);
   const sp = await searchParams;
   const page = parsePage(typeof sp.page === "string" ? sp.page : undefined);
-  const filterAction =
-    typeof sp.action === "string" && /^[a-z_.]{1,60}$/.test(sp.action)
-      ? sp.action
-      : null;
+
+  // Bounded before it reaches the resolver: a filter box is still input.
+  const rawFilter =
+    typeof sp.action === "string" && sp.action.length <= 60 ? sp.action : "";
+  const resolved = rawFilter ? resolveActionFilter(rawFilter) : [];
 
   const supabase = await createClient();
   let query = supabase
@@ -42,132 +56,42 @@ export default async function AdminSecurityPage({
     })
     .order("created_at", { ascending: false })
     .range((page - 1) * AUDIT_PAGE_SIZE, page * AUDIT_PAGE_SIZE - 1);
-  if (filterAction) query = query.eq("action", filterAction);
+  if (resolved.length === 1) query = query.eq("action", resolved[0]!);
+  else if (resolved.length > 1) query = query.in("action", [...resolved]);
   const { data: eventRows, count } = await query;
   const events = eventRows ?? [];
   const total = count ?? events.length;
   const totalPages = Math.max(1, Math.ceil(total / AUDIT_PAGE_SIZE));
 
   // Actor names (staff-readable profiles).
-  const actorIds = [...new Set(events.map((e) => e.actor_id).filter((v): v is string => v !== null))];
+  const actorIds = [
+    ...new Set(events.map((e) => e.actor_id).filter((v): v is string => v !== null)),
+  ];
   const { data: actorRows } = actorIds.length
     ? await supabase.from("profiles").select("id, full_name, role").in("id", actorIds)
     : { data: [] };
-  const actorOf = (id: string | null) => {
-    if (!id) return "system / service";
-    const a = (actorRows ?? []).find((r) => r.id === id);
-    return a ? `${a.full_name ?? id.slice(0, 8)} (${a.role})` : id.slice(0, 8);
-  };
 
   const pageHref = (p: number) => {
     const q = new URLSearchParams();
-    if (filterAction) q.set("action", filterAction);
+    if (rawFilter) q.set("action", rawFilter);
     q.set("page", String(p));
     return `/portal/admin/security?${q.toString()}`;
   };
 
   return (
-    <main id="main" className="a-page">
-      <div className="pbar">
-        <div>
-          <span className="crumb">Dispatch desk / Security</span>
-          <h1>Security log</h1>
-        </div>
-        <span className="pbadge amber">
-          {total} event{total === 1 ? "" : "s"}
-        </span>
-      </div>
-
-      <form method="get" className="kfilters">
-        <div className="field">
-          <label htmlFor="af-action">Action</label>
-          <input
-            id="af-action"
-            name="action"
-            type="text"
-            defaultValue={filterAction ?? ""}
-            placeholder="e.g. user.suspend"
-          />
-        </div>
-        <button className="btn btn-ghost btn-sm" type="submit">
-          Filter
-        </button>
-      </form>
-
-      <ScrollRegion label="Security log">
-        {events.length === 0 ? (
-          <p className="pempty">
-            No audit events{filterAction ? " match this filter" : " yet"} —
-            signups, account changes and staff actions land here.
-          </p>
-        ) : (
-          <table className="ptable">
-            <thead>
-              <tr>
-                <th>When</th>
-                <th>Actor</th>
-                <th>Action</th>
-                <th>Target</th>
-                <th>Detail</th>
-                <th>IP</th>
-              </tr>
-            </thead>
-            <tbody>
-              {events.map((e) => (
-                <tr key={e.id}>
-                  <td style={{ whiteSpace: "nowrap" }}>
-                    {new Date(e.created_at).toLocaleString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })}
-                  </td>
-                  <td>{actorOf(e.actor_id)}</td>
-                  <td>
-                    <span className="pbadge amber">{e.action}</span>
-                  </td>
-                  <td style={{ fontFamily: "var(--font-mono)", fontSize: ".72rem" }}>
-                    {e.target_table ?? "—"}
-                    {e.target_id ? ` · ${e.target_id.slice(0, 8)}…` : ""}
-                  </td>
-                  <td
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      fontSize: ".7rem",
-                      maxWidth: 340,
-                      overflowWrap: "anywhere",
-                    }}
-                  >
-                    {e.detail !== null ? JSON.stringify(e.detail) : "—"}
-                  </td>
-                  <td style={{ fontFamily: "var(--font-mono)", fontSize: ".72rem" }}>
-                    {e.ip ?? "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </ScrollRegion>
-
-      {totalPages > 1 ? (
-        <p style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "center" }}>
-          {page > 1 ? (
-            <Link className="btn btn-ghost btn-sm" href={pageHref(page - 1)}>
-              ← Prev
-            </Link>
-          ) : null}
-          <span className="mono" style={{ fontSize: ".7rem", color: "var(--steel)" }}>
-            Page {page} of {totalPages}
-          </span>
-          {page < totalPages ? (
-            <Link className="btn btn-ghost btn-sm" href={pageHref(page + 1)}>
-              Next →
-            </Link>
-          ) : null}
-        </p>
-      ) : null}
+    // The View brings its own `AdminPage` wrapper; a second `.a-page` here
+    // would nest the gutter inside itself.
+    <main id="main">
+      <SecurityLogView
+        events={events}
+        actors={actorRows ?? []}
+        total={total}
+        page={page}
+        totalPages={totalPages}
+        filter={rawFilter}
+        resolved={resolved}
+        pageHref={pageHref}
+      />
     </main>
   );
 }

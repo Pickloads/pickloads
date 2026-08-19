@@ -31,6 +31,8 @@ const SUITES = [
   // session-gated, so the browser lane cannot reach the real route.
   "tests/unit/admin-verifications-a11y.test.tsx",
   "tests/unit/admin-mapped-vocabulary.test.tsx",
+  "tests/unit/leads-board-harness.test.tsx",
+  "tests/unit/security-log-a11y.test.tsx",
 ];
 
 /**

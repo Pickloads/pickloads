@@ -47,6 +47,9 @@ const FIXTURES = [
   // stylesheet. Those pages are async Server Components behind requireStaff,
   // so this specimen is the only way their layout gets measured at all.
   "admin-mapped-vocabulary",
+  "admin-leads-board",
+  "admin-security-log",
+  "admin-security-log-empty",
 ] as const;
 
 interface Stylesheets {
@@ -452,3 +455,110 @@ for (const id of FIXTURES) {
     });
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * M-101 — the Kanban scrollbar sits at the bottom of the workspace
+ * ------------------------------------------------------------------ */
+
+/**
+ * The reported defect was a horizontal scrollbar floating in the middle of
+ * the page. A scrollbar is drawn at the bottom edge of its own scroll
+ * container, so "in the middle" means the container stopped there: `.kanban`
+ * was as tall as its tallest column and no taller.
+ *
+ * This measures the container, not the scrollbar — the scrollbar has no
+ * separate geometry to query, and headless Chromium does not paint overlay
+ * scrollbars into screenshots. If the container reaches the bottom of the
+ * workspace, so does its scrollbar.
+ */
+test("the leads board fills the workspace, so its scrollbar is at the bottom", async ({
+  browser,
+}) => {
+  for (const width of [1280, 1440, 1920] as const) {
+    const ctx = await browser.newContext({
+      viewport: { width, height: 900 },
+      reducedMotion: "reduce",
+    });
+    const page = await ctx.newPage();
+    try {
+      await openFixture(page, "admin-leads-board");
+      const m = await page.evaluate(() => {
+        const board = document.querySelector<HTMLElement>(".kanban");
+        if (!board) return null;
+        const r = board.getBoundingClientRect();
+        const cols = [...document.querySelectorAll<HTMLElement>(".kcol")].map(
+          (c) => Math.round(c.getBoundingClientRect().top),
+        );
+        return {
+          bottom: Math.round(r.bottom),
+          viewport: window.innerHeight,
+          scrollsX: board.scrollWidth > board.clientWidth,
+          overflowX: getComputedStyle(board).overflowX,
+          pageOverflow:
+            document.documentElement.scrollWidth - window.innerWidth,
+          colTops: [...new Set(cols)],
+          emptyColHeights: [
+            ...new Set(
+              [...document.querySelectorAll<HTMLElement>(".kcol")]
+                .filter((c) => c.querySelectorAll(".kcard").length === 0)
+                .map((c) => Math.round(c.getBoundingClientRect().height)),
+            ),
+          ],
+        };
+      });
+      expect(m, "the board fixture is missing").not.toBeNull();
+
+      // `.kanban` owns the horizontal scroll — not the page, not an ancestor.
+      expect(m!.overflowX, `@${width}: the board is not the scroller`).toBe("auto");
+      expect(m!.scrollsX, `@${width}: nine stages should not fit`).toBe(true);
+
+      // It reaches the bottom of the workspace rather than stopping under the
+      // tallest column. The tolerance is the page's own bottom padding.
+      const gap = m!.viewport - m!.bottom;
+      expect(
+        gap,
+        `@${width}: the board ends ${gap}px above the viewport bottom — its scrollbar is floating mid-page`,
+      ).toBeLessThanOrEqual(48);
+
+      // Moving the scrollbar down must not centre the columns.
+      expect(m!.colTops, `@${width}: columns are not on one line`).toHaveLength(1);
+
+      // An empty stage still reads as a column.
+      for (const h of m!.emptyColHeights) {
+        expect(h, `@${width}: an empty column collapsed`).toBeGreaterThan(140);
+      }
+
+      // Only the board scrolls sideways.
+      expect(
+        m!.pageOverflow,
+        `@${width}: the page itself scrolls horizontally`,
+      ).toBeLessThanOrEqual(1);
+    } finally {
+      await ctx.close();
+    }
+  }
+});
+
+test("the board keeps its natural height on a phone", async ({ browser }) => {
+  // Forcing a viewport-height workspace at 390px would put the filters and a
+  // sliver of one column on screen and nothing else.
+  const ctx = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    reducedMotion: "reduce",
+  });
+  const page = await ctx.newPage();
+  try {
+    await openFixture(page, "admin-leads-board");
+    const m = await page.evaluate(() => {
+      const page = document.querySelector<HTMLElement>(".a-page.is-board");
+      return {
+        display: page ? getComputedStyle(page).display : null,
+        pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      };
+    });
+    expect(m.display, "the desktop height chain leaked onto mobile").toBe("block");
+    expect(m.pageOverflow).toBeLessThanOrEqual(1);
+  } finally {
+    await ctx.close();
+  }
+});

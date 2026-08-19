@@ -119,7 +119,7 @@ export function KanbanBoard({
   }
 
   return (
-    <div>
+    <div className="kboard">
       <div className="kfilters">
         <div className="field">
           <label htmlFor="kf-dispatcher">Dispatcher</label>

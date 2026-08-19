@@ -25,6 +25,8 @@ const FIXTURES = [
   "admin-verifications-detail-reviewed",
   "admin-verifications-queue",
   "admin-mapped-vocabulary",
+  "admin-leads-board",
+  "admin-security-log",
 ] as const;
 
 interface Sheets {
@@ -78,6 +80,20 @@ test.describe("admin screenshots", () => {
           path: path.join(OUT, `${id}-${width}.png`),
           fullPage: true,
         });
+
+        // The security log hides its metadata behind a disclosure, so the
+        // closed shot cannot show the half this module is judged on.
+        if (id === "admin-security-log") {
+          await page.evaluate(() => {
+            for (const d of document.querySelectorAll("details")) {
+              d.setAttribute("open", "");
+            }
+          });
+          await page.screenshot({
+            path: path.join(OUT, `${id}-expanded-${width}.png`),
+            fullPage: true,
+          });
+        }
       });
     }
   }

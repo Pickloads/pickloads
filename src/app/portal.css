@@ -689,7 +689,13 @@
    is the "1920 wastes horizontal space" report: a 200px label followed by a
    1400px empty value cell. `--a-maxw` caps the reading measure and centres it
    without letterboxing the 1440 case. */
-.portal:has(.a-page){grid-template-columns:248px 1fr}
+/* `1fr` is shorthand for `minmax(auto,1fr)`, and `auto` as a MINIMUM resolves
+   to min-content — so a wide child (the nine-column Kanban) makes the main
+   track refuse to shrink and pushes the whole page sideways. `minmax(0,1fr)`
+   lets the track shrink and hands the overflow to whichever descendant owns a
+   scroll container, which is what every admin page already assumes. */
+.portal:has(.a-page){grid-template-columns:248px minmax(0,1fr)}
+.portal:has(.a-page) .pmain{min-width:0}
 @media(max-width:860px){.portal:has(.a-page){grid-template-columns:1fr;grid-template-rows:auto 1fr}}
 
 .a-page{max-width:var(--a-maxw);margin-inline:auto;padding:var(--s2) var(--a-gutter) var(--s12)}
@@ -1168,3 +1174,132 @@
    tone, and the phrase still reads. */
 .ptable td .a-badge,.ptable td .pbadge{white-space:normal;overflow-wrap:normal;
   word-break:keep-all;text-align:center}
+
+/* ── M-101 · full-height Kanban workspace ─────────────────────────────────
+   ROOT CAUSE. `.kanban` is the scroll container (`overflow-x:auto`) and its
+   height is content-driven — it is exactly as tall as the tallest column. A
+   scrollbar is drawn at the bottom edge of its own box, so the board's
+   scrollbar appeared directly under the last card, halfway up a tall screen,
+   with the rest of the workspace empty beneath it.
+
+   Nothing was positioning it wrongly; it had nothing to be positioned
+   against. The fix is to give the board a box that reaches the bottom of the
+   workspace, using the layout that is already there:
+
+     .portal        grid, min-height:100vh   (already)
+     .pmain         flex column               <- added, board pages only
+     .a-page        flex column, flex:1       <- added, board pages only
+     .kboard        flex column, flex:1       <- added
+     .kanban        flex:1, min-height:0      <- added; owns the scrollbar
+
+   `min-height:0` on each flex child is what lets the chain shrink below its
+   content and hand the overflow to `.kanban` instead of pushing the page
+   taller. No absolute positioning, no fixed coordinates, no second scrollbar,
+   no JS.
+
+   Desktop only. Below 1024px a full-viewport board is worse than a natural
+   one — the filters alone can fill a phone — so the height chain simply does
+   not apply and the board keeps its content height. */
+@media(min-width:1024px){
+  .pmain:has(.a-page.is-board){display:flex;flex-direction:column}
+  /* `width:100%` is load-bearing. `.a-page` carries `margin-inline:auto` for
+     centring, and an AUTO margin on a flex item's cross axis disables
+     `align-items:stretch` — so as a flex child the page sized to its own
+     content (the nine-column board, capped at `--a-maxw`) instead of to the
+     1032px actually available, and pushed the document sideways. An explicit
+     width restores the stretch; the auto margins then centre nothing, which
+     is correct, because at this point the page already fills its track. */
+  .a-page.is-board{flex:1 1 auto;display:flex;flex-direction:column;min-height:0;
+    width:100%;padding-bottom:var(--s6)}
+  /* BOTH axes need the min-size override, and the horizontal one is the
+     easy mistake: a flex item's `min-width:auto` resolves to min-content, and
+     this grid's min-content is nine 250px columns. Without `min-width:0` the
+     board refuses to shrink and pushes the PAGE sideways instead of scrolling
+     inside itself — trading a mid-page scrollbar for a page-level one. */
+  .a-page.is-board .kboard{flex:1 1 auto;display:flex;flex-direction:column;
+    min-height:0;min-width:0}
+  .a-page.is-board .kanban{flex:1 1 auto;min-height:0;min-width:0;padding-bottom:0}
+  /* Columns fill the workspace rather than leaving a gap between the last
+     card and the scrollbar — which would just move the reported problem.
+     They still START at the top; nothing is centred, and `.kcard` keeps its
+     natural height, so cards do not stretch. */
+  .a-page.is-board .kanban{align-items:stretch}
+}
+
+/* ── M-101 · security log ─────────────────────────────────────────────────
+   The metadata moved from the cell into a disclosure. `<details>` is the
+   element for this: keyboard operation, `aria-expanded` and the open/closed
+   state all come from the platform, so there is no ARIA to get wrong and no
+   client JavaScript on a page that otherwise needs none. */
+
+.slog-summary{display:block;color:var(--a-text);font-size:var(--a-t-body);
+  line-height:1.5;overflow-wrap:anywhere}
+/* A prose sub-line. `.tsub` is monospace, which is right for the identifiers
+   it usually carries (a truncated uuid, an IP, a timestamp) and wrong for a
+   sentence — §15 reserves monospace for machine values. */
+.slog-note{display:block;font-family:var(--font-sans);font-size:var(--a-t-help);
+  color:var(--a-text-3);line-height:1.5;margin-top:var(--s1);
+  letter-spacing:0;text-transform:none;overflow-wrap:anywhere}
+
+/* v4.css:390 styles bare `details` as the marketing FAQ accordion — a white
+   card with a border and a `+` marker. Those are element selectors, so they
+   reach any `<details>` in the portal. Same leak as `section{padding:88px 0}`
+   was for cards; opted out explicitly rather than avoided by not using the
+   right element. */
+.a-disclosure{margin-top:var(--s2);border:none;border-radius:0;background:none;
+  margin-bottom:0;overflow:visible}
+/* Both states, and the open one needs the attribute selector to outrank
+   v4.css's `details[open] summary::after{content:"–"}` — otherwise the FAQ's
+   minus sign reappears the moment the disclosure is opened. */
+.a-disclosure > summary::after,
+.a-disclosure[open] > summary::after{content:none}
+.a-disclosure > summary{display:inline-flex;align-items:center;gap:var(--s2);
+  min-height:24px;padding:2px var(--s2) 2px 0;font-family:var(--font-mono);
+  font-size:var(--a-t-code);letter-spacing:.06em;text-transform:uppercase;
+  font-weight:600;color:var(--a-muted);cursor:pointer;list-style:none;
+  border-radius:var(--r-xs);transition:color var(--a-motion) ease}
+.a-disclosure > summary::-webkit-details-marker{display:none}
+/* The caret is drawn rather than inherited so it can rotate; the summary text
+   still says "Details", so the state is never carried by the glyph alone. */
+.a-disclosure > summary::before{content:"▸";display:inline-block;
+  transition:transform var(--a-motion) ease;color:var(--a-accent)}
+.a-disclosure[open] > summary::before{transform:rotate(90deg)}
+.a-disclosure > summary:hover{color:var(--a-text-2)}
+.a-disclosure > summary:focus-visible{outline:2px solid var(--a-accent);
+  outline-offset:2px}
+/* The closed state is enforced here rather than left to the user agent.
+   Measured at 320px: with the `details` overrides above in place the body was
+   still laid out — a 190x285 box hanging below its own table cell, which the
+   divider probe caught as text past the row's bottom rule. Whatever the
+   engine was doing with `::details-content`, a rule that states the intent is
+   both correct and portable. */
+.a-disclosure:not([open]) > .a-disclosure-body{display:none}
+.a-disclosure-body{margin-top:var(--s3);padding:var(--s4);border-radius:var(--r-md);
+  background:var(--a-raised);border-left:2px solid var(--a-line-strong);
+  min-width:0}
+.a-disclosure.is-nested{margin-top:var(--s3)}
+
+/* Technical fields: a label/value list, not a table — it sits inside a cell. */
+.slog-tech{margin:0;display:grid;gap:var(--s2) var(--s4)}
+.slog-tech > div{display:grid;grid-template-columns:minmax(110px,auto) minmax(0,1fr);
+  gap:var(--s2) var(--s4);align-items:baseline;min-width:0}
+.slog-tech dt{font-family:var(--font-mono);font-size:var(--a-t-code);font-weight:600;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--a-muted);margin:0;
+  overflow-wrap:anywhere}
+.slog-tech dd{margin:0;font-size:var(--a-t-help);color:var(--a-text);
+  line-height:1.5;min-width:0;overflow-wrap:anywhere}
+.slog-tech dd.is-redacted{color:var(--a-muted);font-style:italic}
+@media(max-width:640px){.slog-tech > div{grid-template-columns:1fr;gap:2px}}
+
+/* Raw payload: last resort, and still redacted. Scrolls inside itself so a
+   long value can never widen the page. */
+.a-disclosure:not([open]) > .slog-raw{display:none}
+.slog-raw{margin:var(--s3) 0 0;padding:var(--s3);border-radius:var(--r-sm);
+  background:var(--a-sunken);color:var(--a-text-2);font-family:var(--font-mono);
+  font-size:var(--a-t-code);line-height:1.6;white-space:pre-wrap;
+  overflow-wrap:anywhere;max-height:280px;overflow:auto}
+
+/* The log's own column rhythm — the summary gets the room, the technical
+   columns get only what they need (§9). */
+.ptable.slog td{vertical-align:top}
+.ptable.slog td.is-wide{min-width:280px}
