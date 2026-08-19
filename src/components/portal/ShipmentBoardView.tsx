@@ -292,8 +292,11 @@ function ColumnHeading({ result }: { result: BoardColumnResult }) {
      is why the board shipped with it. `portal.css` carries the matching
      `.kcol h2` rule — the type is unchanged. */
   return (
-    <h2>
-      {result.column.label} <i>{result.failed ? "—" : (result.total ?? "—")}</i>
+    <h2 className="kcol-head">
+      <span className="kcol-name">{result.column.label}</span>
+      <span className="kcol-count" aria-hidden="true">
+        {result.failed ? "—" : (result.total ?? "—")}
+      </span>
     </h2>
   );
 }
@@ -321,10 +324,15 @@ export function ShipmentBoard({
         scopedCarrierCount={scopedCarrierCount}
       />
       <SearchResults search={search} />
-      <p className="psh-count" role="status" style={{ margin: "0 0 12px" }}>
-        {total} shipment{total === 1 ? "" : "s"} across the eight operational
-        columns. Cancelled shipments are not on the board — find them with the
-        status filter.
+      <p className="a-result" role="status">
+        <b>
+          {total} shipment{total === 1 ? "" : "s"}
+        </b>{" "}
+        on the operational board.
+        <span className="a-result-note">
+          Cancelled shipments are not shown — use the status filter to find
+          them.
+        </span>
       </p>
       <ScrollRegion
         className="kanban"
@@ -338,13 +346,11 @@ export function ShipmentBoard({
           >
             <ColumnHeading result={result} />
             {result.failed ? (
-              <p className="pempty" role="alert" style={{ padding: "8px 4px" }}>
-                Couldn&apos;t load this column.
+              <p className="kcol-empty is-error" role="alert">
+                This stage could not be loaded
               </p>
             ) : result.rows.length === 0 ? (
-              <p className="pempty" style={{ padding: "8px 4px" }}>
-                Nothing here.
-              </p>
+              <p className="kcol-empty">No shipments at this stage</p>
             ) : (
               result.rows.map((row) => <ShipmentCard key={row.id} row={row} />)
             )}

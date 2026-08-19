@@ -87,7 +87,7 @@ export default async function AdminPostsPage({
                   <td>
                     <Link href={`/portal/admin/posts/${p.id}`}>{p.title}</Link>
                   </td>
-                  <td style={{ fontFamily: "var(--font-mono)", fontSize: ".74rem" }}>
+                  <td className="mono-sm">
                     {p.slug}
                   </td>
                   <td>

@@ -67,7 +67,7 @@ export default async function AdminSupportThreadPage({
           <span className="crumb">Dispatch desk / Support</span>
           <h1>{thread.subject}</h1>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div className="a-inline is-tight">
           <span className={`pbadge ${thread.status === "open" ? "amber" : thread.status === "answered" ? "green" : ""}`}>
             {thread.status}
           </span>
@@ -76,7 +76,7 @@ export default async function AdminSupportThreadPage({
       </div>
 
       {isChangeRequest ? (
-        <p className="pempty" style={{ paddingLeft: 0 }}>
+        <p className="pempty flush-left">
           Regulated-field change request (D5): verify the underlying document /
           FMCSA record, apply the change in the carrier record, then answer here
           and close the thread. The request is journaled in audit_events.
@@ -102,7 +102,7 @@ export default async function AdminSupportThreadPage({
                     <span className="pbadge">CUSTOMER</span>
                   )}
                 </span>
-                <p style={{ whiteSpace: "pre-wrap" }}>{m.body}</p>
+                <p className="a-prewrap">{m.body}</p>
               </li>
             ))}
           </ul>

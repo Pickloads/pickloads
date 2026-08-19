@@ -98,7 +98,7 @@ export default async function LeadDetailPage({
           </span>
           <h1>{lead.full_name ?? "Unknown carrier"}</h1>
         </div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <div className="a-inline">
           <a
             className="btn btn-amber btn-sm"
             href={`tel:${lead.phone.replace(/[^+\d]/g, "")}`}
@@ -228,7 +228,7 @@ export default async function LeadDetailPage({
                 ))}
               </ul>
             ) : (
-              <p className="pempty" style={{ padding: 0 }}>
+              <p className="pempty flush">
                 No activity yet — the journal starts with the first status
                 change or logged touch.
               </p>

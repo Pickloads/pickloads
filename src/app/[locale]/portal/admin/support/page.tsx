@@ -132,7 +132,7 @@ export default async function AdminSupportPage({
                   <td>
                     <span className={`pbadge ${BADGE[t.status]}`}>{t.status}</span>
                   </td>
-                  <td style={{ whiteSpace: "nowrap" }}>
+                  <td className="nw">
                     {new Date(t.updated_at).toLocaleDateString("en-US", {
                       month: "short",
                       day: "numeric",

@@ -134,7 +134,7 @@ export default async function NewShipmentPage({
           ) : (
             <>
               {mapped.warnings.length > 0 ? (
-                <ul className="pempty" style={{ paddingTop: 0 }}>
+                <ul className="pempty flush-top">
                   {mapped.warnings.map((w) => (
                     <li key={w}>{w}</li>
                   ))}

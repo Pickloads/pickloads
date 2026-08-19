@@ -1219,11 +1219,18 @@
   .a-page.is-board .kboard{flex:1 1 auto;display:flex;flex-direction:column;
     min-height:0;min-width:0}
   .a-page.is-board .kanban{flex:1 1 auto;min-height:0;min-width:0;padding-bottom:0}
-  /* Columns fill the workspace rather than leaving a gap between the last
-     card and the scrollbar — which would just move the reported problem.
-     They still START at the top; nothing is centred, and `.kcard` keeps its
-     natural height, so cards do not stretch. */
-  .a-page.is-board .kanban{align-items:stretch}
+  /* M-102 — columns fill the workspace, but the WORKSPACE is now bounded.
+     M-101 made the board take the whole remaining viewport, which fixed the
+     scrollbar and created a worse problem: nine dark columns stretched down
+     an empty screen. `clamp` gives it enough room to work in without letting
+     a mostly-empty pipeline become a wall. */
+  .a-page.is-board .kanban{align-items:stretch;
+    flex:0 1 auto;
+    min-height:clamp(420px, calc(100vh - 320px), 720px);
+    max-height:calc(100vh - 200px)}
+  /* The board no longer eats the remaining height, so the page stops
+     stretching with it. */
+  .a-page.is-board{justify-content:flex-start}
 }
 
 /* ── M-101 · security log ─────────────────────────────────────────────────
@@ -1303,3 +1310,135 @@
    columns get only what they need (§9). */
 .ptable.slog td{vertical-align:top}
 .ptable.slog td.is-wide{min-width:280px}
+
+/* ── M-102 · company settings ─────────────────────────────────────────────
+   One card per decision. The database key and the stored JSON live under
+   "Advanced" — present for a power admin, absent from the primary reading. */
+.a-setting + .a-setting{margin-top:var(--s5)}
+.a-setting .a-card-head h2{font-family:var(--font-display)}
+.a-setting-desc{margin:0 0 var(--s4)}
+.a-setting-control{max-width:520px;min-width:0}
+.a-setting-control.is-json{max-width:none}
+.a-setting-control > label{display:block;font-family:var(--font-mono);
+  font-size:var(--a-t-label);font-weight:600;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--a-muted);margin-bottom:var(--s2)}
+.a-setting-control select,.a-setting-control input[type="number"]{
+  width:100%;max-width:100%;min-width:0;box-sizing:border-box;min-height:42px;
+  background:var(--a-sunken);border:1px solid var(--a-line);
+  border-radius:var(--r-md);color:var(--a-text);padding:var(--s2) var(--s3);
+  font:inherit;font-size:var(--a-t-body);
+  transition:border-color var(--a-motion) ease}
+.a-setting-control textarea{width:100%;max-width:100%;min-width:0;
+  box-sizing:border-box;background:var(--a-sunken);border:1px solid var(--a-line);
+  border-radius:var(--r-md);color:var(--a-text);padding:var(--s3) var(--s4);
+  font-family:var(--font-mono);font-size:var(--a-t-help);line-height:1.6;
+  resize:vertical;transition:border-color var(--a-motion) ease}
+.a-setting-control select:hover,.a-setting-control input:hover,
+.a-setting-control textarea:hover{border-color:var(--a-line-strong)}
+.a-setting-control select:focus-visible,.a-setting-control input:focus-visible,
+.a-setting-control textarea:focus-visible{outline:2px solid var(--a-accent);
+  outline-offset:2px;border-color:transparent}
+.a-setting .a-actions{justify-content:space-between}
+.a-setting .a-actions .a-disclosure{margin-top:0}
+
+/* ── M-102 · leads pipeline ───────────────────────────────────────────────
+   The board was "nine empty dark columns stretched vertically". Two causes:
+   the workspace was unbounded (fixed above), and the column itself had no
+   design — a mono heading, a bare count and an em dash where an empty state
+   belonged. */
+
+/* Stage header: the name reads, the count is a chip rather than an italic. */
+.kcol-head{display:flex;align-items:center;justify-content:space-between;
+  gap:var(--s3);margin:0;padding:var(--s1) var(--s1) var(--s3);
+  border-bottom:1px solid var(--a-line);position:sticky;top:0;
+  background:var(--a-side);z-index:1}
+.kcol-name{font-family:var(--font-mono);font-size:var(--a-t-code);font-weight:600;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--a-text-2);
+  overflow-wrap:anywhere;min-width:0}
+.kcol-count{flex:0 0 auto;min-width:22px;height:20px;padding:0 var(--s2);
+  display:inline-flex;align-items:center;justify-content:center;
+  border-radius:var(--r-pill);background:var(--a-info-bg);color:var(--a-text-2);
+  font-family:var(--font-mono);font-size:var(--a-t-code);font-weight:600}
+/* An empty stage says so, quietly, instead of showing an em dash. */
+.kcol-empty{margin:var(--s5) 0 0;padding:0 var(--s2);text-align:center;
+  font-size:var(--a-t-help);color:var(--a-muted);line-height:1.5}
+
+/* Cards: name first, phone second, everything else tertiary. */
+.a-page.is-board .kcol{background:var(--a-side);border-radius:var(--r-lg);
+  padding:var(--s3);display:flex;flex-direction:column;gap:var(--s2);
+  min-height:0;overflow-y:auto}
+.a-page.is-board .kcard{background:var(--a-card);border-radius:var(--r-md);
+  padding:var(--s3) var(--s4);margin:0;display:flex;flex-direction:column;
+  gap:var(--s1);box-shadow:var(--a-shadow);
+  transition:border-color var(--a-motion) ease,background var(--a-motion) ease}
+.a-page.is-board .kcard:hover{border-color:var(--a-line-strong);
+  background:var(--a-hover)}
+.a-page.is-board .kcard b{font-family:var(--font-sans);font-weight:600;
+  font-size:var(--a-t-body);line-height:1.35;margin:0;overflow-wrap:anywhere}
+.a-page.is-board .kcard .kphone{font-family:var(--font-mono);
+  font-size:var(--a-t-help);color:var(--a-accent);display:inline-block}
+.a-page.is-board .kcard .kmeta{display:flex;align-items:baseline;
+  justify-content:space-between;gap:var(--s3);margin-top:var(--s1);
+  font-family:var(--font-sans);font-size:var(--a-t-help);color:var(--a-text-3);
+  letter-spacing:0;min-width:0}
+.kmeta-main{min-width:0;overflow-wrap:anywhere}
+/* Age is the least important thing on the card. */
+.kmeta-age{flex:0 0 auto;font-family:var(--font-mono);font-size:var(--a-t-code);
+  color:var(--a-muted)}
+.a-page.is-board .kcard .ktags{display:flex;flex-wrap:wrap;gap:var(--s1);
+  margin-top:var(--s2)}
+/* Card chips keep the design system's badge metrics. The first pass shrank
+   them to 1px of vertical padding to fit more on a card; the divider probe
+   caught it as text 3px from its own border, and it was also a second badge
+   size in a system that has one. */
+.a-page.is-board .kcard .pbadge{font-size:var(--a-t-code);min-height:22px;
+  padding:3px var(--s2);text-transform:none;letter-spacing:.02em}
+
+/* A dark, thin scrollbar instead of the platform's light default sitting
+   across the middle of a dark board. Firefox gets the standard properties;
+   WebKit/Blink get the pseudo-elements. Both keep a real, draggable bar —
+   nothing here hides it or replaces it with a fake one. */
+.a-page.is-board .kanban{scrollbar-width:thin;
+  scrollbar-color:var(--a-line-strong) transparent}
+.a-page.is-board .kanban::-webkit-scrollbar{height:10px}
+.a-page.is-board .kanban::-webkit-scrollbar-track{background:transparent}
+.a-page.is-board .kanban::-webkit-scrollbar-thumb{
+  background:var(--a-line-strong);border-radius:var(--r-pill);
+  border:3px solid transparent;background-clip:content-box}
+.a-page.is-board .kanban::-webkit-scrollbar-thumb:hover{
+  background:var(--a-muted);background-clip:content-box}
+
+/* ── M-102 · operational alert + result summary ───────────────────────────
+   "Brokerage operations are switched off…" was `.pempty` — the empty-state
+   box — so an operational condition read as an absence of data. It is a
+   standing notice and now looks like one. */
+.a-callout.is-warning{border-left-color:var(--a-warning);
+  background:var(--a-warning-bg)}
+.a-callout.is-warning .a-ico{color:var(--a-warning)}
+.a-callout.is-warning p{color:var(--a-text-2)}
+.a-callout.is-warning b{color:var(--a-text)}
+.a-page.is-board > .a-callout{margin-bottom:var(--s5)}
+
+/* A result count, not developer prose. The number leads; the caveat follows
+   in a quieter voice on its own line. */
+.a-result{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--s2) var(--s3);
+  margin:0 0 var(--s4);font-size:var(--a-t-body);color:var(--a-text-2)}
+.a-result b{color:var(--a-text);font-weight:600}
+.a-result-note{font-size:var(--a-t-help);color:var(--a-muted)}
+
+/* A stage that failed to load is not the same as a stage with nothing in it. */
+.kcol-empty.is-error{color:var(--a-danger)}
+
+/* ── M-102 · the last of the admin inline styles ──────────────────────────
+   Each of these replaces a `style={{…}}` that appeared two or more times
+   across the dispatch desk. Cell-level utilities only; nothing new invented. */
+.ptable td.mono-sm{font-family:var(--font-mono);font-size:var(--a-t-code);
+  color:var(--a-text-3);overflow-wrap:anywhere}
+.a-page .pempty.flush-left{padding-left:0}
+.a-page .pempty.flush-top{padding-top:0}
+.a-page .pempty.lede{padding:0 0 var(--s3)}
+/* Rows of chips or small controls that sit inline with text. */
+.a-inline{display:flex;flex-wrap:wrap;gap:var(--s2);align-items:center;min-width:0}
+.a-inline.is-tight{gap:var(--s2)}
+/* Prose that must keep its author's line breaks (a support message body). */
+.a-prewrap{white-space:pre-wrap;overflow-wrap:anywhere;margin:0}

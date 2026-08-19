@@ -42,7 +42,7 @@ export default async function EditPostPage({
           <span className="crumb">Dispatch desk / Marketing / Posts</span>
           <h1>Edit post</h1>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <div className="a-inline">
           {post.published ? (
             // Plain anchor: the live URL depends on the POST's locale, not
             // the admin UI locale (en lives unprefixed, others at /xx/…).

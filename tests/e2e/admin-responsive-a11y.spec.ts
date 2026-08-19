@@ -50,6 +50,7 @@ const FIXTURES = [
   "admin-leads-board",
   "admin-security-log",
   "admin-security-log-empty",
+  "admin-settings",
 ] as const;
 
 interface Stylesheets {
@@ -200,6 +201,15 @@ async function probe(page: Page): Promise<Probe> {
     for (const el of document.querySelectorAll<HTMLElement>("*")) {
       const cs = getComputedStyle(el);
       if (!BLOCKISH.has(cs.display)) continue;
+      // A vertical scroller's content is SUPPOSED to extend past its bottom
+      // border — that is what scrolling is. Measuring clearance against a box
+      // whose content is deliberately clipped reports the scroll container
+      // itself as a defect. Same reasoning as the `overflow:visible` guard on
+      // the width check below; the leads board's stage columns are the case
+      // that surfaced it.
+      if (cs.overflowY === "auto" || cs.overflowY === "scroll") {
+        if (el.scrollHeight > el.clientHeight + 1) continue;
+      }
       const hasTop =
         parseFloat(cs.borderTopWidth) > 0 && cs.borderTopStyle !== "none";
       const hasBottom =

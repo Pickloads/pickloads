@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter, Link } from "@/i18n/navigation";
 import { updateLeadStatus, type LeadStatusValue } from "@/app/actions/crm";
+import {
+  leadAge,
+  leadEquipment,
+  leadSourceLabel,
+} from "@/lib/leads/presentation";
 import type {
   LeadStatus,
   LeadType,
@@ -47,15 +52,6 @@ const COLUMNS: ReadonlyArray<{ status: LeadStatusValue; label: string }> = [
   { status: "inactive", label: "Inactive" },
   { status: "lost", label: "Lost" },
 ];
-
-function age(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime();
-  const minutes = Math.max(0, Math.floor(ms / 60000));
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 48) return `${hours}h`;
-  return `${Math.floor(hours / 24)}d`;
-}
 
 export function KanbanBoard({
   leads: serverLeads,
@@ -185,8 +181,11 @@ export function KanbanBoard({
                 if (id) moveLead(id, col.status);
               }}
             >
-              <h3>
-                {col.label} <i>{cards.length}</i>
+              <h3 className="kcol-head">
+                <span className="kcol-name">{col.label}</span>
+                <span className="kcol-count" aria-hidden="true">
+                  {cards.length}
+                </span>
               </h3>
               {cards.map((lead) => {
                 const overdue =
@@ -213,35 +212,40 @@ export function KanbanBoard({
                       <span aria-hidden="true">☎</span> {lead.phone}
                     </a>
                     <span className="kmeta">
-                      {[lead.truck_type, lead.trailer_type]
-                        .filter(Boolean)
-                        .join(" · ") || lead.source}{" "}
-                      · {age(lead.created_at)}
-                      {overdue ? " · CALLBACK DUE" : ""}
+                      <span className="kmeta-main">
+                        {leadEquipment(lead.truck_type, lead.trailer_type) ||
+                          leadSourceLabel(lead.source)}
+                      </span>
+                      <span className="kmeta-age">{leadAge(lead.created_at)}</span>
                     </span>
-                    <span className="ktags">
-                      {lead.lead_type === "new_authority" ? (
-                        <span className="pbadge green">new auth</span>
-                      ) : null}
-                      {lead.priority === "urgent" ? (
-                        <span className="pbadge kprio-urgent">urgent</span>
-                      ) : null}
-                      {lead.priority === "high" ? (
-                        <span className="pbadge kprio-high">high</span>
-                      ) : null}
-                      {lead.tags.slice(0, 3).map((t) => (
-                        <span key={t} className="pbadge">
-                          {t}
-                        </span>
-                      ))}
-                    </span>
+                    {overdue || lead.lead_type === "new_authority" ||
+                    lead.priority === "urgent" || lead.priority === "high" ||
+                    lead.tags.length > 0 ? (
+                      <span className="ktags">
+                        {overdue ? (
+                          <span className="pbadge kprio-urgent">Callback due</span>
+                        ) : null}
+                        {lead.priority === "urgent" ? (
+                          <span className="pbadge kprio-urgent">Urgent</span>
+                        ) : null}
+                        {lead.priority === "high" ? (
+                          <span className="pbadge kprio-high">High</span>
+                        ) : null}
+                        {lead.lead_type === "new_authority" ? (
+                          <span className="pbadge green">New authority</span>
+                        ) : null}
+                        {lead.tags.slice(0, 2).map((t) => (
+                          <span key={t} className="pbadge">
+                            {t}
+                          </span>
+                        ))}
+                      </span>
+                    ) : null}
                   </div>
                 );
               })}
               {cards.length === 0 ? (
-                <p className="pempty" style={{ padding: "8px 4px" }}>
-                  —
-                </p>
+                <p className="kcol-empty">No leads at this stage</p>
               ) : null}
             </section>
           );

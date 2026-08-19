@@ -33,6 +33,7 @@ const SUITES = [
   "tests/unit/admin-mapped-vocabulary.test.tsx",
   "tests/unit/leads-board-harness.test.tsx",
   "tests/unit/security-log-a11y.test.tsx",
+  "tests/unit/settings-harness.test.tsx",
 ];
 
 /**

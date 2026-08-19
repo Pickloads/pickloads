@@ -115,7 +115,7 @@ export default async function AdminBrokersPage({
         </div>
       </div>
 
-      <p className="pempty" style={{ padding: "0 0 14px" }}>
+      <p className="pempty lede">
         Partner access is invitation-only and organization-scoped (§3, §12). A
         partner sees status, timeline, BOL and POD for shipments you share —
         never carrier packets or insurance, never shipper billing, never our

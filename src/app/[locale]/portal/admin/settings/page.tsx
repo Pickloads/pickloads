@@ -30,23 +30,35 @@ export default async function SettingsPage({
 
   return (
     <main id="main" className="a-page">
-      <div className="pbar">
-        <div>
-          <span className="crumb">Dispatch desk / Admin</span>
+      <header className="a-head">
+        <div className="a-head-main">
+          <span className="a-crumb">Dispatch desk / Admin</span>
           <h1>Company settings</h1>
+          <p className="a-desc">
+            These settings drive the public site immediately — credential
+            blocks, bond status and the feature gates for testimonials, packet
+            downloads, the load ticker and brokerage. Never store secrets here:
+            the table is publicly readable.
+          </p>
         </div>
-      </div>
-      <p
-        className="mono"
-        style={{ fontSize: ".72rem", color: "var(--steel)", marginBottom: 20, maxWidth: 720 }}
-      >
-        {"// "}These keys drive the public site live: MC/USDOT credential
-        blocks, bond status, feature gates (testimonials, packet downloads,
-        ticker mode, brokerage). Values are JSON. Never store secrets here —
-        the table is publicly readable.
-      </p>
+        {settings ? (
+          <div className="a-head-side">
+            <div className="a-badges">
+              <span className="a-badge is-neutral">
+                {settings.length} setting{settings.length === 1 ? "" : "s"}
+              </span>
+            </div>
+          </div>
+        ) : null}
+      </header>
+
       {error ? (
-        <p className="pempty">Couldn&apos;t load settings ({error.message}).</p>
+        <div className="a-card" role="alert">
+          <div className="a-empty">
+            <b>Settings could not be loaded</b>
+            {error.message}
+          </div>
+        </div>
       ) : settings && settings.length > 0 ? (
         settings.map((s) => (
           <SettingRow
@@ -58,10 +70,12 @@ export default async function SettingsPage({
           />
         ))
       ) : (
-        <p className="pempty">
-          No settings found — run supabase/seed.sql to install the launch
-          defaults.
-        </p>
+        <div className="a-card">
+          <div className="a-empty">
+            <b>No settings found</b>
+            The launch defaults have not been installed yet.
+          </div>
+        </div>
       )}
     </main>
   );

@@ -127,7 +127,7 @@ export default async function AdminLoadsPage({
       </div>
 
       {scope.restricted ? (
-        <p className="pempty" style={{ padding: "0 0 12px" }}>
+        <p className="pempty lede">
           Scoped view: your assigned carriers only ({scope.carrierIds?.length ?? 0}).
           Ask an admin to assign carriers on the Users page.
         </p>
@@ -226,7 +226,7 @@ export default async function AdminLoadsPage({
               {loads.map((l) => (
                 <tr key={l.id}>
                   <td>{carrierName(l.carrier_id)}</td>
-                  <td style={{ whiteSpace: "nowrap" }}>{formatLane(l)}</td>
+                  <td className="nw">{formatLane(l)}</td>
                   <td>{l.pickup_date ?? "—"}</td>
                   <td>{l.equipment ?? "—"}</td>
                   <td>{formatMoney(l.gross_rate)}</td>
@@ -269,7 +269,7 @@ export default async function AdminLoadsPage({
       </ScrollRegion>
 
       <span className="psec">Billing — Stripe payment history</span>
-      <p className="pempty" style={{ padding: "0 0 12px" }}>
+      <p className="pempty lede">
         {/* Compliance rule (src/lib/stripe.ts): dispatch fee only. */}
         Only the dispatch fee is invoiced through Stripe. Freight payments go
         broker → carrier/factoring and never touch PickLoads.
@@ -306,7 +306,7 @@ export default async function AdminLoadsPage({
                     : "—";
                 return (
                   <tr key={e.id}>
-                    <td style={{ whiteSpace: "nowrap" }}>
+                    <td className="nw">
                       {new Date(e.created_at).toLocaleString("en-US", {
                         month: "short",
                         day: "numeric",
@@ -315,7 +315,7 @@ export default async function AdminLoadsPage({
                       })}
                     </td>
                     <td>{e.event_type}</td>
-                    <td style={{ fontFamily: "var(--font-mono)", fontSize: ".74rem" }}>
+                    <td className="mono-sm">
                       {invoiceId && hostedUrl ? (
                         <a href={hostedUrl} target="_blank" rel="noreferrer">
                           {invoiceId}
@@ -324,7 +324,7 @@ export default async function AdminLoadsPage({
                         (invoiceId ?? "—")
                       )}
                     </td>
-                    <td style={{ fontFamily: "var(--font-mono)", fontSize: ".74rem" }}>
+                    <td className="mono-sm">
                       {loadId ? `${loadId.slice(0, 8)}…` : "—"}
                     </td>
                     <td>{amount}</td>

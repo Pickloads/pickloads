@@ -91,7 +91,7 @@ export default async function AdminQuotesPage({
                 const badge = stageBadge(q.status);
                 return (
                   <tr key={q.id}>
-                    <td style={{ whiteSpace: "nowrap" }}>
+                    <td className="nw">
                       {new Date(q.created_at).toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",
@@ -112,7 +112,7 @@ export default async function AdminQuotesPage({
                         {q.shipper_id ? " · PORTAL" : " · WEB"}
                       </span>
                     </td>
-                    <td style={{ whiteSpace: "nowrap" }}>{lane}</td>
+                    <td className="nw">{lane}</td>
                     <td>
                       {q.commodity ?? "—"}
                       <span
@@ -135,7 +135,7 @@ export default async function AdminQuotesPage({
                           .join(" · ")}
                       </span>
                     </td>
-                    <td style={{ whiteSpace: "nowrap" }}>
+                    <td className="nw">
                       {q.pickup_date ?? "TBD"}
                       {q.delivery_deadline ? ` → ${q.delivery_deadline}` : ""}
                     </td>
@@ -172,7 +172,7 @@ export default async function AdminQuotesPage({
           </table>
         )}
       </ScrollRegion>
-      <p className="pempty" style={{ paddingLeft: 0 }}>
+      <p className="pempty flush-left">
         Moving a quote to a new shipper-visible stage (Received → In review →
         Quoted → Booked / Closed) or changing the rate emails the shipper in
         their language and drops a portal notification. Same-stage pipeline

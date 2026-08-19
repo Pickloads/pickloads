@@ -27,6 +27,7 @@ const FIXTURES = [
   "admin-mapped-vocabulary",
   "admin-leads-board",
   "admin-security-log",
+  "admin-settings",
 ] as const;
 
 interface Sheets {

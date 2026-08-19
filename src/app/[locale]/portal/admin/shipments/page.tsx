@@ -90,7 +90,7 @@ export default async function AdminShipmentsPage({
   };
 
   return (
-    <main id="main" className="a-page">
+    <main id="main" className="a-page is-board">
       <div className="pbar">
         <div>
           <span className="crumb">Dispatch desk / Operations</span>
@@ -102,12 +102,18 @@ export default async function AdminShipmentsPage({
       </div>
 
       {!brokerageOpen ? (
-        <p className="pempty" role="status" style={{ padding: "0 0 14px" }}>
-          Brokerage operations are switched off, so no new shipment can be
-          created. Anything already in flight stays on the board and stays
-          operable — an admin turns creation back on with the{" "}
-          <code>brokerage_active</code> switch in Settings.
-        </p>
+        <aside className="a-callout is-warning" role="status">
+          <span className="a-ico" aria-hidden="true">
+            !
+          </span>
+          <p>
+            <b>Shipment creation is switched off.</b> Brokerage operations are
+            currently inactive, so no new shipment can be created. Anything
+            already in flight stays on the board and stays fully operable —
+            switch <b>Brokerage operations</b> back on in Company settings to
+            resume.
+          </p>
+        </aside>
       ) : null}
 
       {Array.isArray(board) ? (
