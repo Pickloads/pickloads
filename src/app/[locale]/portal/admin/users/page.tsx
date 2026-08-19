@@ -16,6 +16,7 @@ import type {
   DocType,
   UserRole,
 } from "@/lib/supabase/database.types";
+import { ScrollRegion } from "@/components/portal/ScrollRegion";
 
 export const dynamic = "force-dynamic";
 
@@ -204,7 +205,7 @@ export default async function AdminUsersPage({
         </button>
       </form>
 
-      <div className="ptable-wrap">
+      <ScrollRegion label="Accounts">
         {users.length === 0 ? (
           <p className="pempty">No accounts match this filter.</p>
         ) : (
@@ -299,7 +300,7 @@ export default async function AdminUsersPage({
             </tbody>
           </table>
         )}
-      </div>
+      </ScrollRegion>
 
       {totalPages > 1 ? (
         <p className="ppager">

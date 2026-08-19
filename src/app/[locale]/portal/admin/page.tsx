@@ -4,6 +4,7 @@ import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getStaffScope } from "@/lib/staff-scope";
 import { DocumentReviewRow } from "@/components/portal/DocumentReviewRow";
+import { ScrollRegion } from "@/components/portal/ScrollRegion";
 import { formatMoney } from "@/lib/loads";
 
 export const dynamic = "force-dynamic";
@@ -472,6 +473,7 @@ export default async function AdminDashboardPage({
               Appears with the first booked load.
             </p>
           ) : (
+            <ScrollRegion label="Per-dispatcher performance">
             <table className="ptable">
               <thead>
                 <tr>
@@ -500,6 +502,7 @@ export default async function AdminDashboardPage({
                   ))}
               </tbody>
             </table>
+            </ScrollRegion>
           )}
         </div>
       </div>
@@ -564,7 +567,7 @@ export default async function AdminDashboardPage({
       </div>
 
       <span className="psec">Operations — documents pending review</span>
-      <div className="ptable-wrap">
+      <ScrollRegion label="Documents pending review">
         {pendingDocs && pendingDocs.length > 0 ? (
           <table className="ptable">
             <thead>
@@ -592,10 +595,10 @@ export default async function AdminDashboardPage({
         ) : (
           <p className="pempty">Queue clear — no documents awaiting review.</p>
         )}
-      </div>
+      </ScrollRegion>
 
       <span className="psec">Operations — insurance expiring ≤ 30 days</span>
-      <div className="ptable-wrap">
+      <ScrollRegion label="Insurance expiring within 30 days">
         {expiringCarriers && expiringCarriers.length > 0 ? (
           <table className="ptable">
             <thead>
@@ -628,10 +631,10 @@ export default async function AdminDashboardPage({
         ) : (
           <p className="pempty">No certificates expiring in the next 30 days.</p>
         )}
-      </div>
+      </ScrollRegion>
 
       <span className="psec">Operations — unsigned agreements</span>
-      <div className="ptable-wrap">
+      <ScrollRegion label="Carriers without a signed agreement">
         {unsignedCarriers && unsignedCarriers.length > 0 ? (
           <table className="ptable">
             <thead>
@@ -657,7 +660,7 @@ export default async function AdminDashboardPage({
         ) : (
           <p className="pempty">Every carrier has a signed agreement.</p>
         )}
-      </div>
+      </ScrollRegion>
 
       <span className="psec">Notifications — recent email &amp; webhook activity</span>
       <div className="pcard">

@@ -9,6 +9,7 @@ import {
   LeadMetaForm,
 } from "@/components/portal/LeadDetailForms";
 import type { StaffOption } from "@/components/portal/KanbanBoard";
+import { ScrollRegion } from "@/components/portal/ScrollRegion";
 
 export const dynamic = "force-dynamic";
 
@@ -116,7 +117,7 @@ export default async function LeadDetailPage({
         <div>
           <div className="pcard">
             <h2>Lead</h2>
-            <div className="ptable-wrap" style={{ border: "none" }}>
+            <ScrollRegion label="Lead contact details" style={{ border: "none" }}>
               <table className="ptable">
                 <tbody>
                   <tr>
@@ -181,7 +182,7 @@ export default async function LeadDetailPage({
                   </tr>
                 </tbody>
               </table>
-            </div>
+            </ScrollRegion>
           </div>
 
           <div className="pcard">

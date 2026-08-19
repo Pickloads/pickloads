@@ -58,19 +58,26 @@ changes only what this module actually looked at.
 
 Widening it is the follow-up, and it needs those pages covered first.
 
-## 4. Known gap left in place: `.mono`
+## 4. CORRECTED (M-100.1): the `.mono` claim in this section was wrong
 
-`className="mono"` is applied **97 times across 63 files** and has no rule
-anywhere except `.pdl>dd.mono`. Every one of those elements renders in the body
-face — which is why so many call sites bolt an inline `font-size` on beside it.
+This section originally reported that `className="mono"` was applied ~97 times
+across ~63 files and had **no definition anywhere**, and treated that as a
+deliberate follow-up.
 
-It is **not** fixed here. Defining `.mono` globally would restyle public
-marketing pages, and "the V4 prototype is FINAL — convert, never redesign"
-makes that a deliberate decision, not a side effect of a dashboard cleanup.
-The admin surfaces below now use `.tsub`, which really does set the mono face.
+That was false. `.mono` is defined at `src/app/v4.css:29`:
 
-`tests/unit/admin-ui-vocabulary.test.ts` pins the gap: if `.mono` is ever
-given a definition, that test fails and tells you to remove it.
+```css
+.mono{font-family:var(--font-mono)}
+```
+
+which is a faithful conversion of the V4 prototype's own line 22. The M-99
+search covered `globals.css` and `portal.css` and did not cover `v4.css`,
+where the V4 conversion actually lives.
+
+Nothing was broken by the error — no `.mono` usage was removed and no rule was
+changed on the strength of it. The consequence was a wrong claim in this doc,
+in the M-100 doc, and in a test that asserted `.mono` had no definition. That
+test has been deleted rather than left pinning something untrue.
 
 ## 5. Files changed
 
@@ -109,7 +116,7 @@ they can be rendered in jsdom and measured at all:
   stacking at 320, long-value wrapping, and axe at 320 / 768 / 1440.
 - `tests/unit/admin-ui-vocabulary.test.ts` — 31 tests. No inline `style` and no
   raw hex in any cleaned file; every class this module introduced is both
-  defined in `portal.css` and actually used; the `.mono` gap stays pinned.
+  defined in `portal.css` and actually used.
 
 ### The divider probe measures clearance, not crossing
 
@@ -131,7 +138,7 @@ measuring would read as a pass.
 
 ## 7. Follow-up owed
 
-1. Define `.mono`, or delete the class from all 97 call sites (§4).
+1. ~~Define `.mono`~~ — withdrawn; the premise was wrong (§4).
 2. Widen `.pempty.flush` → `.pcard .pempty` once carrier/shipper/broker portal
    pages have coverage (§3).
 3. 37 inline `style` objects remain on 12 dispatch-desk pages outside this

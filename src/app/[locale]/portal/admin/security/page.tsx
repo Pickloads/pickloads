@@ -3,6 +3,7 @@ import { Link } from "@/i18n/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { AUDIT_PAGE_SIZE, parsePage } from "@/lib/validation/staff";
+import { ScrollRegion } from "@/components/portal/ScrollRegion";
 
 export const dynamic = "force-dynamic";
 
@@ -93,7 +94,7 @@ export default async function AdminSecurityPage({
         </button>
       </form>
 
-      <div className="ptable-wrap">
+      <ScrollRegion label="Security log">
         {events.length === 0 ? (
           <p className="pempty">
             No audit events{filterAction ? " match this filter" : " yet"} —
@@ -148,7 +149,7 @@ export default async function AdminSecurityPage({
             </tbody>
           </table>
         )}
-      </div>
+      </ScrollRegion>
 
       {totalPages > 1 ? (
         <p style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "center" }}>

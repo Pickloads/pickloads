@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { QuoteStatusForm } from "@/components/portal/QuoteAdminForms";
 import { QUOTE_STATUS } from "@/lib/shipper-quotes";
 import type { LeadStatus } from "@/lib/supabase/database.types";
+import { ScrollRegion } from "@/components/portal/ScrollRegion";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +64,7 @@ export default async function AdminQuotesPage({
         </div>
       </div>
 
-      <div className="ptable-wrap">
+      <ScrollRegion label="Freight quote requests">
         {rows.length === 0 ? (
           <p className="pempty">
             No quote requests yet — portal and website requests land here.
@@ -170,7 +171,7 @@ export default async function AdminQuotesPage({
             </tbody>
           </table>
         )}
-      </div>
+      </ScrollRegion>
       <p className="pempty" style={{ paddingLeft: 0 }}>
         Moving a quote to a new shipper-visible stage (Received → In review →
         Quoted → Booked / Closed) or changing the rate emails the shipper in

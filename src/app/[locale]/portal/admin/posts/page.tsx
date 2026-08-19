@@ -3,6 +3,7 @@ import { Link } from "@/i18n/navigation";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PublishToggle } from "@/components/portal/PostEditor";
+import { ScrollRegion } from "@/components/portal/ScrollRegion";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +57,7 @@ export default async function AdminPostsPage({
         </div>
       </div>
 
-      <div className="ptable-wrap">
+      <ScrollRegion label="Blog posts">
         {error ? (
           <p className="pempty">
             Couldn&apos;t load posts ({error.message}). Check the Supabase
@@ -115,7 +116,7 @@ export default async function AdminPostsPage({
             </tbody>
           </table>
         )}
-      </div>
+      </ScrollRegion>
     </main>
   );
 }

@@ -16,6 +16,7 @@ import {
   formatTrueRpm,
 } from "@/lib/loads";
 import type { LoadStatus } from "@/lib/supabase/database.types";
+import { ScrollRegion } from "@/components/portal/ScrollRegion";
 
 export const dynamic = "force-dynamic";
 
@@ -190,7 +191,7 @@ export default async function AdminLoadsPage({
         </div>
       </div>
 
-      <div className="ptable-wrap">
+      <ScrollRegion label="Loads">
         {error ? (
           <p className="pempty">
             Couldn&apos;t load loads ({error.message}). Check the Supabase
@@ -265,7 +266,7 @@ export default async function AdminLoadsPage({
             </tbody>
           </table>
         )}
-      </div>
+      </ScrollRegion>
 
       <span className="psec">Billing — Stripe payment history</span>
       <p className="pempty" style={{ padding: "0 0 12px" }}>
@@ -273,7 +274,7 @@ export default async function AdminLoadsPage({
         Only the dispatch fee is invoiced through Stripe. Freight payments go
         broker → carrier/factoring and never touch PickLoads.
       </p>
-      <div className="ptable-wrap">
+      <ScrollRegion label="Stripe payment history">
         {stripeEvents && stripeEvents.length > 0 ? (
           <table className="ptable">
             <thead>
@@ -346,7 +347,7 @@ export default async function AdminLoadsPage({
               : "Stripe isn't connected (STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET). Invoicing buttons activate once keys are set."}
           </p>
         )}
-      </div>
+      </ScrollRegion>
     </main>
   );
 }

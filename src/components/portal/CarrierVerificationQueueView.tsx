@@ -1,5 +1,6 @@
 import { Link } from "@/i18n/navigation";
 import { LegacyCarrierAdoptForm } from "@/components/portal/LegacyCarrierAdoptForm";
+import { ScrollRegion } from "@/components/portal/ScrollRegion";
 import {
   AdminCardShell,
   AdminPage,
@@ -116,7 +117,7 @@ export function CarrierVerificationQueueView({
               : "Applications the engine could not decide alone appear here."}
           </EmptyState>
         ) : (
-          <div className="ptable-wrap">
+          <ScrollRegion label="Carrier applications awaiting review">
             <table className="ptable">
               <thead>
                 <tr>
@@ -153,7 +154,7 @@ export function CarrierVerificationQueueView({
                           </span>
                         ) : null}
                       </td>
-                      <td className="stacked wrap">
+                      <td className="stacked wrap is-wide">
                         {r.legalNameEntered}
                         <span className="tsub">{r.email}</span>
                       </td>
@@ -200,7 +201,7 @@ export function CarrierVerificationQueueView({
                 })}
               </tbody>
             </table>
-          </div>
+          </ScrollRegion>
         )}
       </AdminCardShell>
 
@@ -215,7 +216,7 @@ export function CarrierVerificationQueueView({
               carrier who <b>already has an account</b> is not affected and is
               not listed here.
             </InfoCallout>
-            <div className="ptable-wrap">
+            <ScrollRegion label="Applications that predate verification">
               <table className="ptable">
                 <thead>
                   <tr>
@@ -235,7 +236,7 @@ export function CarrierVerificationQueueView({
                           year: "numeric",
                         })}
                       </td>
-                      <td className="stacked wrap">{c.companyName}</td>
+                      <td className="stacked wrap is-wide">{c.companyName}</td>
                       <td className="stacked">
                         <span className="tid">
                           {c.dotNumber ?? "no USDOT on file"}
@@ -254,7 +255,7 @@ export function CarrierVerificationQueueView({
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollRegion>
           </AdminCardShell>
         </div>
       ) : null}

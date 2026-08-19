@@ -148,27 +148,3 @@ describe("M-99 · every class the cleanup introduced is real and used", () => {
     });
   }
 });
-
-describe("M-99 · known gap: `.mono` is applied everywhere and defined nowhere", () => {
-  /**
-   * `className="mono"` appears ~97 times across ~63 files and has no rule
-   * outside `.pdl>dd.mono`. Every one of those elements renders in the body
-   * face, which is why so many call sites bolt on an inline font-size beside
-   * it. It is NOT fixed here: defining `.mono` globally would restyle public
-   * marketing pages, and "the V4 prototype is FINAL — convert, never redesign"
-   * makes that a separate, deliberate decision rather than a side effect of a
-   * dashboard cleanup.
-   *
-   * This test pins the gap so it stays visible. When `.mono` is given a real
-   * definition, this test fails — delete it then, and drop the note from
-   * portal.css.
-   */
-  it("is still undefined, so the follow-up is still owed", () => {
-    const css = read("src/app/portal.css") + read("src/app/globals.css");
-    const standalone = css.match(/(^|[\s,}])\.mono[\s,{]/gm) ?? [];
-    expect(
-      standalone,
-      "`.mono` now has a definition — remove this test and the portal.css note",
-    ).toHaveLength(0);
-  });
-});

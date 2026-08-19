@@ -30,6 +30,7 @@ const SUITES = [
   // tests/e2e/admin-responsive-a11y.spec.ts, for the same reason: they are
   // session-gated, so the browser lane cannot reach the real route.
   "tests/unit/admin-verifications-a11y.test.tsx",
+  "tests/unit/admin-mapped-vocabulary.test.tsx",
 ];
 
 /**

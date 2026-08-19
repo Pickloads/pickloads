@@ -467,6 +467,11 @@
    divider. */
 .ptable td.stacked{vertical-align:top;line-height:1.5}
 .ptable td .tsub{display:block;font-family:var(--font-mono);font-size:.64rem;color:var(--color-steel);margin-top:4px;overflow-wrap:anywhere}
+/* M-100.1 — inside an admin page the same sub-line is 12px on the design
+   system's own scale. `.ptable` is shared with the customer portals, so the
+   bump is scoped rather than applied to the base rule. */
+.a-page .ptable td .tsub,.a-card .ptable td .tsub{font-size:var(--a-t-code);
+  color:var(--a-muted);margin-top:var(--s1);line-height:1.5}
 .ptable td.wrap{white-space:normal;overflow-wrap:anywhere;min-width:0}
 
 /* ── M-99 · admin dashboard ────────────────────────────────────────────────
@@ -499,13 +504,13 @@
 /* A card held to reading width. Was `style={{maxWidth:620}}`. */
 .pcard.narrow{max-width:620px}
 
-/* ── M-99 · accounts table & pagination ────────────────────────────────────
-   NOTE for the report: `className="mono"` is applied 97 times across 63 files
-   and is defined NOWHERE. Every one of those elements renders in the body
-   face. It is not fixed here on purpose — defining `.mono` globally would
-   restyle public marketing pages too, which is outside a dashboard cleanup
-   and outside "convert, never redesign". The admin surfaces below use
-   `.tsub`, which really does set the mono face, so their intent now holds. */
+/* ── M-99 · accounts table & pagination ─────────────────────────────────────
+   CORRECTION (M-100.1): M-99 reported here that `.mono` was applied 97 times
+   and defined nowhere. That was wrong — it is defined at `v4.css:29`, exactly
+   as the V4 prototype defines it at its own line 22. The M-99 search covered
+   `globals.css` and `portal.css` and not `v4.css`. Nothing was broken by the
+   mistake; the claim was simply false, and the test that pinned it has been
+   deleted rather than left asserting something untrue. */
 
 /* A control that sits under a cell's text rather than beside it. Was
    `style={{display:"block",marginTop:6}}`. */
@@ -514,7 +519,7 @@
 /* Table pager. Was an inline flex on a bare <p>, with the counter carrying
    its own inline font-size and colour. */
 .ppager{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px}
-.ppager .pcount{font-family:var(--font-mono);font-size:.7rem;color:var(--steel)}
+.ppager .pcount{font-family:var(--font-mono);font-size:var(--a-t-code);color:var(--a-muted)}
 
 /* The gap that opens a new block under a table or a card stack. Was
    `style={{marginTop:26}}` in three places. */
@@ -626,19 +631,53 @@
 
   /* Structure */
   --a-card-pad:var(--s6);
-  --a-row-min:50px;
+  --a-row-min:52px;
   --a-label-col:200px;
   --a-gutter:var(--s8);
-  --a-maxw:1720px;
+  --a-maxw:1600px;
   --a-motion:160ms;
 
-  /* Type scale (§15) */
-  --a-t-page:1.65rem;   /* ~27px */
-  --a-t-card:1.0625rem; /* ~17px */
-  --a-t-body:.9rem;     /* ~14.5px */
-  --a-t-label:.72rem;   /* ~11.5px */
-  --a-t-help:.79rem;    /* ~12.7px */
-  --a-t-code:.72rem;
+  /* ── Type scale (M-100 §15, retuned in M-100.1) ────────────────────────
+     M-100's scale was set from the spec's stated minimums and read too small
+     once it was on a 1440+ monitor: 11.5px labels and 12.7px helper text are
+     legible but make you lean in, which is what "some labels and secondary
+     information are still too small" means.
+
+     The fix is not a uniform increase — that just makes everything shout at
+     the same volume. Secondary text moves up to a comfortable floor (12px
+     labels, 13px helper), body to 15px, and the things a reviewer actually
+     scans for — the company name, USDOT, MC, the decision — move up FURTHER
+     so the gap between primary and secondary widens rather than shifts. */
+  --a-t-page:1.75rem;    /* 28px — page / record identity */
+  --a-t-card:1.125rem;   /* 18px — card title */
+  --a-t-metric:1.9rem;   /* 30px — a metric's number dominates its card */
+  --a-t-id:.9375rem;     /* 15px mono 600 — USDOT, MC, digest */
+  --a-t-body:.9375rem;   /* 15px — values and prose */
+  --a-t-meta:.8125rem;   /* 13px — header identifier strip */
+  --a-t-label:.75rem;    /* 12px — row and field labels */
+  --a-t-help:.8125rem;   /* 13px — helper and explanatory text */
+  --a-t-code:.75rem;     /* 12px — machine codes */
+  --a-t-metric-sm:1.45rem; /* compact metric number */
+
+  /* Paired-rule constants. Each of these was written as a literal in TWO
+     places — once for the primitives and once for the mapped pages — which is
+     exactly how a design system drifts into two design systems. */
+  --a-badge-h:24px;
+  --a-metric-min:200px;
+  --a-metric-min-sm:104px;
+}
+/* Large monitors get one deliberate step up, not a fluid scale: past ~1600px
+   the reading distance is the same but the pixel density of the text relative
+   to the window is not. Bounded, so it never becomes consumer-sized UI. */
+@media(min-width:1600px){
+  .portal{
+    --a-t-page:1.875rem;  /* 30px */
+    --a-t-body:.975rem;   /* 15.6px */
+    --a-t-id:.975rem;
+    --a-t-help:.84rem;
+    --a-label-col:220px;
+    --a-row-min:56px;
+  }
 }
 @media(max-width:1024px){ .portal{ --a-card-pad:var(--s5); --a-gutter:var(--s6); } }
 @media(max-width:640px){  .portal{ --a-card-pad:var(--s4); --a-gutter:var(--s4); --a-label-col:1fr; } }
@@ -668,19 +707,21 @@
   letter-spacing:.1em;text-transform:uppercase;color:var(--a-muted);margin-bottom:var(--s2)}
 .a-head .a-crumb a{color:inherit}
 .a-head .a-crumb a:hover{color:var(--a-accent)}
-.a-head h1{font-size:var(--a-t-page);font-weight:800;line-height:1.15;margin:0;
-  overflow-wrap:anywhere}
+.a-head h1{font-size:var(--a-t-page);font-weight:800;line-height:1.18;margin:0;
+  letter-spacing:-.015em;overflow-wrap:anywhere}
 .a-head .a-desc{font-size:var(--a-t-help);color:var(--a-text-3);margin:var(--s2) 0 0;
-  max-width:70ch;line-height:1.55}
+  max-width:68ch;line-height:1.6}
 .a-head-side{display:flex;flex-direction:column;align-items:flex-end;gap:var(--s3);
   min-width:0;flex:0 1 auto}
 @media(max-width:860px){.a-head-side{align-items:flex-start;flex:1 1 100%}}
 /* Identifier strip — USDOT / MC and similar record keys. Mono here is
    correct: these ARE machine identifiers (§15). */
 .a-ids{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s4);margin-top:var(--s3);min-width:0}
-.a-ids > span{font-family:var(--font-mono);font-size:var(--a-t-code);color:var(--a-text-3);
-  letter-spacing:.04em;overflow-wrap:anywhere}
-.a-ids b{color:var(--a-text);font-weight:600}
+.a-ids > span{font-family:var(--font-mono);font-size:var(--a-t-code);color:var(--a-muted);
+  letter-spacing:.06em;text-transform:uppercase;overflow-wrap:anywhere;
+  display:inline-flex;align-items:baseline;gap:var(--s2)}
+.a-ids b{color:var(--a-text);font-weight:600;font-size:var(--a-t-meta);
+  letter-spacing:.01em;text-transform:none}
 
 /* ── GRID (§5) ────────────────────────────────────────────────────────────
    60/40, 24px gutter, both columns starting on the same Y. Card BOTTOMS are
@@ -731,7 +772,7 @@
 .drow > dd{margin:0;font-size:var(--a-t-body);color:var(--a-text);line-height:1.55;
   min-width:0;overflow-wrap:anywhere}
 /* An identifier reads as an identifier (§9). */
-.drow > dd.is-id{font-family:var(--font-mono);font-size:.85rem;letter-spacing:.02em;
+.drow > dd.is-id{font-family:var(--font-mono);font-size:var(--a-t-id);letter-spacing:.01em;
   color:var(--a-text);font-weight:600}
 .drow > dd.is-muted{color:var(--a-text-3)}
 .drow > dd em{color:var(--a-text-3);font-style:normal}
@@ -740,13 +781,18 @@
   line-height:1.5;overflow-wrap:anywhere}
 /* Subsection label inside a list (§10 IDENTITY / AUTHORITY / MATCHING). It is
    a row too, so the divider rhythm never breaks. */
-.dgroup{margin:0;padding:var(--s3) var(--a-card-pad);font-family:var(--font-mono);
-  font-size:var(--a-t-code);letter-spacing:.14em;text-transform:uppercase;
-  color:var(--a-accent);font-weight:600;background:var(--a-raised);
-  border-top:1px solid var(--a-line);border-bottom:1px solid var(--a-line)}
-/* The band already draws the rule that separates it from the list above, so
-   the card head must not draw a second one immediately below itself. */
-.a-card-head + .dgroup{border-top:none}
+/* M-100.1 — the group label was a filled band with a rule top AND bottom,
+   which read as a card inside a card (§6: "not tables inside boxes inside
+   more boxes"). §9 wants these to separate without becoming objects of their
+   own. So: no fill, no bottom rule, one hairline above, and the separation
+   comes from space and from the amber label itself. */
+.dgroup{margin:0;padding:var(--s6) var(--a-card-pad) var(--s2);
+  font-family:var(--font-mono);font-size:var(--a-t-code);letter-spacing:.15em;
+  text-transform:uppercase;color:var(--a-accent);font-weight:600;
+  border-top:1px solid var(--a-line)}
+/* First band in a card: the card head already drew that rule, and the head's
+   padding already supplies the space. */
+.a-card-head + .dgroup{border-top:none;padding-top:var(--s4)}
 /* Mobile (§19): the 200px label column becomes a stacked label. */
 @media(max-width:640px){
   .drow{grid-template-columns:1fr;gap:var(--s1);align-items:start;padding-top:var(--s3);
@@ -757,10 +803,10 @@
 /* ── STATUS BADGE (§14) ───────────────────────────────────────────────────
    One implementation. Consistent height, padding, radius, weight — so a row
    containing a badge is the same height as one that does not. */
-.a-badge{display:inline-flex;align-items:center;gap:var(--s1);min-height:22px;
-  padding:2px var(--s2);border-radius:var(--r-xs);border:1px solid transparent;
+.a-badge{display:inline-flex;align-items:center;gap:var(--s2);min-height:var(--a-badge-h);
+  padding:3px var(--s3);border-radius:var(--r-xs);border:1px solid transparent;
   font-family:var(--font-mono);font-size:var(--a-t-code);font-weight:600;
-  letter-spacing:.07em;text-transform:uppercase;line-height:1.5;white-space:nowrap;
+  letter-spacing:.06em;text-transform:uppercase;line-height:1.45;white-space:nowrap;
   max-width:100%;overflow-wrap:anywhere}
 .a-badge.is-neutral{background:transparent;border-color:var(--a-line-strong);color:var(--a-text-3)}
 .a-badge.is-info{background:var(--a-info-bg);color:var(--a-info)}
@@ -789,9 +835,12 @@
 /* ── CALLOUT (§10) ────────────────────────────────────────────────────────
    The FMCSA insurance note is a standing caveat, not developer footnote
    text. It reads as a bordered aside at the foot of the card. */
-.a-callout{display:flex;gap:var(--s3);margin:0;padding:var(--s4);border-radius:var(--r-md);
-  background:var(--a-raised);border:1px solid var(--a-line);color:var(--a-text-2);
-  font-size:var(--a-t-help);line-height:1.6}
+/* M-100.1 — was a full 1px box inside a 1px card. An aside is marked by an
+   accent rule down its edge and a faint wash; it does not need its own frame. */
+.a-callout{display:flex;gap:var(--s3);margin:0;padding:var(--s4);
+  border-radius:0 var(--r-md) var(--r-md) 0;background:var(--a-raised);
+  border:none;border-left:2px solid var(--a-accent);color:var(--a-text-2);
+  font-size:var(--a-t-help);line-height:1.65}
 .a-callout.is-inset{margin:var(--a-card-pad);}
 .a-callout .a-ico{flex:0 0 auto;color:var(--a-accent);font-family:var(--font-mono);
   font-weight:700;line-height:1.5}
@@ -800,9 +849,15 @@
 
 /* ── REVIEW NOTE (§12) ────────────────────────────────────────────────────
    A written record, not a table value. */
-.a-note{margin:0;padding:var(--s5);border-radius:var(--r-lg);background:var(--a-sunken);
-  border:1px solid var(--a-line);color:var(--a-text);font-size:var(--a-t-body);
-  line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
+/* M-100.1 — this is a READ-ONLY audit record and it was styled with the same
+   sunken fill and 1px border as the editable textarea two cards away, which
+   §11 calls out directly. It now reads as a quoted record: a faint wash, an
+   accent rule at the edge, no input chrome, and a measure that keeps the
+   line length readable. */
+.a-note{margin:0;padding:var(--s4) var(--s5);border-radius:0 var(--r-md) var(--r-md) 0;
+  background:var(--a-raised);border:none;border-left:2px solid var(--a-line-strong);
+  color:var(--a-text);font-size:var(--a-t-body);line-height:1.75;max-width:80ch;
+  white-space:pre-wrap;overflow-wrap:anywhere}
 .a-note.is-empty{color:var(--a-muted);font-style:italic}
 
 /* ── DECISION STATE (§13) ─────────────────────────────────────────────── */
@@ -814,8 +869,11 @@
 .a-state.is-warning .a-ico{background:var(--a-warning-bg);color:var(--a-warning)}
 .a-state.is-danger  .a-ico{background:var(--a-danger-bg);color:var(--a-danger)}
 .a-state-body{min-width:0}
-.a-state-body h3{font-size:var(--a-t-body);font-weight:700;margin:0 0 var(--s1);
-  font-family:var(--font-sans);letter-spacing:0}
+/* §12 — the decision is the thing a reviewer looks for first, so the label
+   carries card-title weight while the explanation stays helper-sized. Not a
+   banner: no fill, no full-width tint, just hierarchy. */
+.a-state-body h3{font-size:var(--a-t-card);font-weight:700;margin:0 0 var(--s1);
+  font-family:var(--font-display);letter-spacing:-.005em;line-height:1.3}
 .a-state-body p{margin:0;font-size:var(--a-t-help);color:var(--a-text-3);line-height:1.6}
 
 /* ── ACTION BAR (§13) ─────────────────────────────────────────────────────
@@ -854,17 +912,17 @@
    Grid, not per-tile sizing. Equal heights come from the grid track, so a
    tile with a supporting line does not push its row taller than its
    neighbours. */
-.a-metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+.a-metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--a-metric-min),1fr));
   gap:var(--s4);margin:0}
-.a-metrics.is-compact{grid-template-columns:repeat(auto-fill,minmax(132px,1fr))}
+.a-metrics.is-compact{grid-template-columns:repeat(auto-fill,minmax(var(--a-metric-min-sm),1fr))}
 .a-metric{display:flex;flex-direction:column;gap:var(--s1);justify-content:flex-start;
   background:var(--a-card);border:1px solid var(--a-line);border-radius:var(--r-lg);
   padding:var(--s5);min-width:0;box-shadow:var(--a-shadow);
   transition:border-color var(--a-motion) ease}
 .a-metric:hover{border-color:var(--a-line-strong)}
-.a-metric .m-val{font-family:var(--font-mono);font-size:1.7rem;font-weight:600;
+.a-metric .m-val{font-family:var(--font-mono);font-size:var(--a-t-metric);font-weight:600;
   line-height:1.1;color:var(--a-text);letter-spacing:-.01em;overflow-wrap:anywhere}
-.a-metrics.is-compact .m-val{font-size:1.3rem}
+.a-metrics.is-compact .m-val{font-size:var(--a-t-metric-sm)}
 .a-metric .m-lbl{font-family:var(--font-mono);font-size:var(--a-t-label);font-weight:600;
   letter-spacing:.09em;text-transform:uppercase;color:var(--a-muted);line-height:1.45;
   overflow-wrap:anywhere}
@@ -882,10 +940,16 @@
    the table adopts the card's padding scale and loses its outer border,
    because the card already draws one. */
 .a-card .ptable{font-size:var(--a-t-body)}
+/* Interior cells take the tighter step of the scale; only the first and last
+   keep the card's gutter so the table still lines up with the card edge. A
+   seven-column staff table was spending 336px on padding alone, which is what
+   pushed the action column out of view at 1440. */
 .a-card .ptable th{font-size:var(--a-t-label);font-weight:600;letter-spacing:.09em;
-  color:var(--a-muted);padding:var(--s3) var(--a-card-pad);border-bottom:1px solid var(--a-line)}
-.a-card .ptable td{padding:var(--s3) var(--a-card-pad);color:var(--a-text-2);
+  color:var(--a-muted);padding:var(--s3) var(--s4);border-bottom:1px solid var(--a-line)}
+.a-card .ptable td{padding:var(--s3) var(--s4);color:var(--a-text-2);
   border-bottom:1px solid var(--a-line);vertical-align:middle}
+.a-card .ptable th:first-child,.a-card .ptable td:first-child{padding-left:var(--a-card-pad)}
+.a-card .ptable th:last-child,.a-card .ptable td:last-child{padding-right:var(--a-card-pad)}
 .a-card .ptable tr:last-child td{border-bottom:none}
 .a-card .ptable tbody tr{transition:background var(--a-motion) ease}
 .a-card .ptable tbody tr:hover{background:var(--a-hover)}
@@ -958,7 +1022,7 @@
 .a-stack{margin-top:var(--s6)}
 .a-page > .a-card + .a-card{margin-top:var(--s6)}
 /* A table identifier cell: a docket number is a machine identifier (§15). */
-.ptable td .tid{font-family:var(--font-mono);font-size:.85rem;font-weight:600;
+.ptable td .tid{font-family:var(--font-mono);font-size:var(--a-t-id);font-weight:600;
   letter-spacing:.02em;color:var(--a-text)}
 
 /* ── M-100 · the rest of the admin portal adopts the system ───────────────
@@ -991,19 +1055,28 @@
 .a-page .psec:first-of-type{margin-top:var(--s6)}
 
 /* Metric tiles → the metric-card system */
-.a-page .ptiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+.a-page .ptiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--a-metric-min),1fr));
   gap:var(--s4);margin:0 0 var(--s6)}
-.a-page .ptiles.compact{grid-template-columns:repeat(auto-fill,minmax(132px,1fr))}
+/* The pipeline funnel is nine fixed stages. At 132px minimum they wrapped
+   7 + 2 at 1440 and read as a broken row; 104px fits all nine on one line
+   from ~1300px up and still wraps evenly below that. */
+.a-page .ptiles.compact{grid-template-columns:repeat(auto-fill,minmax(var(--a-metric-min-sm),1fr))}
 .a-page .ptile{display:flex;flex-direction:column;gap:var(--s1);justify-content:flex-start;
   background:var(--a-card);border:1px solid var(--a-line);border-radius:var(--r-lg);
   padding:var(--s5);min-height:0;box-shadow:var(--a-shadow);min-width:0;
   transition:border-color var(--a-motion) ease}
 .a-page .ptile:hover{border-color:var(--a-line-strong)}
-.a-page .ptile b{font-family:var(--font-mono);font-size:1.7rem;font-weight:600;
+.a-page .ptile b{font-family:var(--font-mono);font-size:var(--a-t-metric);font-weight:600;
   line-height:1.1;color:var(--a-text);letter-spacing:-.01em;display:block;
   overflow-wrap:anywhere}
-.a-page .ptiles.compact .ptile{padding:var(--s4)}
-.a-page .ptiles.compact .ptile b{font-size:1.3rem}
+/* A compact tile is 104px wide and its longest label is one unbreakable word
+   ("APPOINTMENT"). At the standard label metrics that word broke mid-word.
+   Tighter side padding and slightly tighter tracking let it fit whole; the
+   label is still 11px+ and uppercase, so nothing became unreadable. */
+.a-page .ptiles.compact .ptile{padding:var(--s4) var(--s3)}
+.a-page .ptiles.compact .ptile span{font-size:.7rem;letter-spacing:.03em;
+  overflow-wrap:break-word}
+.a-page .ptiles.compact .ptile b{font-size:var(--a-t-metric-sm)}
 .a-page .ptile span{font-family:var(--font-mono);font-size:var(--a-t-label);font-weight:600;
   letter-spacing:.09em;text-transform:uppercase;color:var(--a-muted);line-height:1.45;
   overflow-wrap:anywhere}
@@ -1019,8 +1092,13 @@
 .a-page .pcard{background:var(--a-card);border:1px solid var(--a-line);
   border-radius:var(--r-lg);box-shadow:var(--a-shadow);padding:var(--a-card-pad);
   margin:0 0 var(--s6);min-width:0}
+/* Full-bleed, so a mapped card's header rule reaches the card edge exactly as
+   `.a-card-head` does. Without the negative margin the rule stopped at the
+   padding box and the two card types read as two different systems. */
 .a-page .pcard h2{font-family:var(--font-display);font-size:var(--a-t-card);font-weight:700;
-  line-height:1.3;letter-spacing:-.005em;margin:0 0 var(--s4);padding-bottom:var(--s3);
+  line-height:1.3;letter-spacing:-.005em;
+  margin:0 calc(-1 * var(--a-card-pad)) var(--s5);
+  padding:0 var(--a-card-pad) var(--s4);
   border-bottom:1px solid var(--a-line)}
 .a-page .pcard h2.psubhead{margin-top:var(--s6)}
 .a-page .pgrid2{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:var(--s6)}
@@ -1042,9 +1120,9 @@
 .a-page .pcard .ptable th:last-child,.a-page .pcard .ptable td:last-child{padding-right:0}
 
 /* Badges on the mapped pages use the same metrics as `.a-badge` */
-.a-page .pbadge{display:inline-flex;align-items:center;min-height:22px;
-  padding:2px var(--s2);border-radius:var(--r-xs);font-size:var(--a-t-code);
-  font-weight:600;letter-spacing:.07em;line-height:1.5}
+.a-page .pbadge{display:inline-flex;align-items:center;min-height:var(--a-badge-h);
+  padding:3px var(--s3);border-radius:var(--r-xs);font-size:var(--a-t-code);
+  font-weight:600;letter-spacing:.06em;line-height:1.45}
 .a-page .pbadge.amber{background:var(--a-warning-bg);color:var(--a-warning)}
 .a-page .pbadge.green{background:var(--a-success-bg);color:var(--a-success)}
 .a-page .pbadge.red{background:var(--a-danger-bg);color:var(--a-danger)}
@@ -1075,4 +1153,18 @@
 /* `table-layout:auto` gave the wrapping reason column ~190px at 1440 while a
    nowrap column kept slack. A floor stops the narrowest wrapping column from
    being squeezed into four lines. */
+/* `table-layout:auto` hands slack to whichever column asks loudest, and
+   `overflow-wrap:anywhere` lets a wrapping column shrink to almost nothing —
+   so a floor is needed or the applicant name ends up five lines tall next to
+   a half-empty date column. Two floors, because the two wrapping columns are
+   not equally important: the applicant IS the row's identity, the reason
+   codes are a summary of it. */
 .a-card .ptable td.wrap,.a-page .ptable td.wrap{min-width:170px}
+.a-card .ptable td.wrap.is-wide,.a-page .ptable td.wrap.is-wide{min-width:230px}
+/* A badge is `white-space:nowrap` so it never breaks mid-phrase — right on a
+   detail row, wrong in a table cell, where the longest label ("FMCSA
+   UNAVAILABLE") set a 214px column floor and pushed the action column out of
+   view at 1440. Inside a cell it may wrap; it keeps its height, padding and
+   tone, and the phrase still reads. */
+.ptable td .a-badge,.ptable td .pbadge{white-space:normal;overflow-wrap:normal;
+  word-break:keep-all;text-align:center}

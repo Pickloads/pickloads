@@ -43,6 +43,10 @@ const FIXTURES = [
   "admin-verifications-queue-empty",
   "admin-verifications-detail",
   "admin-verifications-detail-reviewed",
+  // M-100.1 — the vocabulary the other 19 admin pages adopt through the
+  // stylesheet. Those pages are async Server Components behind requireStaff,
+  // so this specimen is the only way their layout gets measured at all.
+  "admin-mapped-vocabulary",
 ] as const;
 
 interface Stylesheets {

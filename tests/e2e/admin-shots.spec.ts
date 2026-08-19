@@ -24,6 +24,7 @@ const FIXTURES = [
   "admin-verifications-detail",
   "admin-verifications-detail-reviewed",
   "admin-verifications-queue",
+  "admin-mapped-vocabulary",
 ] as const;
 
 interface Sheets {

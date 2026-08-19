@@ -3,6 +3,7 @@ import { Link } from "@/i18n/navigation";
 import { requireStaff } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { SupportStatus } from "@/lib/supabase/database.types";
+import { ScrollRegion } from "@/components/portal/ScrollRegion";
 
 export const dynamic = "force-dynamic";
 
@@ -108,7 +109,7 @@ export default async function AdminSupportPage({
         </button>
       </form>
 
-      <div className="ptable-wrap">
+      <ScrollRegion label="Support threads">
         {threads.length === 0 ? (
           <p className="pempty">No support threads match.</p>
         ) : (
@@ -142,7 +143,7 @@ export default async function AdminSupportPage({
             </tbody>
           </table>
         )}
-      </div>
+      </ScrollRegion>
     </main>
   );
 }

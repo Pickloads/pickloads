@@ -189,8 +189,10 @@ particular have stylesheet-level changes that no screenshot here covers.
 ## 9. Remaining UI debt
 
 1. Convert the 19 mapped admin pages' markup to the primitives (now a rename).
-2. `.mono` is still applied 97 times across 63 files and defined nowhere —
-   M-99's finding, unchanged, and still pinned by a test.
+2. ~~`.mono` is defined nowhere~~ — **this was wrong**, corrected in M-100.1.
+   `.mono` is defined at `v4.css:29`, converted faithfully from the V4
+   prototype's line 22. M-99's search did not cover `v4.css`. The test that
+   pinned the false claim has been deleted.
 3. 37 inline `style` objects remain on 12 dispatch-desk pages (M-99 §7.3).
 4. `#cfd6da` recurs in `portal.css` and deserves a real token; adding one is a
    theme change.

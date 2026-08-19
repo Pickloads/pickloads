@@ -416,10 +416,18 @@ export function CarrierVerificationDetailView({
               <div className="a-card-body">
                 <StateBlock
                   tone={pre.claimedCarrierId ? "success" : toneOf(decision.badge)}
-                  icon={pre.claimedCarrierId ? "✓" : "•"}
-                  title={
-                    pre.claimedCarrierId ? "Completed" : decision.label
+                  // The marker follows the decision rather than being a
+                  // generic dot: a cleared file reads as cleared at a glance,
+                  // a refused one as refused. The title still states it in
+                  // words, so the glyph is decoration, not the signal.
+                  icon={
+                    pre.claimedCarrierId || decision.badge === "green"
+                      ? "✓"
+                      : decision.badge === "red"
+                        ? "✕"
+                        : "•"
                   }
+                  title={pre.claimedCarrierId ? "Completed" : decision.label}
                 >
                   {pre.claimedCarrierId
                     ? "This application has already been used to create a carrier account and can no longer be re-decided."
