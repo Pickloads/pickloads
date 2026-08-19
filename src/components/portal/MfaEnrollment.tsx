@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { recordMfaEnrollment } from "@/app/actions/security";
+import { toRenderableQrSrc } from "@/lib/mfa-qr";
 
 /**
  * M-61 — staff TOTP enrollment + step-up challenge (audit §6.1 / decision D3).
@@ -39,18 +40,19 @@ export function MfaEnrollment({
   const [phase, setPhase] = useState<Phase>("idle");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [qrCode, setQrCode] = useState<string | null>(null);
+  /** The normalized, renderable data URL — never the provider's raw payload. */
+  const [qrSrc, setQrSrc] = useState<string | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
   const [factorId, setFactorId] = useState<string | null>(null);
-
   /**
-   * Supabase returns either a ready-to-use `data:` URL or a raw SVG document,
-   * depending on the auth version — normalize both to an <img> src.
+   * The image was handed a source and still failed to paint.
+   *
+   * This exists because the reported bug was invisible: enrollment succeeded,
+   * the QR frame rendered, and the picture inside it was blank on a
+   * same-coloured card — indistinguishable from the button doing nothing. A
+   * QR that cannot be shown must now SAY so and hand over the manual key.
    */
-  const qrSrc = useCallback((raw: string): string => {
-    if (raw.startsWith("data:")) return raw;
-    return `data:image/svg+xml;utf-8,${encodeURIComponent(raw)}`;
-  }, []);
+  const [qrFailed, setQrFailed] = useState(false);
 
   async function startEnrollment() {
     setError(null);
@@ -75,9 +77,26 @@ export function MfaEnrollment({
         );
         return;
       }
+      /**
+       * `totp` is optional on the response union (the phone factor variant
+       * has no `totp`), so it is checked rather than assumed. Reading
+       * `data.totp.qr_code` off a phone-shaped response would throw inside
+       * the try and surface as "we couldn't reach the sign-in service" — a
+       * message that would send somebody to look at their network.
+       */
+      const totp = data.totp;
+      if (!totp) {
+        setError(
+          "Enrollment came back in a form we can't display. Nothing was changed — please contact your administrator.",
+        );
+        return;
+      }
       setFactorId(data.id);
-      setQrCode(data.totp.qr_code);
-      setSecret(data.totp.secret);
+      // Normalized HERE, once, so no render path can ever be handed the
+      // provider's unencoded payload. See src/lib/mfa-qr.ts.
+      setQrSrc(toRenderableQrSrc(totp.qr_code));
+      setSecret(totp.secret ?? null);
+      setQrFailed(false);
       setPhase("enrolling");
     } catch {
       setError("We couldn't reach the sign-in service. Try again in a moment.");
@@ -179,33 +198,48 @@ export function MfaEnrollment({
         </>
       ) : null}
 
-      {phase === "enrolling" && qrCode ? (
-        <div style={{ marginBottom: 16 }}>
-          <div
-            style={{
-              background: "var(--paper)",
-              display: "inline-block",
-              padding: 10,
-              borderRadius: 8,
-              border: "1px solid var(--line)",
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element -- inline
-                SVG data URL straight from the auth provider; next/image would
-                proxy a secret-bearing payload through the optimizer. */}
-            <img
-              src={qrSrc(qrCode)}
-              alt="QR code for your authenticator app"
-              width={200}
-              height={200}
-            />
-          </div>
+      {phase === "enrolling" ? (
+        <div style={{ marginBottom: 16 }} data-testid="mfa-enroll-panel">
+          {qrSrc && !qrFailed ? (
+            <div
+              style={{
+                background: "var(--paper)",
+                display: "inline-block",
+                padding: 10,
+                borderRadius: 8,
+                border: "1px solid var(--line)",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- a data:
+                  URL from the auth provider. next/image would proxy a
+                  secret-bearing payload through the optimizer, and an <img>
+                  renders SVG with scripting disabled, which is what makes an
+                  untrusted document safe to show at all. */}
+              <img
+                src={qrSrc}
+                alt="QR code for your authenticator app"
+                width={200}
+                height={200}
+                onError={() => setQrFailed(true)}
+              />
+            </div>
+          ) : (
+            /* No renderable QR. The manual key below is the whole setup path
+               now, so say so plainly instead of leaving an empty frame that
+               reads as a broken button. */
+            <p className="form-err show" role="status">
+              The QR image couldn&apos;t be displayed. Use the setup key below —
+              it works exactly the same way.
+            </p>
+          )}
           {secret ? (
             <p
               className="mono"
               style={{ fontSize: ".72rem", color: "var(--steel)", marginTop: 10 }}
             >
-              Can&apos;t scan? Enter this key manually:{" "}
+              {qrSrc && !qrFailed
+                ? "Can't scan? Enter this key manually: "
+                : "Enter this setup key in your authenticator app: "}
               <span style={{ color: "var(--amber)", overflowWrap: "anywhere" }}>
                 {secret}
               </span>
