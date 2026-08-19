@@ -6,40 +6,101 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initialStartState } from "@/lib/onboarding-state";
 
 /**
- * Become a Carrier — step 1, the surface that reported
- * "We couldn't verify your submission. Please refresh the page and try again."
- * against a `POST /become-a-carrier 200`.
+ * `startOnboarding` — the action that creates the `carriers` row.
  *
- * ── WHAT THE 200 MEANT ───────────────────────────────────────────────────
+ * ── WHAT THIS FILE ORIGINALLY PROVED ─────────────────────────────────────
  *
- * Nothing. A React server action ALWAYS answers 200; the outcome rides in the
- * RSC payload as the action's return value. So `POST 200` and "the submission
- * failed" are not in tension and never were — the transport succeeded and the
- * action returned `{status: "error"}`.
+ * That step 1 of the wizard survived the Turnstile bug: a React server action
+ * always answers 200, the outcome rides in the RSC payload, and the reported
+ * "We couldn't verify your submission" against a `POST 200` was the guard
+ * refusing a spent single-use token — not a shape mismatch. Sections 2, 5b and
+ * 6 below are unchanged and still prove that.
  *
- * That matters for reading the rest of this file: there is no shape mismatch
- * between what the action returns and what the wizard expects. The wizard
- * advances on `status === "success" && carrierId`, and the action returns
- * exactly that on success. The failure was upstream of both, in the guard.
+ * ── WHAT M-94 CHANGED ────────────────────────────────────────────────────
  *
- * ── WHY THE GUARD IS MOCKED PER-TEST ─────────────────────────────────────
+ * This is no longer step 1, and "a valid submission" is no longer enough. The
+ * action now requires a live, eligible, unclaimed pre-registration — the
+ * record the FMCSA pre-check writes — and CLAIMS it in the same call. So the
+ * file gained the set of tests that matter most: what happens when there is no
+ * pre-registration, when it is expired, when it was already spent, when the
+ * risk engine said manual review, and when the browser sends identity fields
+ * that disagree with the ones that were actually verified.
  *
- * `guardPublicForm` is rate limit + Turnstile. Its verdict is the thing under
- * test here, so it is controlled directly rather than reproduced: a test that
- * needed a live Cloudflare siteverify would not run, and an auth path nobody
- * can test is what produced the defect above it.
+ * Two earlier expectations are now INVERTED, deliberately:
+ *
+ *   • "stays walkable with no service credentials" — it does not. Without the
+ *     service role the pre-registration cannot be read, and an unverifiable
+ *     claim is refused rather than assumed. The old shortcut handed the
+ *     browser a wizard handle with no database behind it, which is the exact
+ *     bypass shape §16 asks to close.
+ *
+ *   • "NON-VACUITY: two guard-passing submits really would write twice" — they
+ *     no longer do. The conditional claim is the idempotency key the old note
+ *     honestly recorded as missing.
+ *
+ * ── WHY THE GUARD IS MOCKED AND THE GATE IS NOT ──────────────────────────
+ *
+ * `guardPublicForm` is rate limit + Turnstile; reproducing it would need a
+ * live Cloudflare siteverify. The GATE, by contrast, runs for real against a
+ * fake supabase client — `loadEligiblePreRegistration` and
+ * `claimPreRegistration` are the code under test here, and mocking them would
+ * leave this file asserting that a mock returns what it was told to.
  */
+
+interface PreRegistrationRow {
+  id: string;
+  legal_name_entered: string;
+  usdot_number_entered: string;
+  mc_number_entered: string | null;
+  email: string;
+  locale: string;
+  decision: string | null;
+  expires_at: string;
+  claimed_carrier_id: string | null;
+}
 
 interface Scenario {
   guard: { ok: true; ip: string } | { ok: false; message: string };
   carrierInsert: { data: { id: string } | null; error: { message: string } | null };
   leadInsert: { data: { id: string } | null; error: { message: string } | null };
   adminAvailable: boolean;
+  /** What the browser presents. `null` = no pre-check has been done. */
+  cookie: string | null;
+  /** What the database holds for that id. `null` = no such row. */
+  preRegistration: PreRegistrationRow | null;
+  preRegistrationError: { message: string } | null;
+  /** Whether the conditional UPDATE matched a row (i.e. won the race). */
+  claimSucceeds: boolean;
 }
 
 let scenario: Scenario;
 let inserts: { table: string; row: Record<string, unknown> }[] = [];
+let updates: { table: string; row: Record<string, unknown> }[] = [];
+let deletes: { table: string }[] = [];
 let emails: string[] = [];
+let auditActions: string[] = [];
+let cookieCleared = false;
+
+const FUTURE = new Date(Date.now() + 7 * 24 * 3600_000).toISOString();
+const PAST = new Date(Date.now() - 60_000).toISOString();
+
+/** An eligible, live, unclaimed pre-registration. */
+function eligiblePreRegistration(
+  over: Partial<PreRegistrationRow> = {},
+): PreRegistrationRow {
+  return {
+    id: "11111111-2222-4333-8444-555555555555",
+    legal_name_entered: "Carter Trucking LLC",
+    usdot_number_entered: "76830",
+    mc_number_entered: "123456",
+    email: "john@cartertrucking.example",
+    locale: "en",
+    decision: "eligible_to_continue",
+    expires_at: FUTURE,
+    claimed_carrier_id: null,
+    ...over,
+  };
+}
 
 vi.mock("@/lib/forms/guard", async (importOriginal) => {
   const actual =
@@ -50,6 +111,39 @@ vi.mock("@/lib/forms/guard", async (importOriginal) => {
   };
 });
 
+vi.mock("@/lib/carrier-authority/precheck-session", () => ({
+  readPrecheckCookie: () => Promise.resolve(scenario.cookie),
+  clearPrecheckCookie: () => {
+    cookieCleared = true;
+    return Promise.resolve();
+  },
+  setPrecheckCookie: () => Promise.resolve(),
+}));
+
+// Journaling is asserted by ACTION NAME here. The ledger's own contract
+// (service-role only, no browser insert policy) is the RLS suite's job.
+vi.mock("@/lib/audit", () => ({
+  recordAuditEvent: (event: { action: string }) => {
+    auditActions.push(event.action);
+    return Promise.resolve();
+  },
+}));
+
+/** A thenable that answers every builder method with itself. */
+function chain(result: unknown) {
+  const builder: Record<string, unknown> = {};
+  for (const method of ["eq", "is", "gt", "order", "limit", "select"]) {
+    builder[method] = () => builder;
+  }
+  builder.maybeSingle = () => Promise.resolve(result);
+  builder.single = () => Promise.resolve(result);
+  builder.then = (
+    onfulfilled?: (v: unknown) => unknown,
+    onrejected?: (e: unknown) => unknown,
+  ) => Promise.resolve(result).then(onfulfilled, onrejected);
+  return builder;
+}
+
 vi.mock("@/lib/supabase/admin", () => ({
   tryCreateAdminClient: () =>
     scenario.adminAvailable
@@ -57,13 +151,31 @@ vi.mock("@/lib/supabase/admin", () => ({
           from: (table: string) => ({
             insert: (row: Record<string, unknown>) => {
               inserts.push({ table, row });
-              const result =
+              return chain(
                 table === "carriers"
                   ? scenario.carrierInsert
-                  : scenario.leadInsert;
-              return {
-                select: () => ({ single: () => Promise.resolve(result) }),
-              };
+                  : scenario.leadInsert,
+              );
+            },
+            select: () =>
+              chain(
+                table === "carrier_pre_registrations"
+                  ? {
+                      data: scenario.preRegistration,
+                      error: scenario.preRegistrationError,
+                    }
+                  : { data: null, error: null },
+              ),
+            update: (row: Record<string, unknown>) => {
+              updates.push({ table, row });
+              return chain({
+                data: scenario.claimSucceeds ? [{ id: "claimed" }] : [],
+                error: null,
+              });
+            },
+            delete: () => {
+              deletes.push({ table });
+              return chain({ data: null, error: null });
             },
           }),
         }
@@ -88,7 +200,6 @@ const { startOnboarding } = await import("@/app/actions/onboarding");
 function validForm(over: Record<string, string> = {}): FormData {
   const fd = new FormData();
   const base: Record<string, string> = {
-    company_name: "Carter Trucking LLC",
     full_name: "John Carter",
     email: "john@cartertrucking.example",
     phone: "(908) 555-0142",
@@ -99,23 +210,35 @@ function validForm(over: Record<string, string> = {}): FormData {
   return fd;
 }
 
+function carrierRow(): Record<string, unknown> {
+  return inserts.find((i) => i.table === "carriers")!.row;
+}
+
 beforeEach(() => {
   inserts = [];
+  updates = [];
+  deletes = [];
   emails = [];
+  auditActions = [];
+  cookieCleared = false;
   scenario = {
     guard: { ok: true, ip: "1.2.3.4" },
     carrierInsert: { data: { id: "carrier-uuid-1" }, error: null },
     leadInsert: { data: { id: "lead-uuid-1" }, error: null },
     adminAvailable: true,
+    cookie: "11111111-2222-4333-8444-555555555555",
+    preRegistration: eligiblePreRegistration(),
+    preRegistrationError: null,
+    claimSucceeds: true,
   };
 });
 
-describe("1 · a valid step 1 advances to Documents", () => {
+describe("1 · a verified applicant advances to Documents", () => {
   it("returns the success shape the wizard advances on", async () => {
     const state = await startOnboarding(initialStartState, validForm());
     // The wizard's effect is:
-    //   if (status === "success" && carrierId) setStep(2)
-    // so these two fields ARE the step-2 transition.
+    //   if (status === "success" && carrierId) setStep(4)
+    // so these two fields ARE the documents-step transition.
     expect(state.status).toBe("success");
     expect(state).toHaveProperty("carrierId");
     expect(
@@ -131,10 +254,130 @@ describe("1 · a valid step 1 advances to Documents", () => {
     );
   });
 
-  it("stays walkable with no service credentials (secretless dev)", async () => {
+  it("echoes the VERIFIED company name back for the account step", async () => {
+    const state = await startOnboarding(initialStartState, validForm());
+    expect(state.status === "success" ? state.companyName : null).toBe(
+      "Carter Trucking LLC",
+    );
+  });
+
+  it("REFUSES with no service credentials — it cannot verify, so it does not", async () => {
+    // Inverted from the pre-M-94 behaviour on purpose. The old shortcut
+    // returned `{status:"success", carrierId: randomUUID()}` here, which is a
+    // wizard handle minted for a caller nobody checked.
     scenario.adminAvailable = false;
     const state = await startOnboarding(initialStartState, validForm());
-    expect(state.status).toBe("success");
+    expect(state.status).toBe("error");
+    expect(inserts).toEqual([]);
+    expect(auditActions).toContain("onboarding_gate_denied");
+  });
+});
+
+describe("1b · the gate — no pre-registration, no carrier row", () => {
+  const REFUSALS: ReadonlyArray<[string, () => void]> = [
+    ["no pre-check was ever done (no cookie)", () => {
+      scenario.cookie = null;
+    }],
+    ["the id is not even a UUID", () => {
+      scenario.cookie = "verified=true";
+    }],
+    ["the id names no row", () => {
+      scenario.preRegistration = null;
+    }],
+    ["the pre-registration has expired", () => {
+      scenario.preRegistration = eligiblePreRegistration({ expires_at: PAST });
+    }],
+    ["it was already spent on another carrier", () => {
+      scenario.preRegistration = eligiblePreRegistration({
+        claimed_carrier_id: "some-other-carrier",
+      });
+    }],
+    ["the risk engine said manual review", () => {
+      scenario.preRegistration = eligiblePreRegistration({
+        decision: "manual_review",
+      });
+    }],
+    ["the risk engine said not eligible", () => {
+      scenario.preRegistration = eligiblePreRegistration({
+        decision: "not_eligible",
+      });
+    }],
+    ["the check never completed, so no decision was stored", () => {
+      scenario.preRegistration = eligiblePreRegistration({ decision: null });
+    }],
+    ["the gate read itself failed", () => {
+      scenario.preRegistration = null;
+      scenario.preRegistrationError = { message: "connection reset" };
+    }],
+  ];
+
+  for (const [name, arrange] of REFUSALS) {
+    it(`refuses when ${name}`, async () => {
+      arrange();
+      const state = await startOnboarding(initialStartState, validForm());
+      expect(state.status).toBe("error");
+      // The whole point: no carrier row, no lead row, no email, no account.
+      expect(inserts).toEqual([]);
+      expect(emails).toEqual([]);
+      expect(auditActions).toContain("onboarding_gate_denied");
+    });
+  }
+
+  it("tells the applicant one neutral sentence, never which check failed", async () => {
+    // §20: "expired" and "somebody is replaying a spent token" are very
+    // different operational events and both are audited — neither is shown.
+    const messages = new Set<string>();
+    for (const [, arrange] of REFUSALS) {
+      inserts = [];
+      auditActions = [];
+      scenario.preRegistration = eligiblePreRegistration();
+      scenario.preRegistrationError = null;
+      scenario.cookie = "11111111-2222-4333-8444-555555555555";
+      arrange();
+      const state = await startOnboarding(initialStartState, validForm());
+      messages.add(state.status === "error" ? (state.message ?? "") : "");
+    }
+    expect(messages.size).toBe(1);
+    const [only] = [...messages];
+    for (const leak of ["expired", "claimed", "eligible", "decision", "uuid"]) {
+      expect((only ?? "").toLowerCase()).not.toContain(leak);
+    }
+  });
+});
+
+describe("1c · the browser cannot substitute an identity it did not verify", () => {
+  it("takes company name, MC and USDOT from the VERIFIED record", async () => {
+    // The attack this closes: verify as a real carrier, then register as a
+    // different one by editing three fields between the two requests.
+    await startOnboarding(
+      initialStartState,
+      validForm({
+        company_name: "Someone Else Freight Inc",
+        mc_number: "999999",
+        dot_number: "999999",
+      }),
+    );
+    const carrier = carrierRow();
+    expect(carrier.company_name).toBe("Carter Trucking LLC");
+    expect(carrier.mc_number).toBe("123456");
+    expect(carrier.dot_number).toBe("76830");
+  });
+
+  it("no client-supplied boolean can stand in for the stored decision", async () => {
+    scenario.cookie = null;
+    const state = await startOnboarding(
+      initialStartState,
+      validForm({
+        verified: "true",
+        eligible: "true",
+        fmcsaPassed: "true",
+        paid: "true",
+        approved: "true",
+        active: "true",
+        pre_registration_id: "11111111-2222-4333-8444-555555555555",
+      }),
+    );
+    expect(state.status).toBe("error");
     expect(inserts).toEqual([]);
   });
 });
@@ -148,8 +391,9 @@ describe("2 · an invalid Turnstile is rejected", () => {
     };
     const state = await startOnboarding(initialStartState, validForm());
     expect(state.status).toBe("error");
-    // The guard runs FIRST. This is what makes a failed verification safe:
-    // no carrier row, no lead row, no email.
+    // The guard runs FIRST — before the gate, before the database. This is
+    // what makes a failed verification safe: no carrier row, no lead row, no
+    // email, and no FMCSA-derived state consulted either.
     expect(inserts).toEqual([]);
     expect(emails).toEqual([]);
   });
@@ -162,7 +406,7 @@ describe("2 · an invalid Turnstile is rejected", () => {
 });
 
 describe("3 · a valid Turnstile is accepted", () => {
-  it("proceeds to persistence once the guard passes", async () => {
+  it("proceeds to persistence once the guard and the gate pass", async () => {
     const state = await startOnboarding(initialStartState, validForm());
     expect(state.status).toBe("success");
     expect(inserts.map((i) => i.table)).toContain("carriers");
@@ -179,16 +423,15 @@ describe("4 · the carrier record is persisted exactly once", () => {
 
   it("creates the carrier UNCLAIMED — no profile, not active", async () => {
     await startOnboarding(initialStartState, validForm());
-    const carrier = inserts.find((i) => i.table === "carriers")!.row;
+    const carrier = carrierRow();
     expect(carrier.active).toBe(false);
     expect(carrier).not.toHaveProperty("profile_id");
   });
 
   it("never stores the EIN in plaintext (S-01)", async () => {
     await startOnboarding(initialStartState, validForm({ ein: "12-3456789" }));
-    const carrier = inserts.find((i) => i.table === "carriers")!.row;
-    expect(carrier.ein).toBe("enc(12-3456789)");
-    expect(carrier.ein).not.toBe("12-3456789");
+    expect(carrierRow().ein).toBe("enc(12-3456789)");
+    expect(carrierRow().ein).not.toBe("12-3456789");
   });
 
   it("still succeeds when the CRM lead insert fails", async () => {
@@ -209,12 +452,39 @@ describe("4 · the carrier record is persisted exactly once", () => {
   });
 });
 
+describe("4b · the pre-registration is SPENT, atomically", () => {
+  it("claims it in the same call that creates the carrier", async () => {
+    await startOnboarding(initialStartState, validForm());
+    const claim = updates.find((u) => u.table === "carrier_pre_registrations");
+    expect(claim).toBeDefined();
+    expect(claim!.row.claimed_carrier_id).toBe("carrier-uuid-1");
+    expect(claim!.row.claimed_at).toEqual(expect.any(String));
+  });
+
+  it("clears the browser's copy once it has been spent", async () => {
+    await startOnboarding(initialStartState, validForm());
+    expect(cookieCleared).toBe(true);
+  });
+
+  it("DELETES the carrier row when the claim loses the race", async () => {
+    // Two requests, one verification. Postgres matches the conditional UPDATE
+    // for exactly one of them; the loser must not leave behind a carriers row
+    // with no verification bound to it — that orphan is the thing this whole
+    // milestone exists to stop creating.
+    scenario.claimSucceeds = false;
+    const state = await startOnboarding(initialStartState, validForm());
+    expect(state.status).toBe("error");
+    expect(deletes).toEqual([{ table: "carriers" }]);
+    expect(emails).toEqual([]);
+    expect(auditActions).toContain("onboarding_gate_denied");
+  });
+});
+
 describe("5 · a duplicate submit does not double-write", () => {
   it("a re-submit blocked by the guard adds no second row", async () => {
-    // The real duplicate path. A Turnstile token is SINGLE-USE, so the second
-    // press of the button arrives with a spent token, Cloudflare answers
-    // `timeout-or-duplicate`, and the guard refuses — which is exactly why
-    // the first attempt's row is not duplicated.
+    // A Turnstile token is SINGLE-USE, so the second press of the button
+    // arrives with a spent token, Cloudflare answers `timeout-or-duplicate`,
+    // and the guard refuses.
     await startOnboarding(initialStartState, validForm());
     expect(inserts.filter((i) => i.table === "carriers")).toHaveLength(1);
 
@@ -224,19 +494,25 @@ describe("5 · a duplicate submit does not double-write", () => {
     expect(inserts.filter((i) => i.table === "carriers")).toHaveLength(1);
   });
 
-  it("NON-VACUITY: two GUARD-PASSING submits really would write twice", async () => {
-    // Honest accounting. There is no unique constraint and no idempotency key
-    // on this insert — the protection is the single-use token, not the table.
-    // If the guard ever passes twice for one user, two carrier rows appear.
-    // Recorded here so the limit is visible rather than assumed away.
+  it("two GUARD-PASSING submits no longer produce two carriers", async () => {
+    // This assertion is the inverse of the one it replaces. The old note was
+    // honest about the gap — "there is no unique constraint and no idempotency
+    // key on this insert" — and the conditional claim is now that key: the
+    // second submit finds the pre-registration spent and its carrier row is
+    // rolled back.
     await startOnboarding(initialStartState, validForm());
-    await startOnboarding(initialStartState, validForm());
-    expect(inserts.filter((i) => i.table === "carriers")).toHaveLength(2);
+    scenario.claimSucceeds = false;
+    scenario.preRegistration = eligiblePreRegistration({
+      claimed_carrier_id: "carrier-uuid-1",
+    });
+    const second = await startOnboarding(initialStartState, validForm());
+    expect(second.status).toBe("error");
+    expect(inserts.filter((i) => i.table === "carriers")).toHaveLength(1);
   });
 });
 
 describe("5b · a retry gets a FRESH Turnstile token", () => {
-  // The behavioural half of the bug. Requirement 5 above proves a duplicate
+  // The behavioural half of the original bug. Section 5 proves a duplicate
   // submit does not double-write; this proves the user is not permanently
   // wedged after the first failure, which is what "Please refresh the page
   // and try again" actually described.
@@ -250,7 +526,7 @@ describe("5b · a retry gets a FRESH Turnstile token", () => {
     expect(widget).toMatch(/<Turnstile[\s\S]*?key=\{resetKey\}/);
   });
 
-  it("step 1 counts failures and feeds them to the widget", () => {
+  it("the company-details step counts failures and feeds them to the widget", () => {
     const wizard = read("src/components/onboarding/CarrierWizard.tsx");
     expect(wizard).toMatch(/setVerifyAttempt\(\(n\) => n \+ 1\)/);
     expect(wizard).toMatch(/<TurnstileWidget[^>]*resetKey=\{verifyAttempt\}/);
@@ -262,6 +538,17 @@ describe("5b · a retry gets a FRESH Turnstile token", () => {
     // away a perfectly good unsolved challenge on every state change.
     expect(wizard).toMatch(
       /if \(startState\.status === "error"\) setVerifyAttempt/,
+    );
+  });
+
+  it("the pre-check screen resets its own widget too", () => {
+    // M-94 added a second public form to this funnel. It uses the shared
+    // `useTurnstileReset` hook rather than its own counter, which is the
+    // safety default the hook exists to be.
+    const precheck = read("src/components/onboarding/CarrierPrecheck.tsx");
+    expect(precheck).toMatch(/useTurnstileReset\(state\)/);
+    expect(precheck).toMatch(
+      /<TurnstileWidget[^>]*resetKey=\{turnstileAttempt\}/,
     );
   });
 

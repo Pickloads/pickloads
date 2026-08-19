@@ -73,4 +73,76 @@ test.describe("Become a Carrier", () => {
     await expect(page).toHaveURL(/\/become-a-carrier/);
     await expect(page.locator("main")).toContainText(/MC\/DOT|insurance/i);
   });
+
+  /* ── M-94: verification is the first thing that happens ───────────────── */
+
+  test("opens on the FMCSA pre-check, not on a company-info form", async ({
+    page,
+  }) => {
+    await page.goto("/become-a-carrier");
+    // The three fields the check consumes.
+    await expect(page.locator('input[name="legal_name"]')).toBeVisible();
+    await expect(page.locator('input[name="usdot_number"]')).toBeVisible();
+    await expect(page.locator('input[name="mc_number"]')).toBeVisible();
+
+    // And NOT the fields that used to create a carrier row on submit. They
+    // belong to a later step now, and a name that reaches the database before
+    // anything is verified is the defect M-94 exists to remove.
+    await expect(page.locator('input[name="company_name"]')).toHaveCount(0);
+    await expect(page.locator('input[name="ein"]')).toHaveCount(0);
+    await expect(page.locator('input[name="password"]')).toHaveCount(0);
+  });
+
+  test("the step strip puts verification before onboarding", async ({
+    page,
+  }) => {
+    await page.goto("/become-a-carrier");
+    const steps = page.locator(".wizard .steps li");
+    // §23: the four-step presentation that started with company info is gone.
+    expect(await steps.count()).toBeGreaterThanOrEqual(5);
+    await expect(steps.first()).toContainText(/verification/i);
+    await expect(page.locator(".wizard .steps")).toContainText(/9\.99/);
+  });
+
+  test("claims nothing it has not done", async ({ page }) => {
+    await page.goto("/become-a-carrier");
+    const body = (await page.locator("main").textContent()) ?? "";
+    // §23: no "you're onboarded" and no "approved" before anything is either.
+    // The words appear only in a form that names what is still outstanding.
+    expect(body).not.toMatch(/you'?re onboarded/i);
+    expect(body).not.toMatch(/\bapproved\b/i);
+    // And no fake payment: nothing may say the fee has been taken.
+    expect(body).not.toMatch(/payment (received|complete|successful)/i);
+    expect(body).not.toMatch(/\bpaid\b/i);
+  });
+
+  test("the USDOT field offers a numeric keypad on a phone", async ({
+    page,
+  }) => {
+    // §24. `inputMode` rather than `type="number"`, which brings spinners and
+    // a scroll wheel that silently edits a registration number.
+    await page.goto("/become-a-carrier");
+    await expect(page.locator('input[name="usdot_number"]')).toHaveAttribute(
+      "inputmode",
+      "numeric",
+    );
+  });
+
+  test("every pre-check field is labelled and its hint is associated", async ({
+    page,
+  }) => {
+    // §25/WCAG 1.3.1 + 3.3.2. `axe.spec.ts` scans this route as a whole; this
+    // asserts the specific relationships a scanner cannot infer intent for.
+    await page.goto("/become-a-carrier");
+    for (const name of ["legal_name", "usdot_number", "mc_number", "email"]) {
+      const input = page.locator(`input[name="${name}"]`);
+      const id = await input.getAttribute("id");
+      expect(id, `${name} has no id to label`).toBeTruthy();
+      await expect(page.locator(`label[for="${id}"]`)).toHaveCount(1);
+      const describedBy = await input.getAttribute("aria-describedby");
+      if (describedBy) {
+        await expect(page.locator(`#${describedBy}`)).toHaveCount(1);
+      }
+    }
+  });
 });

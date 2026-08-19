@@ -757,6 +757,117 @@ type BrokerPartnerMembershipRow = {
   created_at: string;
 };
 
+
+/* ---------- M-93 (0032) — carrier pre-qualification ---------------------
+ *
+ * The migration shipped with M-93; these types did not, because nothing in
+ * `src/` touched the tables yet. M-94 is the first consumer, and an untyped
+ * `.from("carrier_pre_registrations")` would have made every column name a
+ * string literal nobody checks.
+ */
+
+/** 0032. `provider_unavailable` is an OUTCOME, never an error swallowed. */
+export type CarrierVerificationStatus =
+  | "pending"
+  | "verified"
+  | "manual_review"
+  | "not_verified"
+  | "provider_unavailable";
+
+export type CarrierRiskTier = "low" | "medium" | "high" | "manual_review";
+
+export type PrequalDecisionValue =
+  | "eligible_to_continue"
+  | "manual_review"
+  | "not_eligible";
+
+export type OnboardingPaymentStatus =
+  | "unpaid"
+  | "session_created"
+  | "paid"
+  | "failed"
+  | "refunded";
+
+/** `unavailable` is distinct from `mismatch`: not knowing is not disagreeing. */
+export type IdentityMatchResultValue =
+  | "exact"
+  | "normalized"
+  | "mismatch"
+  | "unavailable";
+
+type CarrierPreRegistrationRow = {
+  id: string;
+  /** What the applicant TYPED. Never overwritten with provider data. */
+  legal_name_entered: string;
+  usdot_number_entered: string;
+  mc_number_entered: string | null;
+  email: string;
+  phone: string | null;
+  /** `text` in 0032, like every other locale column here — not an enum. */
+  locale: string;
+  verification_status: CarrierVerificationStatus;
+  risk_tier: CarrierRiskTier | null;
+  decision: PrequalDecisionValue | null;
+  manual_review_required: boolean;
+  /** Machine-readable codes only — never prose, never the full rule set. */
+  reason_codes: string[];
+  payment_status: OnboardingPaymentStatus;
+  /** Set once, at account creation. Its presence means this pre-registration
+   *  has been SPENT and cannot be reused by another applicant. */
+  claimed_carrier_id: string | null;
+  claimed_at: string | null;
+  expires_at: string;
+  /* ---- 0033 (M-94): staff review provenance ---- */
+  /** The staff member who resolved a manual review. Never an applicant. */
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  /** Why they decided what they decided. Staff-facing operational text. */
+  review_note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type CarrierVerificationRow = {
+  id: string;
+  pre_registration_id: string | null;
+  carrier_id: string | null;
+  provider: string;
+  provider_record_id: string | null;
+  status: CarrierVerificationStatus;
+  legal_name: string | null;
+  dba_name: string | null;
+  usdot_number: string | null;
+  mc_number: string | null;
+  allowed_to_operate: boolean | null;
+  out_of_service: boolean | null;
+  out_of_service_date: string | null;
+  name_match: IdentityMatchResultValue | null;
+  mc_match: IdentityMatchResultValue | null;
+  dot_match: IdentityMatchResultValue | null;
+  /** SHA-256 of the raw body. The payload itself is deliberately NOT stored. */
+  raw_response_sha256: string | null;
+  checked_at: string;
+  source_retrieved_at: string | null;
+  next_verification_at: string | null;
+  created_at: string;
+};
+
+type CarrierOnboardingPaymentRow = {
+  id: string;
+  pre_registration_id: string;
+  provider: string;
+  provider_session_id: string | null;
+  provider_payment_intent_id: string | null;
+  /** Recorded from the SERVER-side price, never from the browser. */
+  amount_cents: number;
+  currency: string;
+  status: OnboardingPaymentStatus;
+  test_mode: boolean;
+  paid_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 type Insertable<Row, Required extends keyof Row> = Pick<Row, Required> &
   Partial<Omit<Row, Required>>;
 
@@ -1270,6 +1381,41 @@ export type Database = {
           "broker_partner_id" | "shipper_id" | "granted_by"
         >;
         Update: Partial<BrokerAccountAgreementRow>;
+        Relationships: [];
+      };
+      /* ---------- M-93 (0032), first consumed by M-94 ----------
+       *
+       * STAFF-ONLY at the table level (0032 §4): there is no `anon` and no
+       * `authenticated` policy on any of the three, so an applicant — who is
+       * anonymous — reaches their own record ONLY through a server action
+       * running as the service role that checks the opaque id, the expiry and
+       * the claim. `Insert`/`Update` are reachable from `src/` for exactly
+       * that reason and from nowhere else. */
+      carrier_pre_registrations: {
+        Row: CarrierPreRegistrationRow;
+        Insert: Insertable<
+          CarrierPreRegistrationRow,
+          "legal_name_entered" | "usdot_number_entered" | "email"
+        >;
+        Update: Partial<CarrierPreRegistrationRow>;
+        Relationships: [];
+      };
+      carrier_verifications: {
+        Row: CarrierVerificationRow;
+        Insert: Insertable<CarrierVerificationRow, "status">;
+        Update: Partial<CarrierVerificationRow>;
+        Relationships: [];
+      };
+      /* M-95 owns the writes here. Declared now so the M-94 gate can READ
+       * payment state without a cast — the gate must be able to say "not
+       * paid" long before anything can say "paid". */
+      carrier_onboarding_payments: {
+        Row: CarrierOnboardingPaymentRow;
+        Insert: Insertable<
+          CarrierOnboardingPaymentRow,
+          "pre_registration_id" | "amount_cents"
+        >;
+        Update: Partial<CarrierOnboardingPaymentRow>;
         Relationships: [];
       };
     };

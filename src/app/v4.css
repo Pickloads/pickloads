@@ -81,7 +81,25 @@ nav.sitenav .wrap{display:flex;align-items:center;justify-content:space-between;
 .mobile-menu{display:none;background:#0B0E11;border-bottom:1px solid var(--line);padding:10px 24px 18px}
 .mobile-menu a{display:block;padding:11px 4px;color:#cfd6da;border-bottom:1px solid var(--line);font-weight:500;cursor:pointer}
 .mobile-menu a:last-child{border-bottom:none}
-.mobile-menu.open{display:block}
+/* ── The open drawer is its own scroll container ──────────────────────────
+ * Nothing here is a visual change: same background, same border, same link
+ * treatment, same padding on the three sides that were already set.
+ *
+ * `--mm-max-h` is measured in SiteNav (viewport height minus where the nav
+ * actually ends) because a static calc() is wrong either at scroll-top, where
+ * the topbar is still on screen, or once scrolled, where it is not. The
+ * fallback covers the first paint and the no-JS case.
+ *
+ * `overscroll-behavior:contain` is what stops a swipe that reaches the top or
+ * the bottom of this list from being handed to the page underneath — the
+ * "scroll chaining" half of the reported bug. The body lock in SiteNav is the
+ * other half; on iOS neither alone is enough.
+ *
+ * The bottom padding clears BOTH the iPhone home indicator and the fixed
+ * `.call-fab`, which sits at z-index 60 over this panel below 960px. Without
+ * it the last one or two destinations sit permanently under the call button.
+ */
+.mobile-menu.open{display:block;max-height:var(--mm-max-h,calc(100dvh - 110px));overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-bottom:calc(94px + env(safe-area-inset-bottom,0px))}
 
 /* hero */
 .hero{position:relative;padding:96px 0 0;overflow:hidden;background:
@@ -130,6 +148,11 @@ nav.sitenav .wrap{display:flex;align-items:center;justify-content:space-between;
 .form-err.show{display:block}
 .light .form-err{color:#7a2a2a;background:rgba(122,42,42,.07);border-color:rgba(122,42,42,.35)}
 .field .err-msg{display:block;font-family:var(--font-mono);font-size:.66rem;letter-spacing:.06em;color:#f2c9c9;margin-top:6px}
+/* M-94: per-field help text. Same mono treatment as .err-msg above; the only
+   difference is that it is not an error, so it takes the neutral steel token
+   instead of the red pair. No new colours, no new sizes. */
+.field-hint{display:block;font-family:var(--font-mono);font-size:.66rem;letter-spacing:.04em;color:var(--steel);margin-top:6px}
+.light .field-hint{color:var(--color-slate-aa)}
 .light .field .err-msg{color:#7a2a2a}
 .field.invalid select,.field.invalid input,.field.invalid textarea{border-color:#7a2a2a}
 .btn[aria-busy="true"]{opacity:.7;pointer-events:none}
@@ -401,11 +424,18 @@ details .a{padding:0 22px 20px;font-size:.93rem;color:#4a545b}
 .socials a{border:1px solid var(--line);border-radius:6px;padding:8px 16px;font-family:var(--font-mono);font-size:.74rem;color:#a9b2b8}
 .socials a:hover{border-color:var(--amber);color:var(--amber)}
 
-/* M-20 become-a-carrier wizard (audit U-10: the 4-step wizard is approved
-   net-new UI composed strictly from V4 vocabulary — .steps as the progress
-   indicator, .bigform fields, .upload dropzones; state colors reuse the U-03
-   palette and existing V4 grays; no new raw hex). */
-.wizard .steps{margin-top:36px;margin-bottom:10px}
+/* M-20 become-a-carrier wizard (audit U-10: the wizard is approved net-new UI
+   composed strictly from V4 vocabulary — .steps as the progress indicator,
+   .bigform fields, .upload dropzones; state colors reuse the U-03 palette and
+   existing V4 grays; no new raw hex).
+
+   M-94: the strip is six steps, not four. The base `.steps` rule is
+   `repeat(4,1fr)` and is shared with the homepage process section, so the
+   wizard overrides its own column count to 3×2 rather than editing a grid five
+   other sections depend on. Below 960px the existing `.steps{1fr 1fr}` rule
+   takes over (3×2 → 2×3) and below 520px it collapses to one column, so no
+   breakpoint gets six narrow columns and nothing overflows horizontally. */
+.wizard .steps{margin-top:36px;margin-bottom:10px;grid-template-columns:repeat(3,1fr)}
 .wizard .step{opacity:.85}
 .wizard .step.current{opacity:1;border-top-color:var(--amber)}
 .wizard .step.done{opacity:1;border-top-color:var(--green-bright)}
@@ -454,6 +484,11 @@ details .a{padding:0 22px 20px;font-size:.93rem;color:#4a545b}
   .menu-btn{display:block}
   .services-grid,.why-grid,.compliance .wrap,.packet-grid{grid-template-columns:1fr}
   .steps{grid-template-columns:1fr 1fr}
+  /* M-94: `.wizard .steps` is more specific than `.steps`, so the desktop 3-up
+     would survive into this breakpoint on specificity alone — source order
+     does not save it. Restated here (and at 520px) so the six-step strip
+     actually reflows. */
+  .wizard .steps{grid-template-columns:1fr 1fr}
   .eq-grid{grid-template-columns:1fr 1fr}
   .testis,.pricing-grid{grid-template-columns:1fr}
   .foot-grid{grid-template-columns:1fr 1fr}
@@ -472,6 +507,7 @@ details .a{padding:0 22px 20px;font-size:.93rem;color:#4a545b}
 }
 @media(max-width:520px){
   .steps,.eq-grid,.quote-form,.ship-why,.bigform .grid3,.bigform .grid2{grid-template-columns:1fr}
+  .wizard .steps{grid-template-columns:1fr}
   .stats{grid-template-columns:1fr 1fr}
 }
 

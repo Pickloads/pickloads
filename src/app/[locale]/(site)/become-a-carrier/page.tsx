@@ -19,7 +19,7 @@ export async function generateMetadata({
     href: "/become-a-carrier",
     title: "Become a Carrier — PickLoads Logistics Group",
     description:
-      "Onboard with PickLoads in about 10 minutes: company info, secure document upload, plain-English dispatch agreement and your own carrier portal. No forced dispatch, no exit fees.",
+      "Onboarding starts with an FMCSA check of your USDOT and MC — then documents, a plain-English dispatch agreement and your own carrier portal. No forced dispatch, no exit fees.",
   });
 }
 
@@ -43,8 +43,12 @@ export default async function BecomeACarrierPage({
         eyebrow={tv("Carrier onboarding")}
         title={tv(ONBOARDING_TIMING.headline)}
       >
+        {/* M-94 §23: the old sentence described a four-step flow that started
+            with a company-info form. Verification now comes first, and the
+            hero has to say so — a visitor who is told "your company info" and
+            then meets a USDOT check has been mis-sold the next click. */}
         {tv(
-          "Four steps, about 10 minutes: your company info, your documents, a plain-English agreement and your own portal. A dispatcher typically calls you the same day.",
+          "It starts with verification: we check your USDOT and MC with FMCSA before anything else. Then your documents, a plain-English agreement and your own portal.",
         )}{" "}
         {tv(ONBOARDING_TIMING.qualifier)}
       </PageHero>

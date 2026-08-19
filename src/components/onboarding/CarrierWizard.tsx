@@ -14,14 +14,38 @@ import {
   initialStartState,
 } from "@/lib/onboarding-state";
 import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
+import { CarrierPrecheck } from "@/components/onboarding/CarrierPrecheck";
 import { DocUpload } from "@/components/onboarding/DocUpload";
 import type { DocType } from "@/lib/supabase/database.types";
 
 /**
- * M-20 — 4-step become-a-carrier wizard (audit U-10 net-new surface, V4
- * vocabulary: .steps progress, .bigform fields, .upload dropzones).
- * Steps: 1 company info → 2 documents → 3 e-sign consent → 4 account.
+ * M-20 — the become-a-carrier wizard, REWIRED by M-94.
+ *
+ * ── WHAT CHANGED AND WHY THE STEP STRIP IS NOW SIX ───────────────────────
+ *
+ * The old presentation was: company info → documents → agreement → portal.
+ * The first thing that happened when a visitor pressed "Continue" was a
+ * `carriers` row. Nobody had checked whether the company existed.
+ *
+ * Verification is now the first thing on the page, and the strip says so.
+ * §23's suggested list has five entries; this has six, because there is a
+ * genuine company-details step between the fee and the documents — the wizard
+ * needs a contact name, a phone number and a home state before it can create
+ * anything — and folding it into a neighbour to hit a target count would be
+ * exactly the inaccurate labelling §23 is about. "Company info" also remains a
+ * real, translated step name, which `tests/e2e/i18n-locales.spec.ts` samples on
+ * this route.
+ *
+ * ── THE CLIENT DECIDES NOTHING ───────────────────────────────────────────
+ *
+ * `step` is presentation. Advancing it does not make the applicant eligible,
+ * paid or approved: `startOnboarding` re-reads the pre-registration from the
+ * database on every call and refuses without one (§16/§17), so a user who
+ * skips a panel in React arrives at a server action that has never heard of
+ * them. There is no `verified` state here to flip.
  */
+
+type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
 const WIZARD_DOCS: ReadonlyArray<{
   type: Extract<DocType, "mc_authority" | "coi" | "w9" | "voided_check">;
@@ -50,8 +74,7 @@ const WIZARD_DOCS: ReadonlyArray<{
   },
 ];
 
-interface StepOneInfo {
-  company_name: string;
+interface ContactInfo {
   full_name: string;
   email: string;
   phone: string;
@@ -60,9 +83,8 @@ interface StepOneInfo {
 export function CarrierWizard({ esignLive }: { esignLive: boolean }) {
   const tv = useV4();
   const locale = useLocale();
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
-  const [info, setInfo] = useState<StepOneInfo>({
-    company_name: "",
+  const [step, setStep] = useState<Step>(1);
+  const [info, setInfo] = useState<ContactInfo>({
     full_name: "",
     email: "",
     phone: "",
@@ -82,15 +104,15 @@ export function CarrierWizard({ esignLive }: { esignLive: boolean }) {
   const carrierId = startState.carrierId;
 
   useEffect(() => {
-    if (startState.status === "success" && startState.carrierId) setStep(2);
+    if (startState.status === "success" && startState.carrierId) setStep(4);
   }, [startState]);
 
   /**
-   * Turnstile tokens are single-use. A failed step 1 left the widget holding
-   * the token it had already spent, so the retry re-sent a dead token and
-   * Cloudflare refused it as `timeout-or-duplicate` — turning ANY first
-   * failure (a typo'd phone number was enough) into a permanent
-   * "We couldn't verify your submission" that only a page refresh cleared.
+   * Turnstile tokens are single-use. A failed company-details submit left the
+   * widget holding the token it had already spent, so the retry re-sent a dead
+   * token and Cloudflare refused it as `timeout-or-duplicate` — turning ANY
+   * first failure (a typo'd phone number was enough) into a permanent "We
+   * couldn't verify your submission" that only a page refresh cleared.
    *
    * Counting failures and feeding that to the widget remounts it, so each
    * attempt carries a token that has never been used.
@@ -117,11 +139,11 @@ export function CarrierWizard({ esignLive }: { esignLive: boolean }) {
     }
   }, [step]);
 
-  const stepClass = (n: 1 | 2 | 3 | 4) =>
+  const stepClass = (n: Step) =>
     `step${step === n ? " current" : ""}${step > n ? " done" : ""}`;
 
   const setField =
-    (key: keyof StepOneInfo) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    (key: keyof ContactInfo) => (e: React.ChangeEvent<HTMLInputElement>) =>
       setInfo((prev) => ({ ...prev, [key]: e.target.value }));
 
   return (
@@ -130,28 +152,76 @@ export function CarrierWizard({ esignLive }: { esignLive: boolean }) {
       <ol className="steps" style={{ listStyle: "none", padding: 0 }} aria-label={tv("Onboarding progress")}>
         <li className={stepClass(1)} aria-current={step === 1 ? "step" : undefined}>
           <span className="n">{tv("STEP 1")}</span>
-          <h3>{tv("Company info")}</h3>
-          <p>{tv("Who you are and how we reach you.")}</p>
+          <h3>{tv("Carrier verification")}</h3>
+          <p>{tv("USDOT and MC checked with FMCSA.")}</p>
         </li>
         <li className={stepClass(2)} aria-current={step === 2 ? "step" : undefined}>
           <span className="n">{tv("STEP 2")}</span>
-          <h3>{tv("Documents")}</h3>
-          <p>{tv("MC letter, COI, W-9, voided check.")}</p>
+          <h3>{tv("Verification fee")}</h3>
+          <p>{tv("$9.99 one-time onboarding fee.")}</p>
         </li>
         <li className={stepClass(3)} aria-current={step === 3 ? "step" : undefined}>
           <span className="n">{tv("STEP 3")}</span>
-          <h3>{tv("Agreement")}</h3>
-          <p>{tv("Plain-English dispatch agreement, e-signed.")}</p>
+          <h3>{tv("Company info")}</h3>
+          <p>{tv("Who you are and how we reach you.")}</p>
         </li>
         <li className={stepClass(4)} aria-current={step === 4 ? "step" : undefined}>
           <span className="n">{tv("STEP 4")}</span>
+          <h3>{tv("Documents")}</h3>
+          <p>{tv("MC letter, COI, W-9, voided check.")}</p>
+        </li>
+        <li className={stepClass(5)} aria-current={step === 5 ? "step" : undefined}>
+          <span className="n">{tv("STEP 5")}</span>
+          <h3>{tv("Agreement")}</h3>
+          <p>{tv("Plain-English dispatch agreement, e-signed.")}</p>
+        </li>
+        <li className={stepClass(6)} aria-current={step === 6 ? "step" : undefined}>
+          <span className="n">{tv("STEP 6")}</span>
           <h3>{tv("Your portal")}</h3>
-          <p>{tv("Create your account. Done.")}</p>
+          <p>{tv("Account access and staff compliance review.")}</p>
         </li>
       </ol>
 
-      {/* ---------------- Step 1 — company info ---------------- */}
-      {step === 1 ? (
+      {/* ---------------- Step 1 — FMCSA verification ---------------- */}
+      {step === 1 ? <CarrierPrecheck onVerified={() => setStep(2)} /> : null}
+
+      {/* ---------------- Step 2 — verification fee (M-95 owns it) ------- */}
+      {step === 2 ? (
+        <div className="bigform">
+          <h2>{tv("Verification fee")}</h2>
+          <p>
+            {tv(
+              "PickLoads charges a $9.99 one-time carrier verification and onboarding fee.",
+            )}
+          </p>
+          {/* ── §13/§28: NO FAKE PAYMENT SUCCESS ──────────────────────────
+              Stripe Checkout is M-95. This panel does not create a session,
+              does not record a payment row and does not mark anything paid —
+              and it says so, because a screen that let a carrier believe they
+              had paid would be worse than one that has no button at all.
+              Activation independently requires PAYMENT_CONFIRMED
+              (src/lib/carrier-authority/activation-gate.ts), so continuing
+              here cannot short-circuit anything downstream. */}
+          <div className="esign-panel">
+            <b>{tv("Card payment is not live yet")}</b>
+            <p>
+              {tv(
+                "Nothing is charged today. You can continue with your documents and account now; no carrier account is activated until the verification fee is settled with our team.",
+              )}
+            </p>
+          </div>
+          <button
+            className="btn btn-amber"
+            type="button"
+            onClick={() => setStep(3)}
+          >
+            {tv("Continue to Company Info →")}
+          </button>
+        </div>
+      ) : null}
+
+      {/* ---------------- Step 3 — company details ---------------- */}
+      {step === 3 ? (
         <div className="bigform">
           <h2>{tv("Tell us about your operation")}</h2>
           <p>
@@ -159,36 +229,26 @@ export function CarrierWizard({ esignLive }: { esignLive: boolean }) {
               "About 5 minutes. Fields marked optional can be completed later from your portal.",
             )}
           </p>
+          {/* Company name, USDOT and MC are NOT asked again. They were
+              verified in step 1 and the server takes them from that record —
+              re-collecting them would create a second, unverified answer to
+              "who is this carrier?" and a one-field way around the check. */}
           <form action={startAction}>
             <input type="hidden" name="locale" value={locale} />
             <div className="grid2">
               <div className="field">
-                <label htmlFor="ob-company">{tv("Company Name")}</label>
-                <input id="ob-company" name="company_name" type="text" required value={info.company_name} onChange={setField("company_name")} autoComplete="organization" placeholder={tv("Your company LLC")} />
-              </div>
-              <div className="field">
                 <label htmlFor="ob-name">{tv("Your Full Name")}</label>
                 <input id="ob-name" name="full_name" type="text" required value={info.full_name} onChange={setField("full_name")} autoComplete="name" placeholder="John Carter" />
-              </div>
-            </div>
-            <div className="grid2">
-              <div className="field">
-                <label htmlFor="ob-email">{tv("Email")}</label>
-                <input id="ob-email" name="email" type="email" required value={info.email} onChange={setField("email")} autoComplete="email" placeholder="you@company.com" />
               </div>
               <div className="field">
                 <label htmlFor="ob-phone">{tv("Phone")}</label>
                 <input id="ob-phone" name="phone" type="tel" required value={info.phone} onChange={setField("phone")} autoComplete="tel" inputMode="tel" placeholder="(___) ___-____" />
               </div>
             </div>
-            <div className="grid3">
+            <div className="grid2">
               <div className="field">
-                <label htmlFor="ob-mc">{tv("MC # (optional)")}</label>
-                <input id="ob-mc" name="mc_number" type="text" placeholder="MC-000000" />
-              </div>
-              <div className="field">
-                <label htmlFor="ob-dot">{tv("USDOT # (optional)")}</label>
-                <input id="ob-dot" name="dot_number" type="text" placeholder="0000000" />
+                <label htmlFor="ob-email">{tv("Email")}</label>
+                <input id="ob-email" name="email" type="email" required value={info.email} onChange={setField("email")} autoComplete="email" placeholder="you@company.com" />
               </div>
               <div className="field">
                 <label htmlFor="ob-state">{tv("Home State")}</label>
@@ -220,8 +280,8 @@ export function CarrierWizard({ esignLive }: { esignLive: boolean }) {
         </div>
       ) : null}
 
-      {/* ---------------- Step 2 — documents ---------------- */}
-      {step === 2 && carrierId ? (
+      {/* ---------------- Step 4 — documents ---------------- */}
+      {step === 4 && carrierId ? (
         <div className="bigform">
           <h2>{tv("Upload your documents")}</h2>
           <p>
@@ -247,7 +307,7 @@ export function CarrierWizard({ esignLive }: { esignLive: boolean }) {
               "Files are stored in a private, encrypted bucket and reviewed by our compliance team — never public.",
             )}
           </p>
-          <button className="btn btn-amber" type="button" onClick={() => setStep(3)}>
+          <button className="btn btn-amber" type="button" onClick={() => setStep(5)}>
             {uploadedCount > 0
               ? tv("Continue to Agreement →")
               : tv("Skip for now — Continue →")}
@@ -255,8 +315,8 @@ export function CarrierWizard({ esignLive }: { esignLive: boolean }) {
         </div>
       ) : null}
 
-      {/* ---------------- Step 3 — e-sign consent ---------------- */}
-      {step === 3 ? (
+      {/* ---------------- Step 5 — e-sign consent ---------------- */}
+      {step === 5 ? (
         <div className="bigform">
           <h2>{tv("Dispatch agreement & e-signature")}</h2>
           <p>
@@ -302,15 +362,15 @@ export function CarrierWizard({ esignLive }: { esignLive: boolean }) {
             type="button"
             disabled={!consent}
             style={!consent ? { opacity: 0.6, cursor: "not-allowed", transform: "none" } : undefined}
-            onClick={() => consent && setStep(4)}
+            onClick={() => consent && setStep(6)}
           >
             {tv("Continue to Account →")}
           </button>
         </div>
       ) : null}
 
-      {/* ---------------- Step 4 — account ---------------- */}
-      {step === 4 && accountState.status !== "success" ? (
+      {/* ---------------- Step 6 — account ---------------- */}
+      {step === 6 && accountState.status !== "success" ? (
         <div className="bigform">
           <h2>{tv("Create your carrier portal account")}</h2>
           <p>
@@ -322,7 +382,10 @@ export function CarrierWizard({ esignLive }: { esignLive: boolean }) {
             <input type="hidden" name="carrier_id" value={carrierId ?? ""} />
             <input type="hidden" name="full_name" value={info.full_name} />
             <input type="hidden" name="phone" value={info.phone} />
-            <input type="hidden" name="company_name" value={info.company_name} />
+            {/* Display only. `completeOnboarding` writes the profile's
+                company name from this value, and the CARRIER row's name comes
+                from the verified pre-registration either way. */}
+            <input type="hidden" name="company_name" value={startState.companyName ?? ""} />
             <input type="hidden" name="esign_consent" value={consent ? "on" : ""} />
             <input type="hidden" name="locale" value={locale} />
             <div className="grid2">
@@ -348,10 +411,22 @@ export function CarrierWizard({ esignLive }: { esignLive: boolean }) {
       {/* ---------------- Done ---------------- */}
       {accountState.status === "success" ? (
         <div className="bigform">
-          <h2>{tv("You're onboarded. Welcome to PickLoads.")}</h2>
+          {/* §23: this used to say "You're onboarded. Welcome to PickLoads."
+              An account exists; an onboarding does not. Documents are still
+              unreviewed, the agreement is unsigned, the fee is uncollected and
+              `carriers.active` is false — so the heading now says what is
+              actually true and nothing more. */}
+          <h2>{tv("Account created — pending compliance review.")}</h2>
+          {/* The wording had to change AND had to change early in the string.
+              `slugifyV4` truncates at 56 characters, so appending the new
+              "not active until…" clause to the old sentence would have
+              produced the OLD key — and `useV4` would have found it and
+              rendered the old, shorter claim in every locale including
+              English. A silent no-op is the worst outcome for a correction
+              about what "created" does and does not mean. */}
           <div className="form-ok show" role="status">
             {tv(
-              "✓ ACCOUNT CREATED — Our team reviews your documents within one business day.",
+              "✓ ACCOUNT CREATED, PENDING REVIEW — your account is not active until our document review, the dispatch agreement and the verification fee are complete. We review documents within one business day.",
             )}{" "}
             {accountState.esign === "sent"
               ? tv("Your dispatch agreement is on its way to your inbox for e-signature.")

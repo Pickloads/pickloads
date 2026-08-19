@@ -6,8 +6,17 @@
 export interface StartState {
   status: "idle" | "success" | "error";
   message?: string;
-  /** carriers.id created by step 1 — the wizard's session handle. */
+  /** carriers.id created by `startOnboarding` — the wizard's session handle. */
   carrierId?: string;
+  /**
+   * The VERIFIED legal company name, echoed back by the server.
+   *
+   * M-94: the wizard no longer asks for a company name — it was verified with
+   * FMCSA in step 1 and `startOnboarding` reads it from the pre-registration.
+   * It comes back here so the account step can show and submit it without the
+   * browser being the one that decides what this carrier is called.
+   */
+  companyName?: string;
 }
 
 export const initialStartState: StartState = { status: "idle" };

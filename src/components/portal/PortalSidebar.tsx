@@ -126,6 +126,14 @@ export function PortalSidebar({
                 create routes must keep the parent entry marked current. */}
             {item("/portal/admin/shipments", "Shipments")}
             {item("/portal/admin/quotes", "Freight quotes")}
+            {/* M-94 — the manual-review queue. Dispatcher-visible, not
+                admin-only: resolving an FMCSA timeout or a name that differs
+                by more than punctuation is dispatch work, and a queue only
+                admins can see is a queue that waits for an admin. Clearing an
+                applicant lets them continue to the fee; it activates nothing,
+                which is why it does not need the account-decision gate the
+                broker partner surface has. */}
+            {item("/portal/admin/carrier-verifications", "Carrier verifications")}
             {/* M-81 — §12's partner administration. ADMIN only: deciding who a
                 counterparty is is an account decision, and M-58 established
                 that dispatchers do not make those. Sharing one shipment is on

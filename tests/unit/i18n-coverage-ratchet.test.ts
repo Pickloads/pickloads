@@ -146,9 +146,42 @@ const MAX_UNTRANSLATED: Record<string, Record<string, number>> = {
   //     has refused four times already. They are listed by key in
   //     docs/modules/M-90-i18n-repair.md so the review has a work queue.
   //
+  // ── M-94 (2026-08-18): ru +9, ht +9. es and fr DID NOT MOVE ─────────────
+  //
+  // The carrier pre-check added 32 v4 strings — the FMCSA verification screen,
+  // its three outcomes, the fee placeholder, two new step labels and the
+  // corrected "account created" wording. All 32 are authored in es and fr,
+  // which is why those two baselines are unchanged.
+  //
+  // NINE of them mirror English in ru and ht, and they are exactly the nine
+  // that docs/COWORK-CONTENT-REVIEW.md §3 reserves for a native translator:
+  //
+  //   the $9.99 fee, twice (`9_99_one_time_onboarding_fee`,
+  //   `pickloads_charges_a_9_99_…`) — a price;
+  //   `nothing_is_charged_today_…` — a statement about when money is taken
+  //   and what activation depends on;
+  //   `account_created_pending_compliance_review` and
+  //   `account_created_pending_review_your_account_is_not_activ` — what a
+  //   created account does and does not entitle the carrier to;
+  //   `we_couldn_t_verify_this_usdot_number_with_fmcsa_please_r` — the
+  //   adverse outcome an applicant is shown;
+  //   `onboarding_begins_…`, `onboarding_starts_…` and
+  //   `it_starts_with_verification_…` — the public promise about what the
+  //   process is and what it costs.
+  //
+  // Every one is a commitment about money, eligibility or a federal record.
+  // Machine-translating those into Haitian Creole to make a number in this
+  // file go down is the trade this repo has refused five times now: an
+  // accurate English sentence read by a Russian or Haitian Creole speaker is a
+  // defect, and a fluent mistranslation of a price or a refusal is a worse
+  // one. They are the priority queue for the native review.
+  //
+  // The other 23 — labels, buttons, field hints, step names, the manual-review
+  // and unverified-carrier explanations — ARE translated in ru and ht.
+  //
   // The direction that matters is unchanged: a raised baseline still has to
   // explain itself, and these lines are that explanation.
-  v4: { es: 33, fr: 46, ru: 521, ht: 540 },
+  v4: { es: 33, fr: 46, ru: 530, ht: 549 },
 };
 
 function flatten(value: unknown, path: string, out: Map<string, string>): void {

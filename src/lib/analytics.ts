@@ -32,6 +32,16 @@ export type AnalyticsEvent =
   | "carrier_application_started"
   | "carrier_application_submitted"
   | "new_authority_inquiry"
+  // M-94 carrier pre-check funnel. NOTHING identifying travels with these:
+  // no MC, no USDOT, no legal name, no email (§22). The funnel needs to know
+  // that a check happened and how it came out, not who it was about — and the
+  // only way to guarantee that is for `AnalyticsParams` to have nowhere to
+  // put it, which it does not.
+  | "carrier_precheck_started"
+  | "carrier_precheck_completed"
+  | "carrier_precheck_manual_review"
+  | "carrier_precheck_not_eligible"
+  | "carrier_precheck_continue"
   // Corporate enquiries
   | "career_interest"
   | "partner_inquiry_started"
@@ -52,6 +62,11 @@ export const ANALYTICS_EVENTS = [
   "carrier_application_started",
   "carrier_application_submitted",
   "new_authority_inquiry",
+  "carrier_precheck_started",
+  "carrier_precheck_completed",
+  "carrier_precheck_manual_review",
+  "carrier_precheck_not_eligible",
+  "carrier_precheck_continue",
   "career_interest",
   "partner_inquiry_started",
   "partner_inquiry_submitted",

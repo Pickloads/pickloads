@@ -3600,3 +3600,259 @@ select rls_test.rejects_with(
 
 reset role;
 set request.jwt.claim.sub = '';
+
+-- ===========================================================================
+-- 18 · M-94 — THE PRE-REGISTRATION GATE (migration 0032)
+--
+-- 0032's RLS doctrine is stated in its own header: staff-only on all three
+-- tables, NO `anon` policy and NO `authenticated` policy, because an applicant
+-- is anonymous and reaches their own record only through a server action
+-- running as the service role. That was a comment. This section is the check.
+--
+-- The two assertions §26 names by name — "anonymous attempt to mutate
+-- verification status" and "carrier attempts to self-approve" — are 18a and
+-- 18b. The rest exist because a gate whose STATE is writable by the thing it
+-- gates is not a gate: `decision`, `verification_status`, `payment_status` and
+-- `claimed_carrier_id` are the four columns that decide whether an account may
+-- be created, and every one of them has to be unreachable from a browser.
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- 18a · the anon key sees nothing and writes nothing
+-- ---------------------------------------------------------------------------
+reset role;
+set request.jwt.claim.sub = '';
+set role anon;
+select rls_test.reads_nothing('carrier_pre_registrations',
+  '§18: anon cannot read pre-registrations — the applicant''s own record included');
+select rls_test.reads_nothing('carrier_verifications',
+  '§18: anon cannot read authority verifications');
+select rls_test.reads_nothing('carrier_onboarding_payments',
+  '§18: anon cannot read onboarding payments');
+
+-- The enumeration shape: an opaque id is not a read grant. Even holding the
+-- exact UUID, the anon role gets nothing — which is what makes the id safe to
+-- put in a cookie and what stops /become-a-carrier being an FMCSA mirror.
+select rls_test.eq(
+  (select count(*) from carrier_pre_registrations
+     where id = '9e9e9e9e-9e9e-4e9e-8e9e-9e9e9e9e0001'), 0,
+  '§18: knowing the pre-registration id does not let anon read the row');
+
+select rls_test.writes_nothing(
+  $$insert into carrier_pre_registrations (legal_name_entered, usdot_number_entered, email, decision)
+    values ('Self Approved LLC','9999999','x@y.test','eligible_to_continue')$$,
+  '§18: anon cannot mint a pre-registration that says it is eligible');
+select rls_test.writes_nothing(
+  $$update carrier_pre_registrations set decision = 'eligible_to_continue'$$,
+  '§18: anon cannot set a decision');
+select rls_test.writes_nothing(
+  $$update carrier_pre_registrations set verification_status = 'verified'$$,
+  '§18 / §26: an ANONYMOUS attempt to mutate verification status changes nothing');
+select rls_test.writes_nothing(
+  $$update carrier_pre_registrations set payment_status = 'paid'$$,
+  '§18: anon cannot mark an onboarding fee paid');
+select rls_test.writes_nothing(
+  $$update carrier_pre_registrations set expires_at = now() + interval '999 days'$$,
+  '§18: anon cannot extend an expiry');
+select rls_test.writes_nothing(
+  $$update carrier_pre_registrations set claimed_carrier_id = null, claimed_at = null$$,
+  '§18: anon cannot un-spend a claimed pre-registration and replay it');
+select rls_test.writes_nothing(
+  $$delete from carrier_pre_registrations$$,
+  '§18: anon cannot delete the evidence');
+select rls_test.writes_nothing(
+  $$insert into carrier_verifications (pre_registration_id, status, allowed_to_operate)
+    values ('9e9e9e9e-9e9e-4e9e-8e9e-9e9e9e9e0003','verified',true)$$,
+  '§18: anon cannot forge a passing verification for a manual-review applicant');
+select rls_test.writes_nothing(
+  $$update carrier_onboarding_payments set status = 'paid', paid_at = now()$$,
+  '§18: anon cannot pay by UPDATE');
+
+-- ---------------------------------------------------------------------------
+-- 18b · a signed-in CARRIER is no better placed than anon
+-- ---------------------------------------------------------------------------
+-- `reset role` first: `anon` is not a member of `authenticated`, so switching
+-- between them directly is refused. Every other section in this file resets
+-- for the same reason.
+reset role;
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';
+
+select rls_test.eq((select count(*) from carrier_pre_registrations), 0,
+  '§18: carrierA cannot read ANY pre-registration');
+-- Not even the one BOUND TO ITS OWN CARRIER ROW. There is no `authenticated`
+-- policy at all, so ownership is not a route in: the applicant sees their own
+-- record through a server action or not at all.
+select rls_test.eq(
+  (select count(*) from carrier_pre_registrations
+     where claimed_carrier_id = '11111111-1111-1111-1111-11111111aaaa'), 0,
+  '§18: carrierA cannot read the pre-registration bound to its OWN carrier row');
+select rls_test.eq((select count(*) from carrier_verifications), 0,
+  '§18: carrierA cannot read authority verifications');
+select rls_test.eq((select count(*) from carrier_onboarding_payments), 0,
+  '§18: carrierA cannot read onboarding payments');
+
+select rls_test.writes_nothing(
+  $$update carrier_pre_registrations set decision = 'eligible_to_continue'
+      where id = '9e9e9e9e-9e9e-4e9e-8e9e-9e9e9e9e0003'$$,
+  '§18 / §26: a CARRIER cannot self-approve a manual-review pre-registration');
+select rls_test.writes_nothing(
+  $$update carrier_pre_registrations set verification_status = 'verified', risk_tier = 'low'$$,
+  '§18: a carrier cannot write its own verification status or risk tier');
+select rls_test.writes_nothing(
+  $$update carrier_pre_registrations set reason_codes = '{}'$$,
+  '§18: a carrier cannot erase the reason codes recorded against it');
+select rls_test.writes_nothing(
+  $$update carrier_pre_registrations set payment_status = 'paid'$$,
+  '§18: a carrier cannot mark itself paid');
+select rls_test.writes_nothing(
+  $$update carrier_onboarding_payments set status = 'paid', paid_at = now()$$,
+  '§18: a carrier cannot mark an onboarding payment row paid');
+select rls_test.writes_nothing(
+  $$insert into carrier_pre_registrations (legal_name_entered, usdot_number_entered, email, decision, verification_status)
+    values ('Carter Trucking LLC','76830','a1@carrier.test','eligible_to_continue','verified')$$,
+  '§18: a carrier cannot create a pre-registration that pre-declares itself verified');
+
+-- The activation column the whole gate protects. Re-asserted here rather than
+-- assumed from §1: `carriers.active` is what "approved" means, and a self-set
+-- true would make every requirement upstream of it decorative.
+select rls_test.writes_nothing(
+  $$update carriers set active = true where id = '11111111-1111-1111-1111-11111111aaaa'$$,
+  '§18 / §26: a carrier cannot activate ITSELF — no carrier may create an active account through this gate');
+
+-- ---------------------------------------------------------------------------
+-- 18c · a SHIPPER, an outsider and a BROKER are outside it too
+-- ---------------------------------------------------------------------------
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1';
+select rls_test.eq((select count(*) from carrier_pre_registrations), 0,
+  '§18: a shipper cannot read pre-registrations');
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000d1';
+select rls_test.eq((select count(*) from carrier_pre_registrations), 0,
+  '§18: an outsider cannot read pre-registrations');
+select rls_test.eq((select count(*) from carrier_verifications), 0,
+  '§18: an outsider cannot read authority verifications');
+select rls_test.eq((select count(*) from carrier_onboarding_payments), 0,
+  '§18: an outsider cannot read onboarding payments');
+
+-- ---------------------------------------------------------------------------
+-- 18d · STAFF can, which is what makes the review queue possible
+-- ---------------------------------------------------------------------------
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000e1';
+select rls_test.eq((select count(*) from carrier_pre_registrations), 3,
+  '§18: a dispatcher sees the pre-registration queue');
+select rls_test.eq(
+  (select count(*) from carrier_pre_registrations where decision = 'manual_review'), 1,
+  '§14: the manual-review applicant is VISIBLE in the staff queue, not lost');
+select rls_test.eq((select count(*) from carrier_verifications), 1,
+  '§18: a dispatcher sees the verification evidence');
+
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000f1';
+select rls_test.eq((select count(*) from carrier_pre_registrations), 3,
+  '§18: an admin sees the pre-registration queue');
+select rls_test.eq((select count(*) from carrier_onboarding_payments), 1,
+  '§18: an admin sees onboarding payments');
+
+-- ---------------------------------------------------------------------------
+-- 18f · the STAFF REVIEW columns (0033)
+--
+-- M-94's queue lets a dispatcher resolve a MANUAL_REVIEW application. That is
+-- a real privilege — it decides whether an applicant may continue past the
+-- gate — so the columns that record it have to be as unreachable from a
+-- browser as the decision itself. A `reviewed_by` a carrier could write is a
+-- carrier who can forge having been reviewed.
+-- ---------------------------------------------------------------------------
+reset role;
+set request.jwt.claim.sub = '';
+set role anon;
+
+select rls_test.writes_nothing(
+  $$update carrier_pre_registrations
+      set decision = 'eligible_to_continue',
+          reviewed_by = '00000000-0000-0000-0000-0000000000e1',
+          reviewed_at = now(),
+          review_note = 'self-service approval'$$,
+  '§18: anon cannot forge a staff review');
+
+reset role;
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';
+
+select rls_test.writes_nothing(
+  $$update carrier_pre_registrations
+      set reviewed_by = '00000000-0000-0000-0000-0000000000a1',
+          reviewed_at = now(),
+          review_note = 'reviewed myself'$$,
+  '§18: a carrier cannot stamp itself as reviewed');
+select rls_test.writes_nothing(
+  $$update carrier_pre_registrations set review_note = null$$,
+  '§18: a carrier cannot erase a reviewer''s note');
+
+-- Staff can, which is what makes the queue work at all.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000e1';
+select rls_test.affects(
+  $$update carrier_pre_registrations
+      set decision = 'eligible_to_continue',
+          manual_review_required = false,
+          reviewed_by = '00000000-0000-0000-0000-0000000000e1',
+          reviewed_at = now(),
+          review_note = 'Checked the docket by hand against FMCSA.'
+    where id = '9e9e9e9e-9e9e-4e9e-8e9e-9e9e9e9e0003'$$,
+  1, '§18: a dispatcher CAN resolve a manual review (non-vacuity for the four denials above)');
+
+-- ── RESOLVING A REVIEW IS NOT ACTIVATION ──────────────────────────────────
+--
+-- Note what is NOT asserted here: that staff cannot set `carriers.active`.
+-- They can — 0002's "staff manage carriers" is `for all` — and pretending
+-- otherwise would be a false comfort. What M-94 guarantees is that no code
+-- path it adds writes that column, which is a source-level fact and is
+-- asserted as one in tests/unit/carrier-review-queue.test.ts.
+--
+-- What the DATABASE can prove is the thing the two are confused for: clearing
+-- an application creates no carrier account. The applicant just cleared above
+-- still has none, so there is nothing to have activated.
+select rls_test.eq(
+  (select count(*) from carrier_pre_registrations
+     where id = '9e9e9e9e-9e9e-4e9e-8e9e-9e9e9e9e0003'
+       and claimed_carrier_id is not null), 0,
+  '§18: resolving a review created NO carrier account — clearing is not onboarding, and neither is activation');
+
+-- A review is a whole event or none of it (0033's check constraint).
+reset role;
+select rls_test.denied(
+  $$update carrier_pre_registrations
+      set reviewed_by = '00000000-0000-0000-0000-0000000000e1', reviewed_at = null
+    where id = '9e9e9e9e-9e9e-4e9e-8e9e-9e9e9e9e0001'$$,
+  '§18: a half-written review (reviewer, no timestamp) is refused by the database');
+
+-- ---------------------------------------------------------------------------
+-- 18e · NON-VACUITY, and the structural facts behind it
+--
+-- Every assertion above would pass just as happily against three empty tables
+-- or three tables nobody can reach for an unrelated reason. These lines make
+-- the section mean what it says.
+-- ---------------------------------------------------------------------------
+reset role;
+select rls_test.eq((select count(*) from carrier_pre_registrations), 3,
+  '§18 NON-VACUITY: the rows the browser roles could not see DO exist');
+select rls_test.eq((select count(*) from carrier_onboarding_payments), 1,
+  '§18 NON-VACUITY: the payment row exists too');
+
+-- RLS is actually on. Without this a future `alter table ... disable row level
+-- security` would turn the whole section green by making the policies moot.
+select rls_test.eq(
+  (select count(*) from pg_tables
+    where schemaname = 'public'
+      and tablename in ('carrier_pre_registrations','carrier_verifications',
+                        'carrier_onboarding_payments')
+      and rowsecurity), 3,
+  '§18: row level security is ENABLED on all three 0032 tables');
+
+-- And the denial is structural: there is no policy for a browser role to
+-- match, which is a stronger statement than "the policies happen to filter".
+select rls_test.eq(
+  (select count(*) from pg_policies
+    where schemaname = 'public'
+      and tablename in ('carrier_pre_registrations','carrier_verifications',
+                        'carrier_onboarding_payments')
+      and ('anon' = any(roles) or 'authenticated' = any(roles))), 0,
+  '§18: NO policy on any 0032 table names anon or authenticated — the denial is the absence of a rule, not the outcome of one');

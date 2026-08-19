@@ -9,6 +9,15 @@ import {
   SERVER_ERROR_MESSAGE,
 } from "@/lib/forms/guard";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { recordAuditEvent } from "@/lib/audit";
+import {
+  claimPreRegistration,
+  loadEligiblePreRegistration,
+} from "@/lib/carrier-authority/pre-registration";
+import {
+  clearPrecheckCookie,
+  readPrecheckCookie,
+} from "@/lib/carrier-authority/precheck-session";
 import {
   onboardingAccountSchema,
   onboardingInfoSchema,
@@ -41,14 +50,38 @@ import type {
  * write is server-side; the wizard's public steps run the same guard
  * pipeline as the M-14 forms).
  *
- * Session model: step 1 creates the `carriers` row and hands its UUID back
- * to the client as the wizard handle (unguessable bearer id). Until step 4
- * links a profile, the row is "unclaimed" (profile_id null, active false).
- * Step 1 also records a CRM lead (source `become_a_carrier`) so an abandoned
- * wizard still surfaces in M-23 with a callable phone number.
+ * Session model: `startOnboarding` creates the `carriers` row and hands its
+ * UUID back to the client as the wizard handle (unguessable bearer id). Until
+ * the account step links a profile, the row is "unclaimed" (profile_id null,
+ * active false). It also records a CRM lead (source `become_a_carrier`) so an
+ * abandoned wizard still surfaces in M-23 with a callable phone number.
+ *
+ * ── M-94: THIS IS NO LONGER STEP 1 ───────────────────────────────────────
+ *
+ * It used to be. Someone typed a company name and a `carriers` row appeared —
+ * before any authority check, before any payment, before anyone had confirmed
+ * the applicant was a real motor carrier at all. Step 1 is now the FMCSA
+ * pre-check (`src/app/actions/carrier-precheck.ts`), and the two actions below
+ * refuse to run without the state it produces:
+ *
+ *   `startOnboarding`    — requires a live, eligible, UNCLAIMED
+ *                          pre-registration, and CLAIMS it in the same call
+ *                          that creates the carrier row.
+ *   `completeOnboarding` — requires the carrier row to be one that was created
+ *                          that way, i.e. to have a pre-registration bound to
+ *                          it.
+ *
+ * Both checks read the database. Neither reads a parameter. §16/§17: hiding a
+ * button in React is not security, and a request that arrives directly at
+ * either action without the state must fail — which is what
+ * `tests/unit/carrier-precheck-gate.test.ts` asserts.
  */
 
-/* ------------------------------ Step 1 ------------------------------ */
+/** One sentence for every gate refusal. §20: the reason is audited, not shown. */
+const GATE_MESSAGE =
+  "Start with carrier verification — we need your USDOT and MC before onboarding can continue.";
+
+/* --------------------- Step 3 — company details --------------------- */
 
 export async function startOnboarding(
   _prev: StartState,
@@ -57,13 +90,57 @@ export async function startOnboarding(
   const guard = await guardPublicForm("onboarding", formData);
   if (!guard.ok) return { status: "error", message: guard.message };
 
+  /* ── THE M-94 GATE ─────────────────────────────────────────────────────
+   *
+   * Before validation, before any write, before anything: is there a live,
+   * eligible, unspent pre-registration behind this request?
+   *
+   * The id comes from an httpOnly cookie, but where it came from is not what
+   * makes this safe — every condition (decision, expiry, claim) is read from
+   * the row itself on this call. A forged cookie names a row that either does
+   * not exist or does not say `eligible_to_continue`, and both are refused
+   * here. There is no `verified=true` this function will accept from anywhere.
+   *
+   * Note the ordering with `tryCreateAdminClient()`: without the service role
+   * the pre-registration cannot be read, so the request is REFUSED rather than
+   * waved through. The old secretless-dev shortcut returned a random UUID and
+   * a success status here, which is exactly the shape of the bypass §16 asks
+   * to close — a caller with no database still got a wizard handle.
+   */
+  const admin = tryCreateAdminClient();
+  const gate = await loadEligiblePreRegistration(
+    await readPrecheckCookie(),
+    admin,
+  );
+  if (!gate.ok || !admin) {
+    await recordAuditEvent({
+      actorId: null,
+      action: "onboarding_gate_denied",
+      targetTable: "carriers",
+      detail: {
+        step: "start_onboarding",
+        reason: gate.ok ? "unavailable" : gate.reason,
+      },
+    });
+    return { status: "error", message: GATE_MESSAGE };
+  }
+  const pre = gate.preRegistration;
+
   const parsed = onboardingInfoSchema.safeParse({
-    company_name: field(formData, "company_name"),
+    // ── IDENTITY COMES FROM THE VERIFIED RECORD, NOT FROM THIS FORM ──────
+    //
+    // The applicant verified USDOT X under legal name Y. Reading the company
+    // name, MC and USDOT back out of this submission would let them verify as
+    // one carrier and register as another — a one-field change in devtools
+    // between two requests, and the whole pre-check would have proved nothing.
+    // So the three identity fields are taken from the pre-registration and the
+    // form's values for them, if any were sent, are never read.
+    company_name: pre.legalNameEntered,
+    mc_number: pre.mcNumberEntered ?? "",
+    dot_number: pre.usdotNumberEntered,
     full_name: field(formData, "full_name"),
     email: field(formData, "email"),
     phone: field(formData, "phone"),
-    mc_number: field(formData, "mc_number"),
-    dot_number: field(formData, "dot_number"),
     home_state: field(formData, "home_state"),
     factoring_company: field(formData, "factoring_company"),
     ein: field(formData, "ein"),
@@ -74,12 +151,6 @@ export async function startOnboarding(
     return { status: "error", message: firstIssueMessage(parsed.error) };
   }
   const info = parsed.data;
-
-  const admin = tryCreateAdminClient();
-  if (!admin) {
-    // Secretless dev/preview: keep the wizard walkable end-to-end.
-    return { status: "success", carrierId: randomUUID() };
-  }
 
   let carrierId: string;
   let leadId: string | undefined;
@@ -101,6 +172,33 @@ export async function startOnboarding(
       .single();
     if (error) throw new Error(error.message);
     carrierId = data.id;
+
+    /* ── SPEND THE PRE-REGISTRATION, ATOMICALLY ────────────────────────────
+     *
+     * `claimPreRegistration` is a conditional UPDATE — Postgres evaluates
+     * "still unclaimed, still eligible, still live" under the row lock, so two
+     * requests racing on one verification cannot both win (§18).
+     *
+     * The carrier row is created first because `claimed_carrier_id` is a
+     * foreign key and there is nothing to point at until it exists. The loser
+     * of the race therefore has a carrier row it is not entitled to keep, and
+     * deletes it: a `carriers` row with no pre-registration bound to it is
+     * precisely the orphan this milestone exists to stop creating, and leaving
+     * one behind on the error path would reintroduce it one race at a time.
+     */
+    const claimed = await claimPreRegistration(admin, pre.id, carrierId);
+    if (!claimed) {
+      await admin.from("carriers").delete().eq("id", carrierId);
+      await recordAuditEvent({
+        actorId: null,
+        action: "onboarding_gate_denied",
+        targetTable: "carrier_pre_registrations",
+        targetId: pre.id,
+        detail: { step: "claim", reason: "already_claimed_or_expired" },
+      });
+      return { status: "error", message: GATE_MESSAGE };
+    }
+    await clearPrecheckCookie();
 
     // CRM visibility for abandoned wizards (M-23 reads carrier_leads).
     const { data: lead, error: leadError } = await admin
@@ -162,7 +260,7 @@ export async function startOnboarding(
     ...(leadId ? { leadId } : {}),
   });
 
-  return { status: "success", carrierId };
+  return { status: "success", carrierId, companyName: info.company_name };
 }
 
 /* ------------------------------ Step 2 ------------------------------ */
@@ -299,7 +397,7 @@ export async function uploadCarrierDocument(
   }
 }
 
-/* ------------------------------ Step 4 ------------------------------ */
+/* ------------------ Final step — portal account ---------------------- */
 
 export async function completeOnboarding(
   _prev: AccountState,
@@ -329,9 +427,35 @@ export async function completeOnboarding(
   }
   const account = parsed.data;
 
+  /* ── M-94 §16: THE ACCOUNT GATE ────────────────────────────────────────
+   *
+   * `startOnboarding` is not the only door to an account. This action takes a
+   * `carrier_id` and creates an auth user for it, so it needs its own answer
+   * to "was this carrier ever verified?" — and it has to be a fact about the
+   * row, not a claim about the request.
+   *
+   * The fact is `carrier_pre_registrations.claimed_carrier_id`. Only
+   * `claimPreRegistration` writes it, only from a live eligible unclaimed
+   * pre-registration, so its presence means this carrier row is one the gate
+   * produced. Without it, no account.
+   *
+   * KNOWN CONSEQUENCE, ACCEPTED: `carriers` rows created by the pre-M-94 flow
+   * have no pre-registration and can no longer self-serve an account. That is
+   * the correct side of the trade — those rows are exactly the unverified
+   * strangers this milestone exists to stop — and they are reachable by staff,
+   * who can run the check and bind a pre-registration. Recorded in
+   * docs/modules/M-94-carrier-pre-registration-wiring.md §Known blockers.
+   */
   const admin = tryCreateAdminClient();
   if (!admin) {
-    return { status: "success", esign: "pending" };
+    await recordAuditEvent({
+      actorId: null,
+      action: "onboarding_gate_denied",
+      targetTable: "carriers",
+      targetId: account.carrier_id,
+      detail: { step: "complete_onboarding", reason: "unavailable" },
+    });
+    return { status: "error", message: GATE_MESSAGE };
   }
 
   try {
@@ -353,6 +477,29 @@ export async function completeOnboarding(
         message:
           "This application already has an account — sign in at /login instead.",
       };
+    }
+
+    const { data: boundPreRegistration, error: bindError } = await admin
+      .from("carrier_pre_registrations")
+      .select("id, decision")
+      .eq("claimed_carrier_id", carrier.id)
+      .maybeSingle();
+    if (bindError) throw new Error(bindError.message);
+    if (
+      !boundPreRegistration ||
+      boundPreRegistration.decision !== "eligible_to_continue"
+    ) {
+      await recordAuditEvent({
+        actorId: null,
+        action: "onboarding_gate_denied",
+        targetTable: "carriers",
+        targetId: carrier.id,
+        detail: {
+          step: "complete_onboarding",
+          reason: boundPreRegistration ? "not_eligible" : "unverified_carrier",
+        },
+      });
+      return { status: "error", message: GATE_MESSAGE };
     }
 
     // Auto-confirmed: the address was collected in-flow and the account is

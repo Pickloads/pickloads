@@ -908,3 +908,63 @@ insert into broker_partner_invites (
    'ownerF@broker-f-unverified.test', 'owner', 'sha256-broker-invite-used',
    '00000000-0000-0000-0000-0000000000f1', now() + interval '7 days',
    now() - interval '1 day', null);
+
+-- ---------------------------------------------------------------------------
+-- M-93 (0032) pre-qualification / M-94 gate
+--
+-- The migration shipped with M-93 and the suite never touched it, so "staff
+-- only, no anon policy, no authenticated policy" was a claim in a comment. It
+-- is now three tables with fixtures.
+--
+-- TWO pre-registrations, and the difference between them is the whole point:
+-- one is UNCLAIMED and eligible (what the gate lets through), the other is
+-- CLAIMED by carrier A (what §18's replay assertions are aimed at).
+-- ---------------------------------------------------------------------------
+insert into carrier_pre_registrations (
+  id, legal_name_entered, usdot_number_entered, mc_number_entered, email,
+  phone, locale, verification_status, risk_tier, decision,
+  manual_review_required, reason_codes, payment_status,
+  claimed_carrier_id, claimed_at, expires_at
+) values
+  -- Live, verified, unspent — the state `startOnboarding` requires.
+  ('9e9e9e9e-9e9e-4e9e-8e9e-9e9e9e9e0001', 'Applicant Freight LLC', '3300001',
+   '660001', 'applicant@prereg.test', null, 'en', 'verified', 'low',
+   'eligible_to_continue', false,
+   array['AUTHORITY_ACTIVE','CARRIER_AUTHORITY_ACTIVE','LEGAL_NAME_MATCH',
+         'MC_DOT_RELATIONSHIP_CONFIRMED','INSURANCE_REVIEW_REQUIRED'],
+   'unpaid', null, null, now() + interval '30 days'),
+  -- Already spent on carrier A. A second account must not come out of it.
+  ('9e9e9e9e-9e9e-4e9e-8e9e-9e9e9e9e0002', 'Carter Trucking LLC', '3300002',
+   '660002', 'claimed@prereg.test', null, 'en', 'verified', 'low',
+   'eligible_to_continue', false, array['AUTHORITY_ACTIVE'], 'unpaid',
+   '11111111-1111-1111-1111-11111111aaaa', now() - interval '1 day',
+   now() + interval '30 days'),
+  -- Routed to a human. Nothing may read it as permission to continue.
+  ('9e9e9e9e-9e9e-4e9e-8e9e-9e9e9e9e0003', 'Ambiguous Hauling', '3300003',
+   null, 'review@prereg.test', null, 'en', 'manual_review', 'manual_review',
+   'manual_review', true,
+   array['PROVIDER_UNAVAILABLE'], 'unpaid', null, null,
+   now() + interval '30 days');
+
+insert into carrier_verifications (
+  id, pre_registration_id, carrier_id, provider, provider_record_id, status,
+  legal_name, dba_name, usdot_number, mc_number, allowed_to_operate,
+  out_of_service, out_of_service_date, name_match, mc_match, dot_match,
+  raw_response_sha256, checked_at, source_retrieved_at, next_verification_at
+) values
+  ('7c7c7c7c-7c7c-4c7c-8c7c-7c7c7c7c0001',
+   '9e9e9e9e-9e9e-4e9e-8e9e-9e9e9e9e0001', null, 'fmcsa_qcmobile', '3300001',
+   'verified', 'APPLICANT FREIGHT LLC', null, '3300001', '660001', true,
+   false, null, 'normalized', 'exact', 'exact',
+   repeat('a', 64), now(), now(), now() + interval '90 days');
+
+insert into carrier_onboarding_payments (
+  id, pre_registration_id, provider, provider_session_id,
+  provider_payment_intent_id, amount_cents, currency, status, test_mode,
+  paid_at
+) values
+  -- M-95 owns the writes. One row exists so §18 can prove that NO browser
+  -- session can read a payment, and that none can mark itself paid.
+  ('6b6b6b6b-6b6b-4b6b-8b6b-6b6b6b6b0001',
+   '9e9e9e9e-9e9e-4e9e-8e9e-9e9e9e9e0001', 'stripe', null, null,
+   999, 'usd', 'unpaid', true, null);
