@@ -99,7 +99,29 @@ nav.sitenav .wrap{display:flex;align-items:center;justify-content:space-between;
  * `.call-fab`, which sits at z-index 60 over this panel below 960px. Without
  * it the last one or two destinations sit permanently under the call button.
  */
-.mobile-menu.open{display:block;max-height:var(--mm-max-h,calc(100dvh - 110px));overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-bottom:calc(94px + env(safe-area-inset-bottom,0px))}
+/* ── AND IT OVERLAYS, RATHER THAN TAKING UP LAYOUT SPACE ──────────────────
+ * `position:absolute` against the sticky `nav.sitenav` (top:100% = directly
+ * under the bar, which is where it already appeared). Same place on screen,
+ * same background, same border, same links — the change is that it no longer
+ * occupies flow.
+ *
+ * WHY THAT MATTERS, measured rather than assumed: as an in-flow block the
+ * drawer added ~530px to the top of the document every time it opened. The
+ * browser's SCROLL ANCHORING then compensated by scrolling down by the same
+ * amount to keep the content under it visually still — so a reader at y=600
+ * was silently at y=1130 the moment the menu appeared, and every "restore the
+ * position" scheme restored the wrong number. tests/e2e/mobile-nav.spec.ts
+ * caught it as a 530px discrepancy; the fix is to stop growing the document
+ * rather than to chase the compensation.
+ *
+ * Out of flow also means the page content below the bar does not lurch down
+ * by half a screen on open — the "no page jump" half of the requirement.
+ *
+ * `position:absolute` and not `fixed`: `nav.sitenav` carries `backdrop-filter`,
+ * which makes it the containing block for fixed descendants anyway, so
+ * `fixed` would silently behave like this while reading as if it did not.
+ */
+.mobile-menu.open{display:block;position:absolute;top:100%;left:0;right:0;max-height:var(--mm-max-h,calc(100dvh - 110px));overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-bottom:calc(94px + env(safe-area-inset-bottom,0px))}
 
 /* hero */
 .hero{position:relative;padding:96px 0 0;overflow:hidden;background:
